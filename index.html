@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>見習法師練習場</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b1030">
+<link rel="icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0b1030;font-family:"Microsoft JhengHei",system-ui,sans-serif;color:#fff;user-select:none}
+canvas{display:block}
+#hint{position:fixed;left:12px;top:10px;font-size:12px;line-height:1.7;background:rgba(10,12,30,.55);padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);pointer-events:none}
+#hint b{color:#ffc46b}
+#info{position:fixed;right:12px;top:10px;font-size:13px;text-align:right;background:rgba(10,12,30,.55);padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);pointer-events:none;line-height:1.7}
+#hotbar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:10px}
+.slot{position:relative;width:76px;height:76px;border-radius:12px;background:rgba(14,16,40,.75);border:2px solid rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
+.slot.active{border-color:#ffb24a;box-shadow:0 0 16px rgba(255,150,40,.6)}
+.slot b{position:absolute;left:6px;top:3px;font-size:12px;color:#ffc46b}
+.slot .ic{font-size:30px;line-height:34px}
+.slot .nm{font-size:12px;margin-top:2px}
+.slot i{position:absolute;left:0;bottom:0;height:5px;background:linear-gradient(90deg,#ff9a2a,#ffe27a);width:0}
+#chargeBox{position:fixed;left:50%;bottom:108px;transform:translateX(-50%);width:300px;text-align:center;font-size:13px;opacity:0;transition:opacity .15s}
+#chargeBox.on{opacity:1}
+#chargeBar{height:10px;border-radius:6px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);overflow:hidden;margin-bottom:3px}
+#chargeFill{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff7a1a,#ffe27a)}
+#chargeBox.max #chargeFill{background:#fff;box-shadow:0 0 12px #ffd27a}
+#chant{position:fixed;left:0;top:0;font-size:17px;font-weight:bold;color:#ffe3b0;text-shadow:0 0 8px #ff8a1a,0 0 2px #000;white-space:nowrap;pointer-events:none;opacity:0;transform:translate(-50%,-100%)}
+#dmgLayer{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.dmg{position:absolute;left:0;top:0;font-weight:bold;font-size:20px;color:#ffd35a;text-shadow:0 0 4px #a02800,0 2px 2px #000}
+#banner{position:fixed;left:50%;top:22%;transform:translateX(-50%);font-size:34px;font-weight:bold;text-shadow:0 0 10px #000,0 2px 2px #000;pointer-events:none;opacity:0}
+#flash{position:fixed;inset:0;background:radial-gradient(transparent 40%,#f00);pointer-events:none;opacity:0;transition:opacity .25s}
+html,body,canvas{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+#touchUI,#portraitMsg{display:none}
+body.touch #touchUI{display:block}
+body.touch #hint{display:none}
+body.touch #hotbar{left:auto;right:18px;bottom:auto;top:12px;transform:none}
+body.touch .slot{width:54px;height:54px}
+body.touch .slot .ic{font-size:22px;line-height:26px}
+body.touch .slot .nm{font-size:10px}
+body.touch #info{right:auto;left:12px;font-size:11px}
+body.touch #chargeBox{bottom:auto;top:70px;width:240px}
+body.touch #gear{bottom:auto;top:76px;right:18px;width:34px;height:34px;line-height:34px;font-size:16px}
+body.touch #panel{bottom:auto;top:116px;max-height:60vh}
+#stickBase{position:fixed;left:calc(28px + env(safe-area-inset-left));bottom:calc(28px + env(safe-area-inset-bottom));width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;touch-action:none}
+#stickKnob{width:60px;height:60px;border-radius:50%;background:rgba(255,200,120,.55);border:2px solid rgba(255,230,180,.8);pointer-events:none}
+#btnAtk{position:fixed;right:calc(30px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom));width:116px;height:116px;border-radius:50%;background:radial-gradient(#ff9a2a,#b3400a);border:3px solid #ffd9a0;font-size:22px;font-weight:bold;display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none;opacity:.9}
+#btnAtk small{font-size:10px;font-weight:normal;text-align:center;margin-top:2px}
+#btnAtk.on{transform:scale(1.12);box-shadow:0 0 28px #ff8a1a}
+.tb{position:fixed;width:62px;height:62px;border-radius:50%;background:rgba(30,40,90,.7);border:2px solid rgba(160,200,255,.6);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;touch-action:none}
+.tb.sm{width:46px;height:46px;font-size:11px}
+#btnRoll{right:calc(170px + env(safe-area-inset-right));bottom:calc(36px + env(safe-area-inset-bottom))}
+#btnJump{right:calc(48px + env(safe-area-inset-right));bottom:calc(158px + env(safe-area-inset-bottom))}
+#btnWeap{right:calc(130px + env(safe-area-inset-right));bottom:calc(130px + env(safe-area-inset-bottom))}
+#btnHit{right:calc(200px + env(safe-area-inset-right));bottom:calc(110px + env(safe-area-inset-bottom))}
+@media (orientation:portrait){body.touch #portraitMsg{display:flex;position:fixed;inset:0;background:#0b1030;z-index:99;align-items:center;justify-content:center;font-size:22px}}
+#gear{position:fixed;right:12px;bottom:14px;width:40px;height:40px;border-radius:50%;background:rgba(14,16,40,.75);border:1px solid rgba(255,255,255,.25);font-size:20px;text-align:center;line-height:40px;cursor:pointer}
+#panel{position:fixed;right:12px;bottom:62px;width:290px;max-height:70vh;overflow:auto;background:rgba(10,12,30,.88);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:10px 12px;font-size:12px;display:none}
+#panel.on{display:block}
+#panel h4{margin:10px 0 4px;color:#ffc46b;font-size:13px}
+#panel .row{display:flex;align-items:center;gap:6px;margin:3px 0}
+#panel .row label{flex:0 0 108px}
+#panel .row input[type=range]{flex:1}
+#panel .row span{flex:0 0 38px;text-align:right;color:#aaa}
+#panel button{margin-top:8px;padding:4px 10px}
+</style>
+</head>
+<body>
+<div id="hint">
+<b>WASD</b> 移動 ・ <b>Shift</b> 跑 ・ <b>Space</b> 跳<br>
+<b>1 / 2 / 3</b> 選法術(光圈出現,可邊走邊選位置)<br>
+<b>按住左鍵</b> 集氣(光圈跟著滑鼠,施法中不能移動)・<b>放開</b> 施放<br>
+<b>滾輪</b> 調整範圍 ・ <b>Q / E</b> 旋轉火牆 ・ <b>Esc / X</b> 取消<br>
+<b>右鍵拖曳</b> 轉視角 ・ <b>Ctrl+滾輪</b> 縮放 ・ <b>Tab</b> 法杖/魔法書<br>
+<b>Space</b> 高跳 ・ <b>Ctrl / F</b> 側翻滾(翻滾中短暫無敵,可取消集氣)<br>
+<b>T</b> 腳下來襲測試(紅圈預告後爆炸)・ <b>Y</b> 自動來襲<br>
+<b>P</b> 參數面板 ・ <b>R</b> 重置標靶 ・ <b>H</b> 隱藏說明
+</div>
+<div id="info"></div>
+<div id="chant"></div>
+<div id="chargeBox"><div id="chargeBar"><i id="chargeFill"></i></div><span id="chargeTxt"></span></div>
+<div id="hotbar"></div>
+<div id="dmgLayer"></div>
+<div id="touchUI">
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <div id="btnAtk">施法<small>按住集氣<br>上下滑調範圍</small></div>
+  <div class="tb" id="btnRoll">翻滾</div>
+  <div class="tb" id="btnJump">跳</div>
+  <div class="tb sm" id="btnWeap">換裝</div>
+  <div class="tb sm" id="btnHit">來襲</div>
+</div>
+<div id="portraitMsg">請把手機轉成橫向</div>
+<div id="banner"></div>
+<div id="flash"></div>
+<div id="gear" title="參數面板 (P)">⚙</div>
+<div id="panel"></div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/CopyShader.js"></script>
+<script src="lib/LuminosityHighPassShader.js"></script>
+<script src="lib/EffectComposer.js"></script>
+<script src="lib/RenderPass.js"></script>
+<script src="lib/ShaderPass.js"></script>
+<script src="lib/UnrealBloomPass.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/mage.js"></script>
+<script src="js/world.js"></script>
+<script src="js/game.js"></script>
+<script src="js/touch.js"></script>
+<script>if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});</script>
+</body>
+</html>
