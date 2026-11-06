@@ -42,6 +42,9 @@ html,body,canvas{touch-action:none;-webkit-touch-callout:none;-webkit-user-selec
 body.touch #touchUI{display:block}
 body.pad #touchUI{display:none}
 body.touch #hint{display:none}
+#hintBtn{display:none;position:fixed;left:12px;top:10px;width:32px;height:32px;border-radius:50%;background:rgba(10,12,30,.7);color:#ffc46b;border:1px solid rgba(255,255,255,.3);font-size:16px;font-weight:bold;padding:0;cursor:pointer;font-family:inherit;z-index:6}
+@media (max-width:899px){#hintBtn{display:block}#hint{top:46px;max-width:calc(100vw - 24px)}}
+body.touch #hintBtn{display:none}
 body.touch #hotbar{left:auto;right:18px;bottom:auto;top:12px;transform:none}
 body.touch .slot{width:54px;height:54px}
 body.touch .slot .ic{font-size:22px;line-height:26px}
@@ -76,6 +79,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 </style>
 </head>
 <body>
+<button id="hintBtn" title="操作說明 (H)">?</button>
 <div id="hint">
 <b>WASD</b> 移動 ・ <b>Shift</b> 跑<br>
 <b>1 / 2 / 3</b> 選法術(光圈出現,可邊走邊選位置)<br>
@@ -119,5 +123,11 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <script src="js/game.js"></script>
 <script src="js/touch.js"></script>
 <script>if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});</script>
+<script>
+(function(){var h=document.getElementById('hint'),b=document.getElementById('hintBtn');
+try{if(innerWidth<900)h.style.display='none';}catch(e){}
+b.addEventListener('click',function(){h.style.display=h.style.display==='none'?'':'none';});
+})();
+</script>
 </body>
 </html>

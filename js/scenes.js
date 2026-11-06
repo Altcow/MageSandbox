@@ -179,27 +179,35 @@
   }
 
   function buildJungle() {
-    const greens = [0x2f5a2a, 0x3c6e2e, 0x28501f, 0x4a7a32];
+    const DARK = [0x1f3f1a, 0x25491f, 0x2b5423], MID = [0x3c6e2e, 0x4a7d34, 0x35612a], LIGHT = [0x5f8f3a, 0x6f9a40, 0x7aa84a];
     const trunks = [], canopies = [], vines = [];
     const nTree = MOBILE ? 90 : 150;
     for (let i = 0; i < nTree; i++) {
-      const a = rnd(0, TAU), r = i < nTree * .55 ? rnd(57, 68) : rnd(68, 115), x = Math.cos(a) * r, z = Math.sin(a) * r, kind = Math.random();
+      const far = i >= nTree * .55, a = rnd(0, TAU), r = far ? rnd(68, 115) : rnd(57, 68), x = Math.cos(a) * r, z = Math.sin(a) * r, kind = Math.random(), S = far ? 1.3 : 1;
       if (kind < .55) {
-        const h = rnd(11, 20), tr = rnd(.5, .9);
+        // 闊葉樹:粗樹幹 + 四層樹冠(下層深、上層淺,底部偏暗)
+        const h = rnd(11, 20) * S, tr = rnd(.75, 1.05) * S;
         trunks.push([x, h / 2, z, 0, tr, h, tr, 0, 0, 0x5a4330]);
-        for (let k = 0; k < 3; k++) canopies.push([x + rnd(-2.5, 2.5), h + rnd(-2, 1.5), z + rnd(-2.5, 2.5), 0, rnd(4, 6.5), rnd(2.5, 3.5), rnd(4, 6.5), 0, 0, pick(greens)]);
+        const layers = [pick(DARK), pick(DARK), pick(MID), pick(LIGHT)];
+        for (let k = 0; k < 4; k++) {
+          const cr = rnd(4.5, 6) * S * (1 - k * .15);
+          canopies.push([x + rnd(-1.6, 1.6), h - 3.5 + k * 1.6 + rnd(-.4, .4), z + rnd(-1.6, 1.6), 0, cr, cr * .72, cr, 0, 0, layers[k]]);
+        }
         if (Math.random() < .5) { const L = rnd(5, 8); vines.push([x + rnd(-2, 2), h - 3 - L / 2, z + rnd(-2, 2), 0, 1, L, 1, 0, 0, 0x2c4a22]); }
       } else if (kind < .85) {
-        const h = rnd(6, 9);
-        trunks.push([x, h / 2, z, 0, rnd(.35, .5), h, rnd(.35, .5), 0, 0, 0x6a5238]);
-        canopies.push([x, h + .5, z, 0, rnd(6, 8), 1.2, rnd(6, 8), 0, 0, 0x5d7a32]);
+        // 傘形金合歡:看得見的細長樹幹 + 加厚的扁平傘冠
+        const h = rnd(6, 9) * S, tr = rnd(.5, .62) * S;
+        trunks.push([x, h / 2, z, 0, tr, h, tr, 0, 0, 0x6a5238]);
+        canopies.push([x, h + .2, z, 0, rnd(6, 7.5) * S, 1.6 * S, rnd(6, 7.5) * S, 0, 0, pick(MID)]);
+        canopies.push([x + rnd(-1, 1), h + 1.4, z + rnd(-1, 1), 0, rnd(4, 5) * S, 1.2 * S, rnd(4, 5) * S, 0, 0, pick(LIGHT)]);
       } else {
-        const h = rnd(8, 11), tr = rnd(1.8, 2.4);
+        // 猴麵包樹:粗壯樹幹 + 幾團厚實樹冠
+        const h = rnd(8, 11) * S, tr = rnd(2.3, 2.8) * S;
         trunks.push([x, h / 2, z, 0, tr, h, tr, 0, 0, 0x7a6a55]);
-        for (let k = 0; k < 3; k++) canopies.push([x + rnd(-2.5, 2.5), h + rnd(0, 1.5), z + rnd(-2.5, 2.5), 0, rnd(2, 3), 1.2, rnd(2, 3), 0, 0, pick(greens)]);
+        for (let k = 0; k < 4; k++) canopies.push([x + rnd(-2.2, 2.2), h + rnd(-.5, 1), z + rnd(-2.2, 2.2), 0, rnd(2.4, 3.2) * S, rnd(1.6, 2.2) * S, rnd(2.4, 3.2) * S, 0, 0, pick(k < 2 ? DARK : MID)]);
       }
     }
-    inst(new THREE.CylinderGeometry(.7, 1, 1, 7), mat(0xffffff), trunks);
+    inst(new THREE.CylinderGeometry(.7, 1, 1, 8), mat(0xffffff), trunks);
     inst(new THREE.IcosahedronGeometry(1, 1), mat(0xffffff, { roughness: 1 }), canopies);
     if (vines.length) inst(new THREE.CylinderGeometry(.06, .06, 1, 4), mat(0xffffff), vines, false);
     // 草叢
@@ -210,6 +218,17 @@
       for (let k = 0; k < 3; k++) { const sy = rnd(.6, 1.3); grass.push([x + rnd(-.3, .3), sy / 2, z + rnd(-.3, .3), rnd(0, 3), 1, sy, 1, rnd(-.25, .25), rnd(-.25, .25), pick([0x5f8f3a, 0x7a9a40, 0x4a7a2a])]); }
     }
     inst(new THREE.ConeGeometry(.18, 1, 4), mat(0xffffff, { roughness: 1 }), grass, false);
+    // 低矮灌木與落葉色塊(增加地面層次)
+    const shrubs = [], litter = [], nS = MOBILE ? 50 : 130;
+    for (let i = 0, t = 0; i < nS && t < nS * 3; t++) {
+      const a = rnd(0, TAU), r = rnd(9, 56), x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (!clearOf(x, z, 2) || nearPlatform(x, z, 1.5)) continue; i++;
+      const s = rnd(1, 2);
+      shrubs.push([x, s * .35, z, rnd(0, 3), s, s * rnd(.6, .8), s * rnd(.9, 1.1), 0, 0, pick(DARK.concat(MID))]);
+      if (Math.random() < .6) litter.push([x + rnd(-1.5, 1.5), .03, z + rnd(-1.5, 1.5), rnd(0, 3), rnd(1, 2.2), rnd(1, 2.2), 1, -Math.PI / 2, 0, pick([0x8a6a2e, 0x6b4e22, 0x9a7a3a])]);
+    }
+    inst(new THREE.IcosahedronGeometry(1, 0), mat(0xffffff, { roughness: 1 }), shrubs);
+    inst(new THREE.CircleGeometry(1, 7), mat(0xffffff, { roughness: 1 }), litter, false);
     // 岩石
     for (let i = 0, t = 0; i < 12 && t < 100; t++) {
       const a = rnd(0, TAU), r = rnd(24, 50), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3)) continue; i++;
@@ -232,10 +251,10 @@
   }
 
   const SCENES = [
-    { name: '月夜訓練場', build: buildNight, ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x5a5f78, platTrim: 0x8a90b0 },
-    { name: '羅馬競技場', build: buildColosseum, ground: sandTex, gtint: 0xffffff, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.9, .7, .4], clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .8], dir: [0xfff1d6, 1.25], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0xd2c29a, platTrim: 0xe8dcb8 },
-    { name: '宮廷訓練場', build: buildHall, ground: floorTex, gtint: 0xffffff, fog: [0x1a140e, 70, 220], indoor: true, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, 1.05], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x5a3a22, platTrim: 0xc9a24a },
-    { name: '非洲叢林', build: buildJungle, ground: jungleTex, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [1, .6, .25], clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.15], sun: [-32, 24, 22], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -12, 3, 3, 3.5, 0], ['box', -29.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x6f6a5c, platTrim: 0x4a7a32 }
+    { name: '月夜訓練場', build: buildNight, ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea },
+    { name: '羅馬競技場', build: buildColosseum, ground: sandTex, gtint: 0xffffff, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.9, .7, .4], clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .8], dir: [0xfff1d6, 1.25], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0x6e6049, platTrim: 0xf6ecd0 },
+    { name: '宮廷訓練場', build: buildHall, ground: floorTex, gtint: 0xffffff, fog: [0x1a140e, 70, 220], indoor: true, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, 1.05], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x6a4424, platTrim: 0xe0b85a },
+    { name: '非洲叢林', build: buildJungle, ground: jungleTex, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [1, .6, .25], clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.15], sun: [-32, 24, 22], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -12, 3, 3, 3.5, 0], ['box', -29.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x7d7868, platTrim: 0xb3ad94 }
   ];
 
   // 可站立高台:box [kind,x,z,hx,hz,top,yaw] / cyl [kind,x,z,r,top]
@@ -245,12 +264,12 @@
       if (e[0] === 'box') {
         const x = e[1], z = e[2], hx = e[3], hz = e[4], top = e[5], yaw = e[6];
         mesh(new THREE.BoxGeometry(hx * 2, top, hz * 2), pm, x, top / 2, z).rotation.y = yaw;
-        mesh(new THREE.BoxGeometry(hx * 2 + .2, .12, hz * 2 + .2), tm, x, top, z, false).rotation.y = yaw;
+        mesh(new THREE.BoxGeometry(hx * 2 + .3, .16, hz * 2 + .3), tm, x, top, z, false).rotation.y = yaw;
         addPlatform({ kind: 'box', x, z, hx, hz, top, yaw, deco: true });
       } else {
         const x = e[1], z = e[2], r = e[3], top = e[4];
         mesh(new THREE.CylinderGeometry(r, r * 1.05, top, 20), pm, x, top / 2, z);
-        mesh(new THREE.CylinderGeometry(r + .1, r + .1, .12, 20), tm, x, top, z, false);
+        mesh(new THREE.CylinderGeometry(r + .15, r + .15, .16, 20), tm, x, top, z, false);
         addPlatform({ kind: 'cyl', x, z, r, top, deco: true });
       }
     });
