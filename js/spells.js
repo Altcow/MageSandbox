@@ -39,14 +39,14 @@ const SPELLS = {
     { name: '地裂石柱', icon: '⛰️', img: null, chant: '撼地之力,裂土而出,石柱貫天——', shout: '地裂石柱!', preview: q => '擊飛 ' + _m(1.8, q) + ' m' }
   ],
   light: [
-    { name: '聖光彈', icon: '✨', img: null, chant: '晨曦之光,凝為一點,穿透黑暗——', shout: '聖光彈!', preview: q => '連鎖 ' + Math.max(1, Math.round(2 * _f(q))) + ' 跳' },
-    { name: '聖域結界', icon: '🔆', img: null, chant: '神聖之光,劃地為界,照見一切——', shout: '聖域結界!', preview: q => '易傷 +' + Math.round(25 * _f(q)) + '%' },
-    { name: '聖光柱', icon: '🌟', img: null, chant: '天穹之光,垂落人間,審判降臨——', shout: '聖光柱!', preview: q => '光柱 ' + CHG.count(10, q) + ' 道' }
+    { name: '聖光彈', icon: '✨', img: 'assets/icons/sp_light_bolt.png', chant: '晨曦之光,凝為一點,穿透黑暗——', shout: '聖光彈!', preview: q => '連鎖 ' + Math.max(1, Math.round(2 * _f(q))) + ' 跳' },
+    { name: '聖域結界', icon: '🔆', img: 'assets/icons/sp_light_wall.png', chant: '神聖之光,劃地為界,照見一切——', shout: '聖域結界!', preview: q => '易傷 +' + Math.round(25 * _f(q)) + '%' },
+    { name: '聖光柱', icon: '🌟', img: 'assets/icons/sp_light_sky.png', chant: '天穹之光,垂落人間,審判降臨——', shout: '聖光柱!', preview: q => '光柱 ' + CHG.count(10, q) + ' 道' }
   ],
   dark: [
-    { name: '暗影彈', icon: '🟣', img: null, chant: '幽冥之影,聚於指尖,吞噬光明——', shout: '暗影彈!', preview: q => '吸引 ' + _m(1.5, q) + ' m' },
-    { name: '暗影幕', icon: '🌫️', img: null, chant: '無光之幕,自深淵升起,束縛來者——', shout: '暗影幕!', preview: q => '吸向中線 ' + _m(3, q) + ' m/s' },
-    { name: '黑洞', icon: '🕳️', img: null, chant: '虛無之核,吞星噬月,萬物歸一——', shout: '黑洞!', preview: q => '吸引 ' + _m(6, q) + ' m/s' }
+    { name: '暗影彈', icon: '🟣', img: 'assets/icons/sp_dark_bolt.png', chant: '幽冥之影,聚於指尖,吞噬光明——', shout: '暗影彈!', preview: q => '吸引 ' + _m(1.5, q) + ' m' },
+    { name: '暗影幕', icon: '🌫️', img: 'assets/icons/sp_dark_wall.png', chant: '無光之幕,自深淵升起,束縛來者——', shout: '暗影幕!', preview: q => '吸向中線 ' + _m(3, q) + ' m/s' },
+    { name: '黑洞', icon: '🕳️', img: 'assets/icons/sp_dark_sky.png', chant: '虛無之核,吞星噬月,萬物歸一——', shout: '黑洞!', preview: q => '吸引 ' + _m(6, q) + ' m/s' }
   ]
 };
 
