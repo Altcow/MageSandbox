@@ -12,12 +12,12 @@ const easeOut = t => 1 - (1 - t) * (1 - t);
 // hex 光圈 / 光環 / 光源 / 能量球光暈;c0,c1 加亮粒子;s0,s1 煙池粒子;core 能量球核心;orb 核心形狀;css0,css1 UI 色;img 圖示圖檔(沒有就 null 退回 ch)
 const EL_ORDER = ['water', 'fire', 'wind', 'earth', 'light', 'dark'];
 const EL = {
-  water: { name: '水', ch: '💧', img: null, hex: 0x3aa8ff, c0: [.75, .92, 1], c1: [.1, .35, .9], s0: [.6, .78, .95], s1: [.3, .45, .7], core: 0xbfe8ff, orb: 'sphere', css0: '#7fd0ff', css1: '#1a6cff' },
-  fire: { name: '火', ch: '🔥', img: null, hex: 0xff7a1a, c0: [1, .92, .55], c1: [.95, .22, .03], s0: [.25, .2, .18], s1: [.08, .08, .09], core: 0xffd890, orb: 'sphere', css0: '#ff7a1a', css1: '#ffe27a' },
-  wind: { name: '風', ch: '🌪️', img: null, hex: 0x8affc8, c0: [.9, 1, .95], c1: [.35, .85, .6], s0: [.85, .95, .9], s1: [.5, .6, .55], core: 0xe8fff4, coreOpa: .45, orb: 'sphere', css0: '#b8ffe0', css1: '#3ad69a' },
-  earth: { name: '土', ch: '🪨', img: null, hex: 0xc89a52, c0: [1, .8, .45], c1: [.6, .3, .08], s0: [.55, .45, .32], s1: [.3, .25, .18], core: 0x7a5a3a, orb: 'rock', css0: '#e0b070', css1: '#7a5230' },
-  light: { name: '光', ch: '✨', img: null, hex: 0xfff2a0, c0: [1, 1, .92], c1: [1, .78, .3], s0: null, s1: null, core: 0xffffff, orb: 'sphere', css0: '#fff6c0', css1: '#ffc84a' },
-  dark: { name: '暗', ch: '🌑', img: null, hex: 0x9a4dff, c0: [.78, .5, 1], c1: [.3, .05, .55], s0: [.16, .06, .26], s1: [.04, .02, .07], core: 0x14061f, orb: 'void', css0: '#c08aff', css1: '#5a1a9a' }
+  water: { name: '水', ch: '💧', img: 'assets/icons/el_water.png', hex: 0x3aa8ff, c0: [.75, .92, 1], c1: [.1, .35, .9], s0: [.6, .78, .95], s1: [.3, .45, .7], core: 0xbfe8ff, orb: 'sphere', css0: '#7fd0ff', css1: '#1a6cff' },
+  fire: { name: '火', ch: '🔥', img: 'assets/icons/el_fire.png', hex: 0xff7a1a, c0: [1, .92, .55], c1: [.95, .22, .03], s0: [.25, .2, .18], s1: [.08, .08, .09], core: 0xffd890, orb: 'sphere', css0: '#ff7a1a', css1: '#ffe27a' },
+  wind: { name: '風', ch: '🌪️', img: 'assets/icons/el_wind.png', hex: 0x8affc8, c0: [.9, 1, .95], c1: [.35, .85, .6], s0: [.85, .95, .9], s1: [.5, .6, .55], core: 0xe8fff4, coreOpa: .45, orb: 'sphere', css0: '#b8ffe0', css1: '#3ad69a' },
+  earth: { name: '土', ch: '🪨', img: 'assets/icons/el_earth.png', hex: 0xc89a52, c0: [1, .8, .45], c1: [.6, .3, .08], s0: [.55, .45, .32], s1: [.3, .25, .18], core: 0x7a5a3a, orb: 'rock', css0: '#e0b070', css1: '#7a5230' },
+  light: { name: '光', ch: '✨', img: 'assets/icons/el_light.png', hex: 0xfff2a0, c0: [1, 1, .92], c1: [1, .78, .3], s0: null, s1: null, core: 0xffffff, orb: 'sphere', css0: '#fff6c0', css1: '#ffc84a' },
+  dark: { name: '暗', ch: '🌑', img: 'assets/icons/el_dark.png', hex: 0x9a4dff, c0: [.78, .5, 1], c1: [.3, .05, .55], s0: [.16, .06, .26], s1: [.04, .02, .07], core: 0x14061f, orb: 'void', css0: '#c08aff', css1: '#5a1a9a' }
 };
 
 function canvasTex(size, draw) {

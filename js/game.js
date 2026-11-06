@@ -755,7 +755,7 @@ const btnJumpEl = document.getElementById('btnJump'), btnRollEl = document.getEl
 const elBar = document.getElementById('elBar');
 EL_ORDER.forEach((k, i) => {
   const d = document.createElement('div'); d.className = 'elc';
-  d.innerHTML = '<b>' + (i + 4) + '</b><span>' + (EL[k].img ? '<img src="' + EL[k].img + '" alt="" style="width:26px;height:26px">' : EL[k].ch) + '</span>';
+  d.innerHTML = '<b>' + (i + 4) + '</b><span>' + (EL[k].img ? '<img src="' + EL[k].img + '" alt="' + EL[k].ch + '" style="width:26px;height:26px" onerror="this.replaceWith(document.createTextNode(this.alt))">' : EL[k].ch) + '</span>';
   d.onclick = () => setElement(k); elBar.appendChild(d);
 });
 const elBtns = [...elBar.children];

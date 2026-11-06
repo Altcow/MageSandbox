@@ -5,6 +5,7 @@ const PRECACHE = [
   './js/fx.js', './js/mage.js', './js/world.js', './js/scenes.js', './js/game.js', './js/spells.js', './js/skills.js', './js/classes.js', './js/touch.js',
   './lib/three.min.js', './lib/CopyShader.js', './lib/LuminosityHighPassShader.js', './lib/EffectComposer.js',
   './lib/RenderPass.js', './lib/ShaderPass.js', './lib/UnrealBloomPass.js',
+  './assets/icons/el_water.png', './assets/icons/el_fire.png', './assets/icons/el_wind.png', './assets/icons/el_earth.png', './assets/icons/el_light.png', './assets/icons/el_dark.png', './assets/icons/archer_wave.png', './assets/icons/archer_rain.png', './assets/icons/shield_charge.png', './assets/icons/stealth.png', './assets/icons/backstab.png', './assets/icons/double_jump.png',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())); });
