@@ -252,8 +252,8 @@
 
   const SCENES = [
     { name: '月夜訓練場', build: buildNight, ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea },
-    { name: '羅馬競技場', build: buildColosseum, ground: sandTex, gtint: 0xffffff, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.9, .7, .4], clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .8], dir: [0xfff1d6, 1.25], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0x6e6049, platTrim: 0xf6ecd0 },
-    { name: '宮廷訓練場', build: buildHall, ground: floorTex, gtint: 0xffffff, fog: [0x1a140e, 70, 220], indoor: true, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, 1.05], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x6a4424, platTrim: 0xe0b85a },
+    { name: '羅馬競技場', build: buildColosseum, ground: sandTex, gtint: 0x8f8670, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.9, .7, .4], clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .55], dir: [0xfff1d6, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0x6e6049, platTrim: 0xf6ecd0 },
+    { name: '宮廷訓練場', build: buildHall, ground: floorTex, gtint: 0x8a8478, fog: [0x1a140e, 70, 220], indoor: true, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, .7], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x6a4424, platTrim: 0xe0b85a },
     { name: '非洲叢林', build: buildJungle, ground: jungleTex, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [1, .6, .25], clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.15], sun: [-32, 24, 22], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -12, 3, 3, 3.5, 0], ['box', -29.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x7d7868, platTrim: 0xb3ad94 }
   ];
 
@@ -288,8 +288,18 @@
     BRAZIERS.length = 0;
   }
   let groundTex = null;
-  function setScene(i) {
+  const loadEl = document.createElement('div'); loadEl.id = 'sceneLoading'; loadEl.textContent = '載入場景…';
+  loadEl.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,10,24,.78);color:#ffe3b0;font-size:22px;z-index:20;pointer-events:none';
+  document.body.appendChild(loadEl);
+  let loading = false;
+  function setScene(i, now) {
     i = ((i % SCENES.length) + SCENES.length) % SCENES.length;
+    if (loading) return;
+    if (now || cur < 0) return buildScene(i);
+    loading = true; clearDeco(); loadEl.style.display = 'flex';
+    setTimeout(() => { try { buildScene(i); } finally { loading = false; loadEl.style.display = 'none'; } }, 60);
+  }
+  function buildScene(i) {
     const S = SCENES[i];
     clearDeco();
     if (groundTex && groundTex !== nightGround) groundTex.dispose();
@@ -302,7 +312,7 @@
     hemi.color.setHex(S.hemi[0]); hemi.groundColor.setHex(S.hemi[1]); hemi.intensity = S.hemi[2];
     moonLight.color.setHex(S.dir[0]); moonLight.intensity = S.dir[1];
     window.SUNOFF.x = S.sun[0]; window.SUNOFF.y = S.sun[1]; window.SUNOFF.z = S.sun[2];
-    groundTex = S.ground(); ground.material.map = groundTex; ground.material.needsUpdate = true;
+    groundTex = S.ground(); ground.material.map = groundTex; ground.material.color.setHex(S.gtint == null ? 0xffffff : S.gtint); ground.material.needsUpdate = true;
     deco = new THREE.Group(); scene.add(deco);
     buildPlats(S);
     S.build();
@@ -321,6 +331,27 @@
   SCENES.forEach((s, k) => { const b = document.createElement('button'); b.textContent = s.name; b.onclick = () => setScene(k); bar.appendChild(b); });
   document.body.appendChild(bar);
   addEventListener('keydown', e => { if (e.code === 'KeyN' && !e.ctrlKey && !e.repeat && e.target.tagName !== 'INPUT') setScene(cur + 1); });
+
+  // ---- 畫質:0 低 / 1 中 / 2 高(存 localStorage mageSandbox.q)----
+  const QN = ['低', '中', '高'];
+  const _raf = window.requestAnimationFrame.bind(window); let _lastT = 0, _minDt = 0;
+  window.requestAnimationFrame = cb => _raf(function f(t) { if (_minDt && t - _lastT < _minDt - 1) return _raf(f); _lastT = t; cb(t); });
+  let quality = 1;
+  try { const v = localStorage.getItem('mageSandbox.q'); if (v != null && +v >= 0 && +v <= 2) quality = +v; } catch (e) { }
+  const qBtn = document.createElement('button'); qBtn.id = 'qBtn'; bar.appendChild(qBtn);
+  function applyQuality() {
+    qBtn.textContent = '畫質:' + QN[quality];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, [1, 1.25, IS_TOUCH ? 1.5 : 2][quality]));
+    moonLight.castShadow = quality > 0;
+    const ms = [512, 1024, IS_TOUCH ? 1024 : 2048][quality];
+    if (moonLight.shadow.mapSize.x !== ms) { moonLight.shadow.mapSize.set(ms, ms); if (moonLight.shadow.map) { moonLight.shadow.map.dispose(); moonLight.shadow.map = null; } }
+    if (window.CFG) CFG.bloom = quality > 0 && !(IS_TOUCH && quality < 2);
+    _minDt = quality === 0 ? 33 : 0;
+    if (window.onResize) onResize();
+    try { localStorage.setItem('mageSandbox.q', quality); } catch (e) { }
+  }
+  qBtn.onclick = () => { quality = (quality + 1) % 3; applyQuality(); };
+  addEventListener('load', applyQuality);
 
   let start = 0;
   try { const q = /[?&]scene=(\d)/.exec(location.search); start = q ? +q[1] : (+localStorage.getItem('mageSandbox.scene') || 0); } catch (e) { }
