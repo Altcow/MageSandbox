@@ -7,6 +7,7 @@ class Mage {
     this.root = new THREE.Group(); this.body = new THREE.Group(); this.root.add(this.body); scene.add(this.root);
     this.yaw = 0; this.walkPh = 0; this.weapon = 'staff'; this.glow = 0; this.swap = 1; this.flip = 0;
     const robe = M(0x3a3f9c), robe2 = M(0x2a2e78), gold = M(0xe0b04a, { metalness: .6, roughness: .35 });
+    this.robeM = robe; this.robe2M = robe2;   // 職業袍色用
     const skin = M(0xf1c9a5), hair = M(0xe9ecff), boot = M(0x5a3a22), dark = new THREE.MeshBasicMaterial({ color: 0x151525 });
     const add = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; (parent || this.body).add(m); return m; };
     add(new THREE.CylinderGeometry(.27, .52, .95, 24), robe, 0, .7, 0);
@@ -60,10 +61,39 @@ class Mage {
     this.flipGrp = new THREE.Group(); this.flipGrp.add(this.flipPage); this.book.add(this.flipGrp);
     this.bookGlow = glowSprite(0xff8a2a, .9, 0); this.bookGlow.position.set(0, .1, .2); this.book.add(this.bookGlow);
     this.orbAnchor = new THREE.Object3D(); this.orbAnchor.position.set(0, .42, .32); this.book.add(this.orbAnchor);
+    // 職業武器掛件(程式模型;動作為佔位,D2~D4 細化)
+    const steel = M(0xc8d0dc, { metalness: .7, roughness: .3 }), shieldM = M(0x8a2a2a), str = M(0xe8e0c8);
+    this.bow = new THREE.Group(); this.body.add(this.bow);
+    add(new THREE.TorusGeometry(.55, .025, 6, 24, Math.PI * 1.1), wood, 0, 0, 0, this.bow).rotation.set(0, Math.PI / 2, Math.PI * .45);
+    add(new THREE.BoxGeometry(.008, 1.08, .008), str, 0, 0, -.086, this.bow);
+    add(new THREE.CylinderGeometry(.012, .012, .75, 6), wood, 0, 0, .29, this.bow).rotation.x = Math.PI / 2;
+    add(new THREE.ConeGeometry(.035, .12, 6), steel, 0, 0, .72, this.bow).rotation.x = Math.PI / 2;
+    this.bowTip = new THREE.Object3D(); this.bowTip.position.set(0, 0, .8); this.bow.add(this.bowTip);
+    this.sword = new THREE.Group(); this.body.add(this.sword);
+    add(new THREE.BoxGeometry(.06, .85, .018), steel, 0, .42, 0, this.sword);
+    add(new THREE.BoxGeometry(.26, .04, .05), gold, 0, .02, 0, this.sword);
+    add(new THREE.CylinderGeometry(.025, .025, .18, 8), wood, 0, -.09, 0, this.sword);
+    this.swordTip = new THREE.Object3D(); this.swordTip.position.y = .86; this.sword.add(this.swordTip);
+    this.shield = new THREE.Group(); this.body.add(this.shield);
+    add(new THREE.CylinderGeometry(.42, .42, .06, 24), shieldM, 0, 0, 0, this.shield).rotation.x = Math.PI / 2;
+    add(new THREE.TorusGeometry(.42, .03, 6, 24), gold, 0, 0, .03, this.shield);
+    add(new THREE.SphereGeometry(.1, 10, 8), gold, 0, 0, .05, this.shield);
+    this.daggers = [0, 1].map(() => {
+      const g = new THREE.Group(); this.body.add(g);
+      add(new THREE.BoxGeometry(.03, .32, .012), steel, 0, .16, 0, g);
+      add(new THREE.BoxGeometry(.035, .08, .035), wood, 0, -.04, 0, g);
+      return g;
+    });
+    this.dagTip = new THREE.Object3D(); this.dagTip.position.y = .32; this.daggers[1].add(this.dagTip);
     this.setWeapon('staff', true);
   }
-  setWeapon(w, instant) { this.weapon = w; if (!instant) this.swap = 0; this.staff.visible = w === 'staff'; this.book.visible = w === 'book'; }
-  tipWorld(out) { (this.weapon === 'staff' ? this.tipAnchor : this.orbAnchor).getWorldPosition(out); return out; }
+  setWeapon(w, instant) {
+    this.weapon = w; if (!instant) this.swap = 0; this.staff.visible = w === 'staff'; this.book.visible = w === 'book';
+    this.bow.visible = w === 'bow'; this.sword.visible = w === 'swordShield'; this.shield.visible = w === 'swordShield';
+    this.daggers.forEach(g => { g.visible = w === 'daggers'; });
+  }
+  setRobeColor(hex) { this.robeM.color.setHex(hex); this.robe2M.color.setHex(hex).multiplyScalar(.75); }
+  tipWorld(out) { const A = { staff: this.tipAnchor, book: this.orbAnchor, bow: this.bowTip, swordShield: this.swordTip, daggers: this.dagTip }[this.weapon] || this.orbAnchor; A.getWorldPosition(out); return out; }
   setElementColor(hex) { this.gemMat.color.setHex(hex); this.gemMat.emissive.setHex(hex); this.staffGlow.material.color.setHex(hex); this.bookGlow.material.color.setHex(hex); }
 
   // anim: {move, cast(0..1), kick(0..1), charge(0..1), t}
@@ -83,9 +113,15 @@ class Mage {
     if (this.weapon === 'staff') {
       pose(R, lerp(-.12, -1.3, c) - .25 * k, lerp(-.08, .1, c), lerp(-.35, -.18, c));
       pose(L, lerp(-sw * .8, -1.0, c), lerp(-.06, -.4, c), lerp(-.1, -.8, c));
-    } else {
+    } else if (this.weapon === 'book') {
       pose(L, lerp(-.35, -1.2, c) - .2 * k, lerp(-.06, -.45, c), lerp(-1.0, -.5, c));
       pose(R, lerp(sw * .8, -1.2, c) - .2 * k, lerp(.06, .45, c), lerp(-.1, -.5, c));
+    } else if (this.weapon === 'bow') {
+      pose(L, -1.45, -.12, -.1); pose(R, -1.45, lerp(.1, .42, c), lerp(-.4, -1.5, c));
+    } else if (this.weapon === 'swordShield') {
+      pose(R, lerp(-.12, -2.1, c) - .2 * k, lerp(-.08, -.25, c), lerp(-.35, -.2, c)); pose(L, -.5, -.25, -.6);
+    } else {
+      pose(L, -1.1, lerp(-.1, -.5, c), -1.2); pose(R, -1.1, lerp(.1, .5, c), -1.2);
     }
     const rp = s.roll >= 0 ? s.roll : (s.flip >= 0 ? s.flip : -1);
     const phi = s.roll >= 0 ? s.rollPhi : 0;          // phi=0 → 繞本地 x 軸 = 前空翻
@@ -105,7 +141,7 @@ class Mage {
     if (this.weapon === 'staff') {
       hp(R.hand, v); this.staff.position.copy(v);
       this.staff.rotation.set(lerp(.08, 1.05, c) + .3 * k, 0, 0); this.staff.scale.setScalar(pop);
-    } else {
+    } else if (this.weapon === 'book') {
       hp(L.hand, v); hp(R.hand, v2);
       const rest = v.clone().add(new V3(-.05, .12, .1)), mid = v.clone().add(v2).multiplyScalar(.5).add(new V3(0, .12, .12));
       this.book.position.lerpVectors(rest, mid, c);
@@ -114,6 +150,11 @@ class Mage {
       if (c > .6) { this.flip = (this.flip + dt * (.8 + s.charge * 2.2)) % 1; } else this.flip = 0;
       const f = this.flip < .5 ? this.flip * 2 : 0;
       this.flipGrp.rotation.y = lerp(-th + .05, th - .05, f); this.flipGrp.visible = c > .6;
+    } else {
+      hp(L.hand, v); hp(R.hand, v2);
+      if (this.weapon === 'bow') { this.bow.position.copy(v); this.bow.rotation.set(0, 0, 0); }
+      else if (this.weapon === 'swordShield') { this.sword.position.copy(v2); this.sword.rotation.set(lerp(-.2, -.9, c), 0, 0); this.shield.position.copy(v).add(new V3(0, .02, .14)); this.shield.rotation.set(0, 0, 0); }
+      else { this.daggers[0].position.copy(v); this.daggers[1].position.copy(v2); this.daggers[0].rotation.set(lerp(0, -.6, c), 0, lerp(0, .5, c)); this.daggers[1].rotation.set(lerp(0, -.6, c), 0, lerp(0, -.5, c)); }
     }
     const g = this.glow;
     this.gemMat.emissiveIntensity = .6 + g * 3; this.staffGlow.material.opacity = g * .9; this.staffGlow.scale.setScalar(.5 + g * 1.4);
