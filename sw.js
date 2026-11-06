@@ -1,8 +1,8 @@
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'magesandbox-' + VERSION;
 const PRECACHE = [
   './', './index.html', './manifest.webmanifest',
-  './js/fx.js', './js/mage.js', './js/world.js', './js/scenes.js', './js/game.js', './js/touch.js',
+  './js/fx.js', './js/mage.js', './js/world.js', './js/scenes.js', './js/game.js', './js/classes.js', './js/touch.js',
   './lib/three.min.js', './lib/CopyShader.js', './lib/LuminosityHighPassShader.js', './lib/EffectComposer.js',
   './lib/RenderPass.js', './lib/ShaderPass.js', './lib/UnrealBloomPass.js',
   './icons/icon-192.png', './icons/icon-512.png'

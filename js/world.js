@@ -98,9 +98,11 @@ const DMG_MAX = 220;
 class Dummy {
   constructor(x, z) {
     this.home = new V3(x, 0, z); this.g = new THREE.Group(); this.g.position.copy(this.home); scene.add(this.g);
+    this.g.rotation.y = Math.PI; this.pivot = new THREE.Group(); this.g.add(this.pivot);   // pivot:跌倒用,整個模型掛在腳底原點
+    this.yaw = Math.PI; this.downK = 0; this.downT = 0; this.downAxis = new V3(1, 0, 0); this.visStun = 0; this.starA = 0; this.stars = null;
     const wood = new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 1 });
     this.bodyMat = new THREE.MeshStandardMaterial({ color: 0xc9b17a, roughness: 1, emissive: 0xff3300, emissiveIntensity: 0 });
-    const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; this.g.add(m); return m; };
+    const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; this.pivot.add(m); return m; };
     add(new THREE.CylinderGeometry(.55, .65, .18, 16), wood, 0, .09, 0);
     add(new THREE.CylinderGeometry(.07, .07, 1.5, 8), wood, 0, .9, 0);
     add(new THREE.CylinderGeometry(.3, .34, .95, 14), this.bodyMat, 0, 1.05, 0);
@@ -117,30 +119,63 @@ class Dummy {
     bg.renderOrder = 20; this.fg.renderOrder = 21; this.fg.position.z = .001; this.bar.add(bg, this.fg); this.bar.visible = false;
     this.col = { x, z, r: .5, ref: this }; COLLIDERS.push(this.col);
   }
-  hit(dmg, dx, dz, burn) {
+  hit(dmg, dx, dz, burn, el, src) {   // el 留給任務 C;src === 'dot' 為持續傷害(不觸發 onPlayerHit)
     if (this.dead) return;
     this.hp -= dmg; this.flash = 1; this.hpShow = 4;
     const l = Math.hypot(dx, dz) || 1; this.vx += dx / l * .8; this.vz += dz / l * .8;
     if (burn) this.burn = Math.max(this.burn, burn);
     addDmgText(new V3(this.home.x, 2.3, this.home.z), Math.round(dmg));
+    if (src !== 'dot' && window.onPlayerHit) window.onPlayerHit(this);   // D4 潛行顯形用
     if (this.hp <= 0) this.die();
   }
   die() {
-    this.dead = true; this.respawn = 4; this.g.visible = false; this.bar.visible = false;
+    this.dead = true; this.respawn = 4; this.g.visible = false; this.bar.visible = false; if (this.stars) this.stars.visible = false;
     for (let i = 0; i < 50; i++) fire.emit(this.home.x, 1.2, this.home.z, rnd(-4, 4), rnd(1, 7), rnd(-4, 4), rnd(.5, 1), rnd(.2, .5), EL.fire.c0, EL.fire.c1, 1, .4, 8, .5);
     for (let i = 0; i < 8; i++) smoke.emit(this.home.x + rnd(-.3, .3), 1.2, this.home.z + rnd(-.3, .3), rnd(-.5, .5), rnd(.5, 2), rnd(-.5, .5), rnd(1, 2), rnd(1, 2), [.25, .2, .18], [.08, .08, .09], .5, 2, -.3, .8);
   }
-  reset() { this.hp = this.max; this.dead = false; this.g.visible = true; this.burn = 0; this.ax = this.az = this.vx = this.vz = 0; this.g.scale.setScalar(.01); this.popping = true; }
+  reset() { this.hp = this.max; this.dead = false; this.g.visible = true; this.burn = 0; this.ax = this.az = this.vx = this.vz = 0; this.g.scale.setScalar(.01); this.popping = true; this.downK = this.downT = this.visStun = 0; this.yaw = Math.PI; this.pivot.rotation.set(0, 0, 0); if (this.stars) this.stars.visible = false; }
+  // 跌倒:沿推力方向倒下(pivot 繞與推力垂直的水平軸轉 85°),躺 t 秒後爬起
+  knockDown(t, dirx, dirz) {
+    if (this.dead) return;
+    if (this.downK < .05 && this.downT <= 0) { const a = Math.atan2(dirx, dirz) - this.yaw; this.downAxis.set(Math.cos(a), 0, -Math.sin(a)); }
+    this.downT = Math.max(this.downT, t);
+  }
+  // 暈眩星星(視覺掛點):任務 C 的 stun(t) 可直接呼叫
+  stunFx(t) { this.visStun = Math.max(this.visStun, t); }
+  makeStars() {
+    this.stars = new THREE.Group(); scene.add(this.stars);
+    for (let i = 0; i < 3; i++) this.stars.add(glowSprite(0xffe066, .34, .95));
+  }
   update(dt) {
     if (this.dead) { this.respawn -= dt; if (this.respawn <= 0) this.reset(); return; }
     if (this.popping) { const s = Math.min(1, this.g.scale.x + dt * 3); this.g.scale.setScalar(s); if (s >= 1) this.popping = false; }
     this.vx += (-60 * this.ax - 5 * this.vx) * dt; this.vz += (-60 * this.az - 5 * this.vz) * dt;
     this.ax += this.vx * dt; this.az += this.vz * dt;
-    this.g.rotation.x = this.az; this.g.rotation.z = -this.ax;
+    // 朝向:刺客、玩家未潛行、距離 < 12 m 時緩慢轉向玩家;倒地 / 暈眩中不轉
+    const pp = mage.root.position, pdx = pp.x - this.g.position.x, pdz = pp.z - this.g.position.z;
+    if (G.cls === 'assassin' && !G.stealth && this.visStun <= 0 && this.downT <= 0 && this.downK < .05 && Math.hypot(pdx, pdz) < 12)
+      this.yaw += clamp(angDiff(this.yaw, Math.atan2(pdx, pdz)), -1.5 * dt, 1.5 * dt);
+    // 跌倒動畫:倒下 0.2 s、爬起 0.5 s;躺著的時間由 downT 倒數
+    const tgtK = this.downT > 0 ? 1 : 0, stp = dt * (tgtK > this.downK ? 5 : 2);
+    this.downK = tgtK > this.downK ? Math.min(tgtK, this.downK + stp) : Math.max(tgtK, this.downK - stp);
+    if (this.downT > 0) this.downT -= dt;
+    this.pivot.setRotationFromAxisAngle(this.downAxis, this.downK * 1.4835);
+    const still = this.downK > .01 || this.downT > 0;   // 倒地中不搖晃
+    this.g.rotation.x = still ? 0 : this.az; this.g.rotation.z = still ? 0 : -this.ax; this.g.rotation.y = this.yaw;
+    // 暈眩星星:頭上 3 顆繞圈(高度 2.25、半徑 .35、轉速 4 rad/s)
+    if (this.visStun > 0) this.visStun -= dt;
+    if (this.visStun > 0 && !this.stars) this.makeStars();
+    if (this.stars) {
+      this.stars.visible = this.visStun > 0;
+      if (this.stars.visible) {
+        this.starA += dt * 4;
+        this.stars.children.forEach((s, i) => s.position.set(this.g.position.x + Math.cos(this.starA + i * 2.094) * .35, 2.25, this.g.position.z + Math.sin(this.starA + i * 2.094) * .35));
+      }
+    }
     this.flash = Math.max(0, this.flash - dt * 4);
     if (this.burn > 0) {
       this.burn -= dt; this.burnT += dt;
-      if (this.burnT > .5) { this.burnT = 0; this.hit(5, 0, 0, 0); if (this.dead) return; }
+      if (this.burnT > .5) { this.burnT = 0; this.hit(5, 0, 0, 0, null, 'dot'); if (this.dead) return; }
       for (let i = 0; i < 2; i++) fire.emit(this.home.x + rnd(-.25, .25), rnd(.6, 1.8), this.home.z + rnd(-.25, .25), rnd(-.3, .3), rnd(1, 2.5), rnd(-.3, .3), rnd(.4, .7), rnd(.4, .7), EL.fire.c0, EL.fire.c1, .9, .3, -.5, .5);
     }
     this.bodyMat.emissiveIntensity = Math.max(this.flash * .9, this.burn > 0 ? .35 : 0);

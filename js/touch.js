@@ -29,7 +29,7 @@
     atk.classList.remove('on'); aid = null; drag = false; G.atkHeld = false; saveCfgSoon();
   }
   // 記下滑動起點(範圍用垂直、火牆用水平)
-  function initDrag(e) { drag = true; ay0 = e.clientY; ax0 = e.clientX; rad0 = CFG.rad[G.skill]; wo0 = G.wallOff; }
+  function initDrag(e) { drag = true; ay0 = e.clientY; ax0 = e.clientX; rad0 = getRad(G.skill); wo0 = G.wallOff; }
   atk.addEventListener('pointerdown', e => {
     e.preventDefault(); touchNow();
     aid = e.pointerId; atk.setPointerCapture(aid); G.atkHeld = true;   // 僵直中按住,結束後接續集氣
@@ -40,8 +40,8 @@
   atk.addEventListener('pointermove', e => {
     if (e.pointerId !== aid || G.state !== 'charging') return;
     if (!drag) initDrag(e);
-    const c = sc(G.skill); CFG.rad[G.skill] = clamp(rad0 + (ay0 - e.clientY) / 160 * (c.rMax - c.rMin), c.rMin, c.rMax);
-    if (SKILLS[G.skill].shape === 'wall') G.wallOff = wo0 - (e.clientX - ax0) / 120;
+    const c = sc(G.skill); setRad(G.skill, clamp(rad0 + (ay0 - e.clientY) / 160 * (c.rMax - c.rMin), c.rMin, c.rMax));
+    if (curSkill(G.skill).shape === 'wall') G.wallOff = wo0 - (e.clientX - ax0) / 120;
   });
   ['pointerup', 'pointercancel'].forEach(t => atk.addEventListener(t, e => { if (e.pointerId === aid) endAtk(); }));
 
@@ -74,7 +74,7 @@
   ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, e => { if (e.pointerId === cid) cid = null; }));
 
   // ---- 手把 ----
-  let prev = [], padOn = false;
+  let prev = [], padOn = false, minusHold = -1;
   window.inputTick = function (dt) {
     const gps = navigator.getGamepads ? navigator.getGamepads() : [];
     let gp = null; for (const g of gps) if (g && g.connected) { gp = g; break; }
@@ -86,8 +86,8 @@
     if (any) { G.inputMode = 'stick'; padOn = true; document.body.classList.add('pad'); }   // 手把操作時隱藏觸控鈕
     if (padOn) { G.stick.x = lx; G.stick.y = ly; G.stick.mag = Math.min(1, Math.hypot(lx, ly)); }
     if (G.state === 'charging' && G.skill >= 0) {           // 集氣中:右搖桿上下 = 調範圍;選牆時左右 = 旋轉火牆
-      const c = sc(G.skill); CFG.rad[G.skill] = clamp(CFG.rad[G.skill] - ry * dt * (c.rMax - c.rMin) * .7, c.rMin, c.rMax);
-      if (SKILLS[G.skill].shape === 'wall') G.wallOff -= rx * dt * 2.2;
+      const c = sc(G.skill); setRad(G.skill, clamp(getRad(G.skill) - ry * dt * (c.rMax - c.rMin) * .7, c.rMin, c.rMax));
+      if (curSkill(G.skill).shape === 'wall') G.wallOff -= rx * dt * 2.2;
     } else { G.camYaw -= rx * dt * 2.6; G.camPitch = clamp(G.camPitch + ry * dt * 1.6, .08, 1.35); }
     // ZR / RT 按住集氣、放開施放(按住狀態 G.atkHeld 供僵直結束後接續集氣)
     G.atkHeld = b(7);
@@ -100,7 +100,7 @@
     if (edge(4)) cycleSkill(-1);                             // L:上一個法術
     if (edge(5)) cycleSkill(1);                              // R:下一個法術
     if (edge(6)) { if (G.state === 'charging') cancelCharge(); else if (G.state === 'ready') G.skill = -1; }   // ZL:取消集氣 / 取消選法術
-    if (edge(8)) nextScene();                                // −:換場景
+    if (edge(8)) minusHold = 0; if (minusHold >= 0 && b(8)) { minusHold += dt; if (minusHold >= .6) { minusHold = -2; nextScene(); } } if (prev[8] && !b(8)) { if (minusHold >= 0) cycleClass(1); minusHold = -1; }                                // −:換場景
     if (edge(9)) document.getElementById('panel').classList.toggle('on');   // +:參數面板
     if (edge(10)) toggleAuto();                              // 左搖桿按下:自動來襲
     if (edge(11)) resetCam();                                // 右搖桿按下:鏡頭重置
