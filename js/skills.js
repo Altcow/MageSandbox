@@ -70,6 +70,7 @@ function flyProjectile(from, to, speed, o) {
     const step = Math.min(speed * dt, L - s); s += step;
     cur.copy(from).addScaledVector(dir, s); g.position.copy(cur);
     if (o.trail) for (let i = 0; i < o.trail; i++) fire.emit(cur.x + rnd(-.1, .1), cur.y + rnd(-.1, .1), cur.z + rnd(-.1, .1), rnd(-.4, .4), rnd(-.2, .2), rnd(-.4, .4), .3, rnd(.08, .14), o.c0, o.c1, .9, .3, 0, .5);
+    if (!TER.flat && cur.y < terrainH(cur.x, cur.z) + .05) { if (o.onEnd) o.onEnd(cur); stuck = 0; return true; }   // 碰到山坡就插住
     if (o.blocked && o.blocked(cur)) { if (o.onEnd) o.onEnd(cur); stuck = 0; return true; }
     let best = 2, bd = null;
     for (const d of DUMMIES) {
@@ -107,7 +108,7 @@ function castShockArrow(P, orb) {
   let flashed = false;
   flyProjectile(from, to, 40, {
     mesh, hitR: w / 2 + .3, pierce: true, fade: true, stuck: .15, trail: IS_TOUCH ? 5 : 8, c0: E.c0, c1: E.c1,
-    blocked: b => PLATFORMS.some(H => H.top > y0 - 1 && platContains(H, b.x, b.z, .1)),
+    blocked: b => PLATFORMS.some(H => platTop(H, b.x, b.z) > y0 - 1 && (H.bottom == null || H.bottom < y0 + .3) && platContains(H, b.x, b.z, .1)),
     onEnd: b => { hitFx(b, 20); burstRing(new V3(b.x, p.y, b.z), E.hex, 1.2); },
     onHit: (d, b) => {
       d.hit(70 * P.dmgK, dir.x, dir.z, 0, null); d.knock(dir.x, dir.z, 2.5 * P.fxK); d.knockDown(1.8 * P.fxK, dir.x, dir.z);
@@ -144,15 +145,15 @@ function castArrowRain(P, orb) {
 }
 // 箭雨的一支箭:從天落到落點 0.35 s,插地 0.6 s 後消失,落地 3 顆煙塵
 function rainArrow(cx, cz, gy, R, E) {
-  const a = rnd(0, 6.283), rr = Math.sqrt(Math.random()) * R * .9, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr, top = gy + 14;
+  const a = rnd(0, 6.283), rr = Math.sqrt(Math.random()) * R * .9, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr, gy2 = surfaceY(x, z, gy + 3), top = gy2 + 14;
   const mesh = arrowMesh(.9, .025, E.hex, 1);
-  mesh.position.set(x, top, z); mesh.lookAt(x, gy, z); scene.add(mesh);
+  mesh.position.set(x, top, z); mesh.lookAt(x, gy2, z); scene.add(mesh);
   let t = 0, stuck = -1;
   addFx(dt => {
     if (stuck < 0) {
       t += dt / .35; const u = Math.min(1, t);
-      mesh.position.set(x, lerp(top, gy + .2, u * u), z);
-      if (u >= 1) { stuck = 0; for (let i = 0; i < 3; i++) smoke.emit(x, gy + .2, z, rnd(-1, 1), rnd(.3, 1), rnd(-1, 1), .6, rnd(.4, .8), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5); }
+      mesh.position.set(x, lerp(top, gy2 + .2, u * u), z);
+      if (u >= 1) { stuck = 0; for (let i = 0; i < 3; i++) smoke.emit(x, gy2 + .2, z, rnd(-1, 1), rnd(.3, 1), rnd(-1, 1), .6, rnd(.4, .8), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5); }
       return true;
     }
     stuck += dt;
@@ -180,7 +181,7 @@ function arcSlash(center, R, th, hex, life) {
 function castPowerSlash(P, orb) {
   const E = auraEl(), p = mage.root.position, cfg = CFG.skills.powerSlash;
   if (orb) dissolveOrb(orb, E);
-  const cx = p.x + Math.sin(P.dir) * cfg.range, cz = p.z + Math.cos(P.dir) * cfg.range, cy = surfaceY(cx, cz);
+  const cx = p.x + Math.sin(P.dir) * cfg.range, cz = p.z + Math.cos(P.dir) * cfg.range, cy = surfaceY(cx, cz, p.y + 2);
   areaHit(cx, cy, cz, P.r, 90 * P.dmgK, 1.5 * P.fxK, p.x, p.z);
   arcSlash(new V3(cx, cy, cz), P.r, P.dir, E.hex, .2);
 }

@@ -71,7 +71,7 @@ const G = {
   ground: true, groundY: 0, airJumps: 1, airRolls: 1, coyote: 0, jumpBuf: 0, flip: -1, lastSkill: 0,
   roll: null, rollCD: 0, invuln: false, stun: 0, dodged: 0, hits: 0, autoStrike: false, strikeT: 2,
   time: 0, cb: 0, kick: 0, vy: 0, frameT: 0, hover: 0, auraAmt: 0, maxFlash: false, halfFlash: false, shoutT: 0, atkHeld: false,
-  cls: 'mage', cd: {}, stealth: null, weak: 0, dash: null, spin: null,
+  cls: 'mage', cd: {}, stealth: null, weak: 0, dash: null, spin: null, px0: 0, pz0: 0, camK: 1,
   el: 'fire'   // 目前屬性(C-8,只有法師使用),存 localStorage mageSandbox.el
 };
 try { const v = localStorage.getItem('mageSandbox.el'); if (EL_ORDER.includes(v)) G.el = v; } catch (e) { }
@@ -80,7 +80,7 @@ try { const v = localStorage.getItem('mageSandbox.el'); if (EL_ORDER.includes(v)
 const mage = new Mage(scene);
 mage.setElementColor(EL[G.el].hex);
 const ind = new Indicator(scene);
-const tmpV = new V3(), tmpV2 = new V3();
+const tmpV = new V3(), tmpV2 = new V3(), tmpV3 = new V3();
 
 // 施法時角色身上的光環與腳下魔法陣(顏色跟目前屬性)
 const rings = [];
@@ -234,7 +234,7 @@ function banner(txt, color) {
   const b = document.getElementById('banner'); b.textContent = txt; b.style.color = color; b.style.opacity = 1; b._t = 1.2;
 }
 function strike() {
-  const p = mage.root.position, S = G.stealth, pos = S ? new V3(S.x, surfaceY(S.x, S.z), S.z) : new V3(p.x, surfaceY(p.x, p.z), p.z), R = 2.4, W = 1.2, wi = new Indicator(scene); let t = 0;
+  const p = mage.root.position, S = G.stealth, pos = S ? new V3(S.x, surfaceY(S.x, S.z, p.y + .5), S.z) : new V3(p.x, surfaceY(p.x, p.z, p.y + .5), p.z), R = 2.4, W = 1.2, wi = new Indicator(scene); let t = 0;
   addFx(dt => {
     t += dt;
     if (t < W) { wi.set(pos.x, pos.z, 0, R, 0, 0, t / W, .9, 0xff2030, pos.y); wi.tick(G.time); return true; }
@@ -260,21 +260,24 @@ const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), gPlane = new THREE
 function pickGround(out) {
   const p = mage.root.position;
   ndc.set(G.mouse.x / innerWidth * 2 - 1, -(G.mouse.y / innerHeight * 2 - 1)); ray.setFromCamera(ndc, camera);
-  const o = ray.ray.origin, d0 = ray.ray.direction; let best = Infinity, hx = 0, hz = 0;
-  if (d0.y < -1e-4) { const t = -o.y / d0.y; if (t >= 0) { best = t; hx = o.x + d0.x * t; hz = o.z + d0.z * t; } }
+  const o = ray.ray.origin, d0 = ray.ray.direction;
+  let best = rayTerrain(o, d0, 1e4), hx = 0, hz = 0, hy = 0;   // 1e4 = 原本無上限(平地行為相同)
+  if (best < Infinity) { hx = o.x + d0.x * best; hz = o.z + d0.z * best; hy = o.y + d0.y * best; }
   for (const P of PLATFORMS) {   // 高台頂面也參與取最近交點(只決定 xz)
-    if (d0.y >= -1e-4 || o.y <= P.top) continue;
-    const t = (P.top - o.y) / d0.y; if (t >= best) continue;
+    if (d0.y >= -1e-4) continue;
+    let t = (P.top - o.y) / d0.y;
+    if (P.kind === 'bridge') for (let k = 0; k < 2; k++) t = (platTop(P, o.x + d0.x * t, o.z + d0.z * t) - o.y) / d0.y;   // 下垂修正
+    if (t < 0 || t >= best) continue;
     const x = o.x + d0.x * t, z = o.z + d0.z * t;
-    if (platContains(P, x, z, 0)) { best = t; hx = x; hz = z; }
+    if (platContains(P, x, z, 0)) { best = t; hx = x; hz = z; hy = o.y + d0.y * t; }
   }
-  if (best === Infinity) { camera.getWorldDirection(tmpV2); hx = p.x + tmpV2.x * skillRange(); hz = p.z + tmpV2.z * skillRange(); }
+  if (best === Infinity) { camera.getWorldDirection(tmpV2); hx = p.x + tmpV2.x * skillRange(); hz = p.z + tmpV2.z * skillRange(); hy = p.y; }
   tmpV.set(hx, 0, hz);
   let dx = tmpV.x - p.x, dz = tmpV.z - p.z, d = Math.hypot(dx, dz);
   const minD = curSkill(G.skill).shape === 'wall' ? 2 : 1.2;
   if (d < 1e-4) { dx = Math.sin(mage.yaw); dz = Math.cos(mage.yaw); d = 1; }
   const dd = clamp(d, minD, skillRange());
-  const ox = p.x + dx / d * dd, oz = p.z + dz / d * dd; out.set(ox, surfaceY(ox, oz), oz);
+  const ox = p.x + dx / d * dd, oz = p.z + dz / d * dd, yRef = dd === d ? hy : p.y + 2; out.set(ox, surfaceY(ox, oz, yRef), oz);
 }
 
 // 搖桿/觸控瞄準:集氣時左搖桿的方向=光圈方向、推多少=離多遠;放開搖桿則光圈停在原地
@@ -285,9 +288,9 @@ function pickStick(out) {
     const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
     const dx = fx * iz + rx * ix, dz = fz * iz + rz * ix, minD = curSkill(G.skill).shape === 'wall' ? 2 : 1.2;
     const d = lerp(minD, skillRange(), Math.min(1, G.stick.mag));
-    const x = p.x + dx * d, z = p.z + dz * d; G.stickHold.set(x, surfaceY(x, z), z);
+    const x = p.x + dx * d, z = p.z + dz * d; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
   } else if (G.state === 'ready' || mc) {
-    const x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z), z);
+    const x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
   }
   out.copy(G.stickHold);
 }
@@ -298,7 +301,7 @@ function startCharge() {
   if (G.skill < 0) G.skill = G.lastSkill;
   if (G.cd[curSkill(G.skill).id] > 0 || skillBlocked(curSkill(G.skill))) return;   // 冷卻中 / 虛弱中不能開始集氣
   G.state = 'charging'; G.chargeT = 0; G.charge = 0; G.queued = false; G.maxFlash = false; G.halfFlash = false;
-  { const p = mage.root.position, x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z), z); }
+  { const p = mage.root.position, x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z); }
   G.orb = makeOrb(auraEl()); scene.add(G.orb);
 }
 function cancelCharge() {
@@ -356,6 +359,18 @@ function updateCasting(dt) {
 }
 
 /* ================= 玩家移動 ================= */
+// 地形水平阻擋:往上坡度超過上限(地面)或高差超過 STEP_UP(空中)就擋;先試只走 x、再試只走 z
+function terrainBlocked(x, z, x0, z0, y) {
+  const rise = terrainH(x, z) - y; if (rise <= .02) return false;
+  if (!G.ground) return rise > STEP_UP;
+  const d = Math.hypot(x - x0, z - z0); return d > 1e-5 && rise / d > TER_MAX_TAN;
+}
+function terrainMove(p, x0, z0) {
+  if (TER.flat || !terrainBlocked(p.x, p.z, x0, z0, p.y)) return;
+  if (!terrainBlocked(p.x, z0, x0, z0, p.y)) { p.z = z0; return; }
+  if (!terrainBlocked(x0, p.z, x0, z0, p.y)) { p.x = x0; return; }
+  p.x = x0; p.z = z0;
+}
 function updatePlayer(dt) {
   // mc:劍士 / 刺客集氣中可移動;lock 為不能移動;face 為面向瞄準點
   const p = mage.root.position, K = G.keys, mc = G.state === 'charging' && moveCharge(), lock = (G.state === 'charging' && !mc) || (G.state === 'cast' && !G.spin), face = lock || mc;
@@ -386,13 +401,22 @@ function updatePlayer(dt) {
     if (d < m && d > 1e-4) { p.x = c.x + dx / d * m; p.z = c.z + dz / d * m; }
   }
   pushOutPlatforms(p);
+  terrainMove(p, G.px0, G.pz0);
+  // 陡坡下滑:站在地形(不是平台)上且坡度 > 42° → 往下坡滑
+  if (G.ground && !TER.flat && Math.abs(p.y - terrainH(p.x, p.z)) < .05) {
+    groundNormal(p.x, p.z, null, .5, tmpV3);
+    if (tmpV3.y < TER_SLIDE_NY) { const l = Math.hypot(tmpV3.x, tmpV3.z) || 1; p.x += tmpV3.x / l * TER_SLIDE_V * dt; p.z += tmpV3.z / l * TER_SLIDE_V * dt; }
+  }
   const gY = groundAt(p.x, p.z, p.y);             // 用積分前的 y 找支撐面
   const gMul = (G.roll && G.roll.air) ? CFG.airRollGrav : 1;
-  const wasGround = G.ground;
+  const wasGround = G.ground, step = Math.hypot(p.x - G.px0, p.z - G.pz0);
   G.vy -= GRAV * gMul * dt; p.y += G.vy * dt;
-  if (p.y <= gY) {
+  const snap = wasGround && G.vy <= 0 && p.y - gY <= .05 + TER_MAX_TAN * step * 1.3 - G.vy * dt;   // 下坡貼地
+  if (p.y <= gY || snap) {
+    const impact = G.vy;
     p.y = gY; if (G.vy < 0) G.vy = 0;
     G.ground = true; G.groundY = gY; G.airJumps = 1; G.airRolls = 1;
+    if (!wasGround && impact < -12) landFx(p, impact);
     if (!wasGround && G.jumpBuf > 0) { G.jumpBuf = 0; doJump(); }
   } else {
     if (wasGround) G.coyote = COYOTE;             // 剛離地(走下邊緣或剛起跳)
@@ -419,7 +443,7 @@ function updateAim(dt) {
   }
   if (G.inputMode === 'stick') pickStick(tmpV2); else pickGround(tmpV2);
   G.target.x = damp(G.target.x, tmpV2.x, 30, dt); G.target.z = damp(G.target.z, tmpV2.z, 30, dt);
-  G.target.y = surfaceY(G.target.x, G.target.z);
+  G.target.y = surfaceY(G.target.x, G.target.z, tmpV2.y);
   if (G.state === 'ready' && ind.root.visible === false) G.target.copy(tmpV2);
   const sk = curSkill(G.skill), c = sc(G.skill), p = mage.root.position, E = auraEl();
   const charging = G.state === 'charging', q = charging ? G.charge : 0, rs = skillRad();
@@ -467,10 +491,16 @@ function updateOrb(dt) {
 }
 function burstRing(pos, hex, R) {
   const m = new THREE.Mesh(RING_GEO, new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  m.rotation.x = -Math.PI / 2; m.position.set(pos.x, pos.y + .1, pos.z); scene.add(m);
+  layFlat(m, pos.x, pos.y, pos.z, R * .5, 0, .1); scene.add(m);
   let t = 0; addFx(dt => { t += dt / .5; if (t >= 1) { scene.remove(m); m.material.dispose(); return false; } m.scale.setScalar(Math.max(.01, R * easeOut(t))); m.material.opacity = .9 * (1 - t) * (1 - t); });
 }
 
+// 落地揚塵(落差大時):水平擴散的塵土 + 輕微震動
+function landFx(p, v) {
+  const n = IS_TOUCH ? 6 : 10;
+  for (let i = 0; i < n; i++) smoke.emit(p.x, p.y + .1, p.z, rnd(-2, 2), rnd(.2, .8), rnd(-2, 2), rnd(.5, .9), rnd(.8, 1.4), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5);
+  G.shake = Math.max(G.shake, Math.min(.2, -v * .008) * CFG.shake);
+}
 // 二段跳(空氣步):兩圈水平光環 + 放射粒子 + 向下煙
 function airStepFx(p) {
   const n = IS_TOUCH ? 10 : 16, k = IS_TOUCH ? 4 : 6;
@@ -546,7 +576,7 @@ function explode(pos, R, power, o) {
   const sm = Math.floor(10 * k * B.smoke * FXM);
   for (let i = 0; i < sm; i++) smoke.emit(pos.x + rnd(-R, R) * .4, pos.y + .3, pos.z + rnd(-R, R) * .4, rnd(-1, 1), rnd(.8, 2.2), rnd(-1, 1), rnd(1.6, 2.8), rnd(2, 4) * k * .8, sc0, sc1, smA, 2.5, -.3, .8);
   const ring = new THREE.Mesh(RING_GEO, new THREE.MeshBasicMaterial({ color: B.ring, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  ring.rotation.x = -Math.PI / 2; ring.position.set(pos.x, gy + .08, pos.z); scene.add(ring);
+  layFlat(ring, pos.x, gy, pos.z, R * .6, 0, .08); scene.add(ring);
   const flash = new THREE.Mesh(ICO_GEO, new THREE.MeshBasicMaterial({ color: B.flash, transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false }));
   flash.position.copy(pos); scene.add(flash);
   const spr = glowSprite(E.core, R * 5, 1); spr.position.copy(pos); scene.add(spr);
@@ -563,7 +593,7 @@ function explode(pos, R, power, o) {
   const scH = EL_SCORCH[el];
   if (scH) {
     const sc2 = new THREE.Mesh(SCORCH_GEO, new THREE.MeshBasicMaterial({ map: SCORCH_TEX, color: new THREE.Color(scH[0], scH[1], scH[2]), transparent: true, depthWrite: false, opacity: .75, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-    sc2.rotation.x = -Math.PI / 2; sc2.rotation.z = rnd(0, 6); sc2.position.set(pos.x, gy + .03 + (SCORCH.length % 7) * .002, pos.z); sc2.scale.setScalar(R * 2.4 * rnd(.9, 1.1)); scene.add(sc2);
+    layFlat(sc2, pos.x, gy, pos.z, R * .6, rnd(0, 6), .03 + (SCORCH.length % 7) * .002); sc2.scale.setScalar(R * 2.4 * rnd(.9, 1.1)); scene.add(sc2);
     SCORCH.push({ m: sc2, age: 0 }); if (SCORCH.length > 30) { const o2 = SCORCH.shift(); scene.remove(o2.m); o2.m.material.dispose(); }
   }
   const dc = Math.hypot(pos.x - camera.position.x, pos.z - camera.position.z);
@@ -616,9 +646,9 @@ function castFirewall(P, orb) {
 function spawnWall(P) {
   const gy = P.target.y, cfg = sc(P.idx), half = P.r / 2, thick = cfg.thick, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw), E = EL[P.el];
   const n = Math.ceil(P.r / .7) + 1, segs = [], dur = cfg.duration * P.durK;
-  for (let i = 0; i < n; i++) { const o = (i / (n - 1) - .5) * P.r; segs.push({ o, x: P.target.x + ax * o, z: P.target.z + az * o, on: Math.abs(o) / half * .4, acc: 0 }); }
+  for (let i = 0; i < n; i++) { const o = (i / (n - 1) - .5) * P.r, x = P.target.x + ax * o, z = P.target.z + az * o; segs.push({ o, x, z, gy: surfaceY(x, z, gy + 1), on: Math.abs(o) / half * .4, acc: 0 }); }
   const wi = new Indicator(scene); let age = 0, tick = 0;
-  const gl = []; for (let i = 0; i < n; i += 2) { const s = glowSprite(E.hex, 3, .5); s.position.set(segs[i].x, gy + .6, segs[i].z); scene.add(s); gl.push(s); }
+  const gl = []; for (let i = 0; i < n; i += 2) { const s = glowSprite(E.hex, 3, .5); s.position.set(segs[i].x, segs[i].gy + .6, segs[i].z); scene.add(s); gl.push(s); }
   flashLight(new V3(P.target.x, gy + 2, P.target.z), E.hex, 5, .5, 25); G.shake = Math.max(G.shake, .08 * CFG.shake);
   const L = LIGHTS[4]; L.color.setHex(E.hex); L.position.set(P.target.x, gy + 1.8, P.target.z); L.distance = 10 + P.r * 1.3;
   addFx(dt => {
@@ -632,15 +662,15 @@ function spawnWall(P) {
       const ramp = Math.min(1, (age - s.on) / .25) * fade; s.acc += dt * 38 * ramp;
       while (s.acc >= 1) {
         s.acc -= 1; const lx = rnd(-thick / 2, thick / 2);
-        fire.emit(s.x + (-az) * lx, gy + rnd(0, .3), s.z + ax * lx, rnd(-.4, .4), rnd(2.5, 4.5) * H * ramp, rnd(-.4, .4), rnd(.6, 1.0), rnd(.9, 1.5), E.c0, E.c1, .95, .35, -.3, .6);
-        if (Math.random() < .07) smoke.emit(s.x, gy + 1.8, s.z, rnd(-.3, .3), rnd(1, 2), rnd(-.3, .3), rnd(1.4, 2.2), rnd(1.5, 2.5), [.25, .2, .18], [.08, .08, .09], .4, 2.2, -.3, .6);
+        fire.emit(s.x + (-az) * lx, s.gy + rnd(0, .3), s.z + ax * lx, rnd(-.4, .4), rnd(2.5, 4.5) * H * ramp, rnd(-.4, .4), rnd(.6, 1.0), rnd(.9, 1.5), E.c0, E.c1, .95, .35, -.3, .6);
+        if (Math.random() < .07) smoke.emit(s.x, s.gy + 1.8, s.z, rnd(-.3, .3), rnd(1, 2), rnd(-.3, .3), rnd(1.4, 2.2), rnd(1.5, 2.5), [.25, .2, .18], [.08, .08, .09], .4, 2.2, -.3, .6);
       }
     }
     gl.forEach((s, i) => { s.material.opacity = (.35 + Math.random() * .2) * fade; s.scale.setScalar(2.6 + Math.sin(age * 9 + i) * .4); });
     tick += dt;
     if (tick >= .3) {
       tick = 0;
-      if (gy <= 1.5) for (const d of DUMMIES) {
+      if (Math.abs(gy) <= 1.5) for (const d of DUMMIES) {
         if (d.dead) continue;
         const dx = d.x - P.target.x, dz = d.z - P.target.z, along = dx * ax + dz * az, across = dx * -az + dz * ax;
         if (Math.abs(along) > half + .4 || Math.abs(across) > thick / 2 + .6) continue;
@@ -736,7 +766,17 @@ function updateCamera(dt) {
   G.focus.x = damp(G.focus.x, fx, 7, dt); G.focus.y = damp(G.focus.y, fy, 7, dt); G.focus.z = damp(G.focus.z, fz, 7, dt);
   G.camD = damp(G.camD, dist, 4, dt);
   const cp = Math.cos(G.camPitch), sp = Math.sin(G.camPitch);
-  camera.position.set(G.focus.x + Math.sin(G.camYaw) * cp * G.camD, Math.max(.6, G.focus.y + sp * G.camD), G.focus.z + Math.cos(G.camYaw) * cp * G.camD);
+  let cx = G.focus.x + Math.sin(G.camYaw) * cp * G.camD, cy = G.focus.y + sp * G.camD, cz = G.focus.z + Math.cos(G.camYaw) * cp * G.camD;
+  if (!TER.flat) {
+    let k = 1;
+    for (let i = 1; i <= 10; i++) {
+      const s = i / 10, x = lerp(G.focus.x, cx, s), y = lerp(G.focus.y, cy, s), z = lerp(G.focus.z, cz, s);
+      if (y < terrainH(x, z) + .4) { k = Math.max(.15, (i - 1) / 10); break; }
+    }
+    G.camK = k < G.camK ? k : damp(G.camK, k, 3, dt);   // 被擋時立刻拉近、離開後慢慢退回
+    cx = lerp(G.focus.x, cx, G.camK); cy = lerp(G.focus.y, cy, G.camK); cz = lerp(G.focus.z, cz, G.camK);
+  }
+  camera.position.set(cx, Math.max(terrainH(cx, cz) + .6, cy), cz);
   G.shake = Math.max(0, G.shake - dt * .6);
   if (G.shake > 0) camera.position.add(new V3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(G.shake));
   camera.lookAt(G.focus);
@@ -794,7 +834,7 @@ function updateHUD() {
   let t = '職業:' + CLASSES[G.cls].name + ' ・ ' + (G.cls === 'mage' ? '屬性:' + E.name + ' ・ 裝備:' + W().name + '(' + W().tag + ')' + weaponDesc() : '裝備:' + CLASSES[G.cls].wpn);
   if (G.skill >= 0) { const sp = spellOf(G.skill), s = curSkill(G.skill); t += '<br>' + sp.name + ' ・ ' + (s.shape === 'wall' ? '長度 ' : '半徑 ') + skillRad().toFixed(1) + 'm ・ 射程 ' + skillRange().toFixed(1) + 'm'; }
   else t += '<br>未選擇法術(按 1/2/3)';
-  t += '<br>' + (G.ground ? '跳躍 ● ●' : (G.airJumps > 0 ? '空中步 ●' : '空中步 ○'));
+  t += '<br>' + (G.ground ? '跳躍 ● ●' : (G.airJumps > 0 ? '空中步 ●' : '空中步 ○')) + ' ・ 高度 ' + mage.root.position.y.toFixed(1) + 'm';
   t += '<br>閃避 ' + G.dodged + ' ・ 被擊中 ' + G.hits + (G.autoStrike ? ' ・ 自動來襲 ON' : '');
   t += classInfo();
   if (infoEl._t !== t) { infoEl.innerHTML = t; infoEl._t = t; }
@@ -847,6 +887,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, .05) * (window.TS || 1); last = now; G.time += dt;
   if (window.inputTick) inputTick(dt);
+  G.px0 = mage.root.position.x; G.pz0 = mage.root.position.z;
   classTick(dt); updatePlayer(dt); updateAim(dt); updateCasting(dt);
   mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip });
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);

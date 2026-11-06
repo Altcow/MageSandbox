@@ -208,7 +208,7 @@ function debris(p, n, col, size) {
     t += dt;
     for (const k of parts) {
       k.v.y -= 20 * dt; k.m.position.addScaledVector(k.v, dt); k.m.rotation.x += k.s.x * dt; k.m.rotation.y += k.s.y * dt;
-      if (k.m.position.y < .05) { k.m.position.y = .05; k.v.set(0, 0, 0); }
+      const fy = terrainH(k.m.position.x, k.m.position.z) + .05; if (k.m.position.y < fy) { k.m.position.y = fy; k.v.set(0, 0, 0); }
     }
     if (t < .6) return true;
     for (const k of parts) scene.remove(k.m);
@@ -224,7 +224,7 @@ function debris(p, n, col, size) {
 function spawnZone(P, st) {
   const gy = P.target.y, cfg = sc(P.idx), half = P.r / 2, thick = cfg.thick, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw);
   const n = Math.ceil(P.r / .7) + 1, segs = [];
-  for (let i = 0; i < n; i++) { const o = (i / (n - 1) - .5) * P.r; segs.push({ o, x: P.target.x + ax * o, z: P.target.z + az * o, on: Math.abs(o) / half * .4, acc: 0, went: false, mesh: null }); }
+  for (let i = 0; i < n; i++) { const o = (i / (n - 1) - .5) * P.r, x = P.target.x + ax * o, z = P.target.z + az * o; segs.push({ o, x, z, gy: surfaceY(x, z, gy + 1), on: Math.abs(o) / half * .4, acc: 0, went: false, mesh: null }); }
   const c = { P, gy, ax, az, half, thick, dur: cfg.duration * P.durK, segs, age: 0, dt: 0, fade: 1, tick: 0, token: {}, plat: null };
   const wi = new Indicator(scene);
   flashLight(new V3(P.target.x, gy + 1.5, P.target.z), st.hex, 4, .5, 20);
@@ -299,8 +299,8 @@ function castWaterWall(P, orb) {
         s.acc += c.dt * 24 * ramp * FXQ();
         while (s.acc >= 1) {
           s.acc -= 1; const lx = rnd(-c.thick / 2, c.thick / 2), x = s.x - c.az * lx, z = s.z + c.ax * lx;
-          fire.emit(x, c.gy + rnd(0, .2), z, rnd(-.3, .3), rnd(4, 6), rnd(-.3, .3), rnd(.5, .8), rnd(.35, .6), E.c0, E.c1, .95, .35, 9, .3);
-          if (Math.random() < .15) smoke.emit(x, c.gy + 1.2, z, rnd(-.2, .2), rnd(.3, .8), rnd(-.2, .2), 1.2, rnd(.8, 1.2), E.s0, E.s1, .25, 1.5, -.1, .5);
+          fire.emit(x, s.gy + rnd(0, .2), z, rnd(-.3, .3), rnd(4, 6), rnd(-.3, .3), rnd(.5, .8), rnd(.35, .6), E.c0, E.c1, .95, .35, 9, .3);
+          if (Math.random() < .15) smoke.emit(x, s.gy + 1.2, z, rnd(-.2, .2), rnd(.3, .8), rnd(-.2, .2), 1.2, rnd(.8, 1.2), E.s0, E.s1, .25, 1.5, -.1, .5);
         }
       },
       onTick: c => zoneTick(c, 6, 'water', { slow: 3 })
@@ -377,8 +377,8 @@ function castWindWall(P, orb) {
         while (s.acc >= 1) {
           s.acc -= 1;
           const lx = rnd(-c.thick / 2, c.thick / 2), x = s.x - c.az * lx, z = s.z + c.ax * lx, sway = Math.sin(c.age * 6 + s.o) * 1.2;
-          fire.emit(x, c.gy + rnd(0, .4), z, c.ax * sway, rnd(2.5, 4.5), c.az * sway, rnd(.6, .9), rnd(.2, .35), E.c0, E.c1, .9, .5, -.2, .8);
-          if (Math.random() < .3) fire.emit(x, c.gy + rnd(.3, 2.5), z, rnd(-.5, .5), rnd(0, .6), rnd(-.5, .5), rnd(.8, 1.2), rnd(.08, .14), LEAF0, LEAF1, .8, .5, -.4, .8);
+          fire.emit(x, s.gy + rnd(0, .4), z, c.ax * sway, rnd(2.5, 4.5), c.az * sway, rnd(.6, .9), rnd(.2, .35), E.c0, E.c1, .9, .5, -.2, .8);
+          if (Math.random() < .3) fire.emit(x, s.gy + rnd(.3, 2.5), z, rnd(-.5, .5), rnd(0, .6), rnd(-.5, .5), rnd(.8, 1.2), rnd(.08, .14), LEAF0, LEAF1, .8, .5, -.4, .8);
         }
       },
       onTick: c => zoneTick(c, 5, 'wind', { knock: 2.5 * c.P.fxK })
@@ -448,16 +448,16 @@ function castStoneWall(P, orb) {
         c.plat = addPlatform({ kind: 'box', x: c.P.target.x, z: c.P.target.z, hx: c.P.r / 2, hz: c.thick / 2, yaw: c.P.wallYaw, top: c.gy, tmp: true });
         for (const s of c.segs) {
           s.mesh = new THREE.Mesh(BOX_GEO, STONE_MAT); s.mesh.scale.set(segW, 1, c.thick);
-          s.mesh.position.set(s.x, c.gy - 1.05, s.z); s.mesh.rotation.y = c.P.wallYaw; scene.add(s.mesh);
+          s.mesh.position.set(s.x, s.gy - 1.05, s.z); s.mesh.rotation.y = c.P.wallYaw; scene.add(s.mesh);
         }
       },
       frame(c) {
         const up = Math.min(1, c.age / .45), sink = Math.min(1, Math.max(0, (c.dur - c.age) / .5));
         c.plat.top = c.gy + 2 * up * sink;
-        for (const s of c.segs) { const h = Math.min(1, Math.max(0, (c.age - s.on) / .3)) * sink; s.mesh.position.y = c.gy + 2 * h - 1.05; }
+        for (const s of c.segs) { const h = Math.min(1, Math.max(0, (c.age - s.on) / .3)) * sink; s.mesh.position.y = s.gy + 2 * h - 1.05; }
       },
       onSegOn(s, c) {
-        for (let i = 0; i < fq(6); i++) smoke.emit(s.x + rnd(-.5, .5), c.gy + .2, s.z + rnd(-.5, .5), rnd(-1.5, 1.5), rnd(.5, 1.5), rnd(-1.5, 1.5), rnd(.8, 1.2), rnd(.8, 1.4), E.s0, E.s1, .55, 2, -.1, .6);
+        for (let i = 0; i < fq(6); i++) smoke.emit(s.x + rnd(-.5, .5), s.gy + .2, s.z + rnd(-.5, .5), rnd(-1.5, 1.5), rnd(.5, 1.5), rnd(-1.5, 1.5), rnd(.8, 1.2), rnd(.8, 1.4), E.s0, E.s1, .55, 2, -.1, .6);
         const sp = c.P.r / (c.segs.length - 1);
         for (const d of DUMMIES) {
           const r = inZone(d, c); if (!r || Math.abs(r.along - s.o) > sp / 2 + .05) continue;
@@ -543,7 +543,7 @@ function castSanctuary(P, orb) {
         s.acc += c.dt * 20 * ramp * FXQ();
         while (s.acc >= 1) {
           s.acc -= 1; const lx = rnd(-c.thick / 2, c.thick / 2);
-          fire.emit(s.x - c.az * lx, c.gy + rnd(0, .2), s.z + c.ax * lx, rnd(-.2, .2), rnd(3, 5), rnd(-.2, .2), .5, rnd(.15, .3), E.c0, E.c1, .9, .3, 0, .5);
+          fire.emit(s.x - c.az * lx, s.gy + rnd(0, .2), s.z + c.ax * lx, rnd(-.2, .2), rnd(3, 5), rnd(-.2, .2), .5, rnd(.15, .3), E.c0, E.c1, .9, .3, 0, .5);
         }
       },
       onTick: c => zoneTick(c, 8, 'light', { lit: 4 })
@@ -623,8 +623,8 @@ function castShadowCurtain(P, orb) {
         s.acc += c.dt * 12 * ramp * FXQ();
         while (s.acc >= 1) {
           s.acc -= 1; const lx = rnd(-c.thick / 2, c.thick / 2), x = s.x - c.az * lx, z = s.z + c.ax * lx;
-          smoke.emit(x, c.gy + rnd(.3, 1.2), z, rnd(-.3, .3), rnd(1, 2), rnd(-.3, .3), rnd(.8, 1.2), rnd(1.5, 2.5), E.s0, E.s1, .7, 1, -.3, .3);
-          if (Math.random() < .2) fire.emit(x, c.gy + rnd(0, 1), z, rnd(-.3, .3), rnd(.5, 1), rnd(-.3, .3), .5, rnd(.3, .5), E.c0, E.c1, .7, .5, -.2, .5);
+          smoke.emit(x, s.gy + rnd(.3, 1.2), z, rnd(-.3, .3), rnd(1, 2), rnd(-.3, .3), rnd(.8, 1.2), rnd(1.5, 2.5), E.s0, E.s1, .7, 1, -.3, .3);
+          if (Math.random() < .2) fire.emit(x, s.gy + rnd(0, 1), z, rnd(-.3, .3), rnd(.5, 1), rnd(-.3, .3), .5, rnd(.3, .5), E.c0, E.c1, .7, .5, -.2, .5);
         }
       },
       frame(c) {

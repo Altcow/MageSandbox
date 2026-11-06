@@ -14,7 +14,7 @@
   // 標靶區(不要放裝飾)
   const clearOf = (x, z, m) => !(x > -22 - (m || 0) && x < 22 + (m || 0) && z > 0 - (m || 0) && z < 42 + (m || 0));
   // list 每項:[x,y,z,ry,sx,sy,sz,rx,rz,color]
-  function inst(geo, material, list, cast) {
+  function inst(geo, material, list, cast, parent) {
     const im = new THREE.InstancedMesh(geo, material, list.length);
     list.forEach((a, i) => {
       _o.position.set(a[0], a[1], a[2]); _o.rotation.set(a[7] || 0, a[3] || 0, a[8] || 0);
@@ -23,7 +23,9 @@
       if (a[9] != null) im.setColorAt(i, _c.set(a[9]));
     });
     im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
-    im.frustumCulled = false; return add(im, cast);
+    im.frustumCulled = false;
+    if (parent) { parent.add(im); im.castShadow = cast !== false; im.receiveShadow = true; return im; }
+    return add(im, cast);
   }
   const faceCenter = (x, z) => Math.atan2(-x, -z);   // 平面法線朝向場中心
   const speck = (g, s, n, a) => { for (let i = 0; i < n; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(255,255,255,' + a + ')' : 'rgba(0,0,0,' + a * 1.5 + ')'; g.fillRect(Math.random() * s, Math.random() * s, 2, 2); } };
@@ -101,7 +103,7 @@
       for (let k = 0; k < 3; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(2.4 - k * .5, h / 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x1e3a33, roughness: 1 })); c.position.y = 2.6 + k * h / 4; g.add(c); }
       g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); deco.add(g);
     }
-    [[-18, -6], [20, -10], [-24, 18], [26, 14], [0, 36], [-10, -30], [14, -34]].forEach(p => stoneBraz(p[0], p[1]));
+    [[-18, -6], [20, -10], [-24, 18], [26, 14], [0, 36], [-20, -24], [24, -28]].forEach(p => stoneBraz(p[0], p[1]));
   }
 
   function buildColosseum() {
@@ -109,7 +111,7 @@
     mesh(new THREE.CylinderGeometry(70, 56, 10, 64, 1, true), mat(0xffffff, { map: seatTex(), side: THREE.DoubleSide }), 0, 8.2, 0, false);
     mesh(new THREE.CylinderGeometry(70, 70, 28, 64, 1, true), mat(0xffffff, { map: facadeTex(), side: THREE.BackSide }), 0, 14, 0, false);
     // 地面環紋
-    [[46.5, 47.3], [9, 9.6]].forEach(r => { const m = new THREE.Mesh(new THREE.RingGeometry(r[0], r[1], 64), new THREE.MeshBasicMaterial({ color: 0x8a6a3a, transparent: true, opacity: .5, fog: true })); m.rotation.x = -Math.PI / 2; m.position.y = .03; deco.add(m); });
+    [[46.5, 47.3, 2.2, 2 * Math.PI - 1.15], [9, 9.6]].forEach(r => { const m = new THREE.Mesh(new THREE.RingGeometry(r[0], r[1], 64, 1, r[2] || 0, r[3] || 2 * Math.PI), new THREE.MeshBasicMaterial({ color: 0x8a6a3a, transparent: true, opacity: .5, fog: true })); m.rotation.x = -Math.PI / 2; m.position.y = .03; deco.add(m); });
     // 閘門
     for (let i = 0; i < 3; i++) { const a = i / 3 * TAU + .5, x = Math.cos(a) * 55.6, z = Math.sin(a) * 55.6; const m = mesh(new THREE.BoxGeometry(7, 4.4, .6), mat(0x241a12), x, 2.2, z, false); m.rotation.y = faceCenter(x, z); }
     // 青銅火盆
@@ -120,7 +122,7 @@
       BRAZIERS.push({ x, y: 2.5, z });
     }
     // 殘破石柱
-    [[-30, -12], [30, -14], [-38, 10], [40, 12], [-14, -34], [16, -36], [-44, -22], [44, -24], [0, -44]].forEach(p => {
+    [[-30, -12], [30, -14], [-38, 10], [40, 12], [-34, -30], [34, -30], [-44, -22], [44, -24], [-26, -44]].forEach(p => {
       const h = rnd(2, 5.5);
       mesh(new THREE.BoxGeometry(2.6, .6, 2.6), mat(0xd2c29a), p[0], .3, p[1]);
       mesh(new THREE.CylinderGeometry(.85, 1, h, 14), mat(0xd9caa0), p[0], .6 + h / 2, p[1]);
@@ -134,8 +136,8 @@
     const beamM = mat(0x1d140d);
     for (let i = 0; i < 8; i++) { const b = mesh(new THREE.BoxGeometry(118, .9, 1.2), beamM, 0, 23.4, 0, false); b.rotation.y = i * Math.PI / 8; }
     // 地毯
-    const carpet = mesh(new THREE.PlaneGeometry(7, 104), mat(0x7a1a22), 0, .03, 0, false); carpet.rotation.x = -Math.PI / 2;
-    [-3.1, 3.1].forEach(x => { const s = mesh(new THREE.PlaneGeometry(.35, 104), mat(0xc9a24a), x, .04, 0, false); s.rotation.x = -Math.PI / 2; });
+    const carpet = mesh(new THREE.PlaneGeometry(7, 72), mat(0x7a1a22), 0, .03, 16, false); carpet.rotation.x = -Math.PI / 2;
+    [-3.1, 3.1].forEach(x => { const s = mesh(new THREE.PlaneGeometry(.35, 72), mat(0xc9a24a), x, .04, 16, false); s.rotation.x = -Math.PI / 2; });
     // 柱子(實例化)
     const sh = [], bs = [], cp = [];
     for (let i = 0; i < 20; i++) {
@@ -170,12 +172,12 @@
     [[-34, 4], [34, 4], [-40, 20], [40, 20], [-30, -26], [30, -26]].forEach(p => {
       mesh(new THREE.CylinderGeometry(.35, .4, 2.2, 8), wood, p[0], 1.1, p[1]); mesh(new THREE.BoxGeometry(1.4, .18, .18), wood, p[0], 1.6, p[1]); col(p[0], p[1], .6);
     });
-    [[-46, 8, 1.2], [46, 8, 1.8], [-24, -42, 0], [24, -42, 0]].forEach(p => {
+    [[-46, 8, 1.2], [46, 8, 1.8], [-30, -40, 0], [30, -40, 0]].forEach(p => {
       const r = mesh(new THREE.BoxGeometry(3.4, 1.8, .5), wood, p[0], .9, p[1]); r.rotation.y = p[2];
       for (let k = 0; k < 4; k++) { const s = mesh(new THREE.BoxGeometry(.1, 2.2, .1), mat(0x9aa0b0, { metalness: .7, roughness: .4 }), p[0] + (k - 1.5) * .7 * Math.cos(p[2]), 1.5, p[1] - (k - 1.5) * .7 * Math.sin(p[2]), false); s.rotation.z = .15; }
       col(p[0], p[1], 1.8);
     });
-    for (let i = 0; i < 6; i++) { const x = pick([-1, 1]) * rnd(26, 46), z = rnd(-30, 44); if (!clearOf(x, z, 2) || nearPlatform(x, z, 2)) continue; const m = mesh(new THREE.CylinderGeometry(.9, .9, 1.2, 12), mat(0xc2a45a), x, .6, z); m.rotation.z = Math.PI / 2; m.rotation.y = rnd(0, 3); col(x, z, 1.1); }
+    for (let i = 0; i < 6; i++) { const x = pick([-1, 1]) * rnd(26, 46), z = rnd(-30, 44); if (!clearOf(x, z, 2) || nearPlatform(x, z, 2) || !terrainFlat(x, z, 2)) continue; const m = mesh(new THREE.CylinderGeometry(.9, .9, 1.2, 12), mat(0xc2a45a), x, .6, z); m.rotation.z = Math.PI / 2; m.rotation.y = rnd(0, 3); col(x, z, 1.1); }
   }
 
   function buildJungle() {
@@ -215,7 +217,7 @@
     for (let i = 0, t = 0; i < nG && t < nG * 3; t++) {
       const a = rnd(0, TAU), r = rnd(7, 54), x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!clearOf(x, z, 1.5) || nearPlatform(x, z, .5)) continue; i++;
-      for (let k = 0; k < 3; k++) { const sy = rnd(.6, 1.3); grass.push([x + rnd(-.3, .3), sy / 2, z + rnd(-.3, .3), rnd(0, 3), 1, sy, 1, rnd(-.25, .25), rnd(-.25, .25), pick([0x5f8f3a, 0x7a9a40, 0x4a7a2a])]); }
+      for (let k = 0; k < 3; k++) { const sy = rnd(.6, 1.3); grass.push([x + rnd(-.3, .3), terrainH(x, z) + sy / 2, z + rnd(-.3, .3), rnd(0, 3), 1, sy, 1, rnd(-.25, .25), rnd(-.25, .25), pick([0x5f8f3a, 0x7a9a40, 0x4a7a2a])]); }
     }
     inst(new THREE.ConeGeometry(.18, 1, 4), mat(0xffffff, { roughness: 1 }), grass, false);
     // 低矮灌木與落葉色塊(增加地面層次)
@@ -224,37 +226,40 @@
       const a = rnd(0, TAU), r = rnd(9, 56), x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!clearOf(x, z, 2) || nearPlatform(x, z, 1.5)) continue; i++;
       const s = rnd(1, 2);
-      shrubs.push([x, s * .35, z, rnd(0, 3), s, s * rnd(.6, .8), s * rnd(.9, 1.1), 0, 0, pick(DARK.concat(MID))]);
-      if (Math.random() < .6) litter.push([x + rnd(-1.5, 1.5), .03, z + rnd(-1.5, 1.5), rnd(0, 3), rnd(1, 2.2), rnd(1, 2.2), 1, -Math.PI / 2, 0, pick([0x8a6a2e, 0x6b4e22, 0x9a7a3a])]);
+      shrubs.push([x, terrainH(x, z) + s * .35, z, rnd(0, 3), s, s * rnd(.6, .8), s * rnd(.9, 1.1), 0, 0, pick(DARK.concat(MID))]);
+      if (Math.random() < .6) { const lx = x + rnd(-1.5, 1.5), lz = z + rnd(-1.5, 1.5); if (terrainFlat(lx, lz, 1.5)) litter.push([lx, .03, lz, rnd(0, 3), rnd(1, 2.2), rnd(1, 2.2), 1, -Math.PI / 2, 0, pick([0x8a6a2e, 0x6b4e22, 0x9a7a3a])]); }
     }
     inst(new THREE.IcosahedronGeometry(1, 0), mat(0xffffff, { roughness: 1 }), shrubs);
     inst(new THREE.CircleGeometry(1, 7), mat(0xffffff, { roughness: 1 }), litter, false);
     // 岩石
     for (let i = 0, t = 0; i < 12 && t < 100; t++) {
-      const a = rnd(0, TAU), r = rnd(24, 50), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3)) continue; i++;
+      const a = rnd(0, TAU), r = rnd(24, 50), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3) || !terrainFlat(x, z, 3)) continue; i++;
       const s = rnd(1.2, 3), m = mesh(new THREE.DodecahedronGeometry(1, 0), mat(0x6f6a5c), x, s * .5, z); m.scale.set(s, s * .7, s * rnd(.8, 1.2)); m.rotation.y = rnd(0, 3); if (s > 1.8) col(x, z, s * .9);
     }
     // 石圖騰
     for (let i = 0, t = 0; i < 4 && t < 100; t++) {
-      const a = rnd(0, TAU), r = rnd(36, 48), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3)) continue; i++;
+      const a = rnd(0, TAU), r = rnd(36, 48), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3) || !terrainFlat(x, z, 3)) continue; i++;
       const sm = mat(0x7d7868), dk = mat(0x1d1a14);
       [[2.2, 1.2], [1.7, 1.2], [1.3, 1.1]].forEach((b, k) => { const y = 0.6 + k * 1.2 + (k > 0 ? 0 : 0); const m = mesh(new THREE.BoxGeometry(b[0], b[1], b[0]), sm, x, y, z); m.rotation.y = k * .3; mesh(new THREE.BoxGeometry(.3, .25, .1), dk, x - .35, y + .1, z + b[0] / 2 + .01, false).rotation.y = k * .3; });
       col(x, z, 1.4);
     }
     // 竹火把
     for (let i = 0, t = 0; i < 8 && t < 200; t++) {
-      const a = rnd(0, TAU), r = rnd(28, 48), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3)) continue; i++;
+      const a = rnd(0, TAU), r = rnd(28, 48), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3) || !terrainFlat(x, z, 3)) continue; i++;
       mesh(new THREE.CylinderGeometry(.1, .15, 2.6, 6), mat(0x6b4a2a), x, 1.3, z);
       mesh(new THREE.CylinderGeometry(.35, .18, .35, 8), mat(0x3a2a18), x, 2.7, z, false);
       col(x, z, .4); BRAZIERS.push({ x, y: 2.9, z });
     }
   }
 
+  // 南側地形組(四個場景共用):山頂 A、台地 B、山谷 V;吊橋與山頂旗依場景另給
+  const SOUTH_T = [['hill', -11, -38, 3, 10, 5], ['hill', 13, -38, 5, 3, 5], ['trench', 0, -30, 0, -40, 3, 3.5, 9, -4]];
+  const SOUTH_BR = (sag, style) => [[-8.6, -38, 8.6, -38, 5.05, .8, sag, style]];
   const SCENES = [
-    { name: '月夜訓練場', build: buildNight, ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea },
-    { name: '羅馬競技場', build: buildColosseum, ground: sandTex, gtint: 0x8f8670, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.4, .3, .16], bt: .96, bk: .45, clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .55], dir: [0xfff1d6, .8], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0x6e6049, platTrim: 0xf6ecd0 },
-    { name: '宮廷訓練場', build: buildHall, ground: floorTex, gtint: 0x8a8478, fog: [0x1a140e, 70, 220], indoor: true, bt: .92, bk: .6, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, .7], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x6a4424, platTrim: 0xe0b85a },
-    { name: '非洲叢林', build: buildJungle, ground: jungleTex, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [.45, .28, .12], bt: .93, bk: .55, clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.0], sun: [-32, 24, 22], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -12, 3, 3, 3.5, 0], ['box', -29.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x7d7868, platTrim: 0xb3ad94 }
+    { name: '月夜訓練場', build: buildNight, terrain: [...SOUTH_T, ['hill', 42, 20, 2, 7, 2.5]], terrainLook: { cliff: 0x6a6f85, dark: .35 }, bridges: SOUTH_BR(.5, 'rope'), bridgeCol: [0x5a4632, 0xb8a070], bridgeGlow: 0x9fd0ff, summit: [-11, -38, 5, 0x9fd0ff], ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea },
+    { name: '羅馬競技場', build: buildColosseum, terrain: SOUTH_T, terrainLook: { cliff: 0xa08a64, dark: .3 }, bridges: SOUTH_BR(.12, 'wood'), bridgeCol: [0x8a6a3a, 0x6b4f2a], summit: [-11, -38, 5, 0xb0302a], ground: sandTex, gtint: 0x8f8670, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.4, .3, .16], bt: .96, bk: .45, clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .55], dir: [0xfff1d6, .8], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0x6e6049, platTrim: 0xf6ecd0 },
+    { name: '宮廷訓練場', build: buildHall, terrain: SOUTH_T, terrainLook: { cliff: 0x5a5248, dark: .3 }, bridges: SOUTH_BR(.1, 'wood'), bridgeCol: [0x5a3a22, 0xc9a24a], summit: [-11, -38, 5, 0xc9a24a], ground: floorTex, gtint: 0x8a8478, fog: [0x1a140e, 70, 220], indoor: true, bt: .92, bk: .6, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, .7], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x6a4424, platTrim: 0xe0b85a },
+    { name: '非洲叢林', build: buildJungle, terrain: [...SOUTH_T, ['hill', -42, 18, 2, 8, 3]], terrainLook: { cliff: 0x8a4a2a, dark: .35 }, bridges: SOUTH_BR(.7, 'rope'), bridgeCol: [0x7a5a32, 0x3c5a22], summit: [-11, -38, 5, 0xd86a2a], ground: jungleTex, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [.45, .28, .12], bt: .93, bk: .55, clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.0], sun: [-32, 24, 22], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -12, 3, 3, 3.5, 0], ['box', -29.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x7d7868, platTrim: 0xb3ad94 }
   ];
 
   // 可站立高台:box [kind,x,z,hx,hz,top,yaw] / cyl [kind,x,z,r,top]
@@ -273,6 +278,56 @@
         addPlatform({ kind: 'cyl', x, z, r, top, deco: true });
       }
     });
+  }
+
+  // 吊橋:[x0,z0,x1,z1,top,hw,sag,style];橋面是 bridge 平台,外觀全部放在同一個 Group(本地座標,之後可整組擺動)
+  function buildBridges(S) {
+    (S.bridges || []).forEach(b => {
+      const [x0, z0, x1, z1, top, hw, sag, style] = b;
+      const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / L, uz = (z1 - z0) / L, yaw = Math.atan2(-uz, ux), H = L / 2;
+      addPlatform({ kind: 'bridge', x: cx, z: cz, hx: H, hz: hw, yaw, top, sag, bottom: top - sag - .35, deco: true });
+      const g = new THREE.Group(); g.position.set(cx, 0, cz); g.rotation.y = yaw; deco.add(g);
+      const ty = lx => top - sag * (1 - (lx / H) * (lx / H));
+      const wood = style === 'wood', rr = wood ? .06 : .03, rc = S.bridgeCol[1];
+      // 木板(1 個 draw call)
+      const n = Math.round(L / .4), planks = [];
+      for (let i = 0; i < n; i++) { const lx = -H + (i + .5) * L / n; planks.push([lx, ty(lx) - .04, 0, 0, null, null, null, 0, style === 'rope' ? rnd(-.03, .03) : 0]); }
+      inst(new THREE.BoxGeometry(.32, .08, hw * 2), mat(S.bridgeCol[0]), planks, true, g);
+      // 繩 / 扶手:兩側各一條橋面邊繩與一條扶手,各 16 段(1 個 draw call)
+      const segs = [];
+      [-1, 1].forEach(sd => {
+        const lz = sd * (hw + .02);
+        [[-.02, 0], [1.0, .15]].forEach(([dy, droop]) => {
+          const yAt = lx => { const u = lx / H; return ty(lx) + dy - droop * (1 - u * u); };
+          for (let k = 0; k < 16; k++) {
+            const xa = -H + 2 * H * k / 16, xb = -H + 2 * H * (k + 1) / 16;
+            const ya = yAt(xa), yb = yAt(xb), dxs = xb - xa, dys = yb - ya, len = Math.hypot(dxs, dys);
+            segs.push([(xa + xb) / 2, (ya + yb) / 2, lz, 0, rr, len, rr, 0, Math.atan2(dys, dxs) - Math.PI / 2]);
+          }
+        });
+      });
+      inst(new THREE.CylinderGeometry(1, 1, 1, 4), mat(rc), segs, false, g);
+      // 木橋扶手立柱:每 2 m 一根、兩側(1 個 draw call)
+      if (wood) {
+        const posts = [];
+        for (let lx = -H + 1; lx <= H - 1; lx += 2) [-1, 1].forEach(sd => posts.push([lx, ty(lx) + .5, sd * (hw + .02), 0, null, null, null, 0, 0]));
+        inst(new THREE.BoxGeometry(.08, 1, .08), mat(rc), posts, true, g);
+      }
+      // 橋柱:兩端四根;月夜另加柱頂光點
+      const pm = mat(S.bridgeCol[0]);
+      [-1, 1].forEach(sx => [-1, 1].forEach(sz => {
+        const lx = sx * (H - .4), lz = sz * (hw - .1), p = new THREE.Mesh(new THREE.CylinderGeometry(.12, .14, 1.4, 6), pm);
+        p.position.set(lx, top + .6, lz); p.castShadow = true; g.add(p);
+        if (S.bridgeGlow != null) { const s = glowSprite(S.bridgeGlow, 1.2, .8); s.position.set(lx, top + 1.4, lz); g.add(s); }
+      }));
+    });
+  }
+  // 山頂旗:[x, z, top, flagHex]
+  function buildSummit(S) {
+    if (!S.summit) return;
+    const [x, z, top, hex] = S.summit;
+    mesh(new THREE.CylinderGeometry(.06, .08, 3, 6), mat(0x6a5a4a), x, top + 1.5, z);
+    mesh(new THREE.PlaneGeometry(1.4, .8), mat(hex, { side: THREE.DoubleSide }), x + .72, top + 2.6, z);
   }
 
   function clearDeco() {
@@ -319,8 +374,11 @@
     window.SUNOFF.x = S.sun[0]; window.SUNOFF.y = S.sun[1]; window.SUNOFF.z = S.sun[2];
     groundTex = S.ground(); ground.material.map = groundTex; ground.material.color.setHex(S.gtint == null ? 0xffffff : S.gtint); ground.material.needsUpdate = true;
     deco = new THREE.Group(); scene.add(deco);
+    setTerrain(FLAT ? [] : S.terrain, S.terrainLook);
     buildPlats(S);
+    if (!FLAT) { buildBridges(S); buildSummit(S); }
     S.build();
+    checkTerrain();
     cur = i;
     applyBloomScene();
     SCORCH.forEach(s => { scene.remove(s.m); s.m.material.dispose(); }); SCORCH.length = 0;
