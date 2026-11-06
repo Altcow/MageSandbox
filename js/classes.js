@@ -99,15 +99,15 @@ function aimSpecial(sk, p, charging, q, rs, alpha, E) {
   if (!a || a === 'circle' || a === 'wall') return false;
   const cfg = CFG.skills[sk.id], prog = charging ? q : 0, th = Math.atan2(G.target.x - p.x, G.target.z - p.z);
   if (a === 'none') { ind.hide(); return true; }
-  if (a === 'self') { ind.setMax(rs, 0, 0); ind.set(p.x, p.z, 0, rs * CHG.size(q), 0, 0, prog, alpha, E.hex, surfaceY(p.x, p.z)); return true; }
+  if (a === 'self') { ind.setMax(rs, 0, 0); ind.set(p.x, p.z, 0, rs * CHG.size(q), 0, 0, prog, alpha, E.hex, surfaceY(p.x, p.z, p.y + .5)); return true; }
   if (a === 'front') {
     const cx = p.x + Math.sin(th) * cfg.range, cz = p.z + Math.cos(th) * cfg.range;
-    ind.setMax(rs, 0, 0); ind.set(cx, cz, 0, rs * CHG.size(q), 0, 0, prog, alpha, E.hex, surfaceY(cx, cz)); return true;
+    ind.setMax(rs, 0, 0); ind.set(cx, cz, 0, rs * CHG.size(q), 0, 0, prog, alpha, E.hex, surfaceY(cx, cz, p.y + 2)); return true;
   }
   // line:矩形(本地 x 軸 = 瞄準方向,yaw = θ − π/2)
   const L = lineShape(sk, q, rs), cx = p.x + Math.sin(th) * (L.off + L.len / 2), cz = p.z + Math.cos(th) * (L.off + L.len / 2);
   ind.setMax(0, L.maxLen / 2, L.maxHw);
-  ind.set(cx, cz, 1, L.len / 2, L.hw, th - Math.PI / 2, prog, alpha, E.hex, surfaceY(cx, cz));
+  ind.set(cx, cz, 1, L.len / 2, L.hw, th - Math.PI / 2, prog, alpha, E.hex, surfaceY(cx, cz, p.y + 2));
   return true;
 }
 

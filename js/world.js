@@ -49,8 +49,114 @@ const groundTex = canvasTex(256, (g, s) => {
   g.strokeStyle = 'rgba(160,190,185,.28)'; g.lineWidth = 2; g.strokeRect(1, 1, s - 2, s - 2);
 });
 groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping; groundTex.repeat.set(45, 45); groundTex.anisotropy = 8;
-const ground = new THREE.Mesh(new THREE.CircleGeometry(90, 64), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1 }));
-ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+// ---------- 地形(高度場)----------
+const FLAT = /[?&]flat=1/.test(location.search);
+const TER = { N: 121, X0: -60, CELL: 1, H: new Float32Array(121 * 121), hMin: 0, hMax: 0, flat: true };
+const TER_MAX_TAN = 0.9, TER_SLIDE_NY = 0.743, TER_SLIDE_V = 6, PLAYER_H = 1.8;
+const terGeo = new THREE.BufferGeometry();
+{
+  const N = TER.N, pa = new Float32Array(N * N * 3), uv = new Float32Array(N * N * 2), ca = new Float32Array(N * N * 3).fill(1), idx = [];
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const k = j * N + i, x = TER.X0 + i * TER.CELL, z = TER.X0 + j * TER.CELL;
+    pa[k * 3] = x; pa[k * 3 + 2] = z; uv[k * 2] = (x / 90 + 1) / 2; uv[k * 2 + 1] = (-z / 90 + 1) / 2;
+  }
+  for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) { const a = j * N + i, b = a + 1, c = a + N, d = c + 1; idx.push(a, c, b, b, c, d); }
+  terGeo.setAttribute('position', new THREE.BufferAttribute(pa, 3));
+  terGeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  terGeo.setAttribute('color', new THREE.BufferAttribute(ca, 3));
+  terGeo.setIndex(idx); terGeo.computeVertexNormals();
+}
+const ground = new THREE.Mesh(terGeo, new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1, vertexColors: true }));
+ground.receiveShadow = true; ground.castShadow = false; scene.add(ground);
+const groundRing = new THREE.Mesh(new THREE.RingGeometry(58, 90, 64, 1), ground.material);
+groundRing.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(groundRing.geometry.attributes.position.count * 3).fill(1), 3));
+groundRing.rotation.x = -Math.PI / 2; groundRing.position.y = -0.06; groundRing.receiveShadow = true; scene.add(groundRing);
+
+// 地形高度(三角形內插,與網格切法一致);網格外 = 0
+function terrainH(x, z) {
+  if (TER.flat) return 0;
+  const N = TER.N, fx = (x - TER.X0) / TER.CELL, fz = (z - TER.X0) / TER.CELL;
+  if (fx < 0 || fz < 0 || fx >= N - 1 || fz >= N - 1) return 0;
+  const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, H = TER.H, k = j * N + i;
+  const a = H[k], b = H[k + 1], c = H[k + N], d = H[k + N + 1];
+  return u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
+}
+// 地面法線(span 為取樣半距;站在平台上 → 朝上)
+function groundNormal(x, z, y, span, out) {
+  const h = terrainH(x, z);
+  if (TER.flat || (y != null && y > h + .05)) return out.set(0, 1, 0);
+  const s = Math.max(.5, span || .5);
+  return out.set(terrainH(x - s, z) - terrainH(x + s, z), 2 * s, terrainH(x, z - s) - terrainH(x, z + s)).normalize();
+}
+// (x,z) 周圍 m 公尺都是平地(亂數擺放用)
+function terrainFlat(x, z, m) {
+  return [[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(o => Math.abs(terrainH(x + o[0], z + o[1])) < .05);
+}
+const _lfN = new THREE.Vector3(0, 1, 0), _lfUp = new THREE.Vector3(0, 1, 0), _lfQ = new THREE.Quaternion();
+// XY 平面 mesh(Plane / Ring)平貼地面
+function layFlat(m, x, y, z, span, spin, off) {
+  m.rotation.set(-Math.PI / 2, 0, spin || 0); groundNormal(x, z, y, span, _lfN); _lfQ.setFromUnitVectors(_lfUp, _lfN); m.quaternion.premultiply(_lfQ); m.position.set(x, y, z).addScaledVector(_lfN, off || 0);
+}
+
+const _fall = (d, flat, w) => d <= flat ? 1 : d >= flat + w ? 0 : .5 * (1 + Math.cos(Math.PI * (d - flat) / w));
+// feats:['hill', x, z, Rt, W, H] / ['trench', x0, z0, x1, z1, hw, side, endW, floorY]
+function evalTerrain(feats, x, z) {
+  let h = 0;
+  for (const f of feats) if (f[0] === 'hill') { const v = f[5] * _fall(Math.hypot(x - f[1], z - f[2]), f[3], f[4]); if (v > h) h = v; }
+  for (const f of feats) if (f[0] === 'trench') {
+    const dx = f[3] - f[1], dz = f[4] - f[2], L = Math.hypot(dx, dz) || 1e-6, ux = dx / L, uz = dz / L, px = x - f[1], pz = z - f[2];
+    const along = px * ux + pz * uz, across = Math.abs(-px * uz + pz * ux);
+    const ea = along < 0 ? -along : (along > L ? along - L : 0);
+    const m = _fall(across, f[5], f[6]) * _fall(ea, 0, f[7]);
+    h += (f[8] - h) * m;
+  }
+  return h;
+}
+// 套用場景地形;look = { cliff: 崖壁色 hex, dark: 谷底變暗比例 }。feats 空 → 完全平地
+function setTerrain(feats, look) {
+  feats = feats || []; look = look || {};
+  const N = TER.N, H = TER.H, geo = ground.geometry, pos = geo.attributes.position, col = geo.attributes.color;
+  let lo = 0, hi = 0;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const k = j * N + i, h = feats.length ? evalTerrain(feats, TER.X0 + i * TER.CELL, TER.X0 + j * TER.CELL) : 0;
+    H[k] = h; pos.setY(k, h); if (h < lo) lo = h; if (h > hi) hi = h;
+  }
+  TER.hMin = lo; TER.hMax = hi; TER.flat = hi - lo < 1e-6;
+  pos.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere();
+  const nrm = geo.attributes.normal, cc = new THREE.Color(look.cliff == null ? 0xffffff : look.cliff), dk = look.dark || 0;
+  for (let k = 0; k < N * N; k++) {
+    const st = clamp((.8 - nrm.getY(k)) / .3, 0, 1), sh = 1 - dk * clamp(-H[k] / 4, 0, 1);
+    col.setXYZ(k, lerp(1, cc.r, st) * sh, lerp(1, cc.g, st) * sh, lerp(1, cc.b, st) * sh);
+  }
+  col.needsUpdate = true;
+}
+// 回傳射線 o + d·t 第一次碰到地形的 t(0~tMax),沒碰到回傳 Infinity
+function rayTerrain(o, d, tMax) {
+  if (TER.flat) { if (d.y > -1e-4) return Infinity; const t = -o.y / d.y; return t >= 0 && t <= tMax ? t : Infinity; }
+  const top = TER.hMax + .1, bot = TER.hMin - .1;
+  let t0 = 0, t1 = tMax;
+  if (Math.abs(d.y) > 1e-6) { const ta = (top - o.y) / d.y, tb = (bot - o.y) / d.y; t0 = Math.max(0, Math.min(ta, tb)); t1 = Math.min(tMax, Math.max(ta, tb)); }
+  else if (o.y > top || o.y < bot) return Infinity;
+  if (t0 > t1) return Infinity;
+  const f = t => o.y + d.y * t - terrainH(o.x + d.x * t, o.z + d.z * t);
+  let ta = t0;
+  if (f(t0) <= 0) return t0;
+  while (true) {
+    let tb = Math.min(ta + .5, t1);
+    if (f(tb) <= 0) { for (let k = 0; k < 8; k++) { const tm = (ta + tb) / 2; if (f(tm) <= 0) tb = tm; else ta = tm; } return tb; }
+    if (tb >= t1) return Infinity;
+    ta = tb;
+  }
+}
+// 場景建好後呼叫:標靶原位、平台腳印、固定碰撞物、平坦保留區 F 若不平就警告
+function checkTerrain() {
+  if (TER.flat) return;
+  const w = (m, x, z) => console.warn('[terrain] ' + m + ' @' + x.toFixed(1) + ',' + z.toFixed(1) + ' h=' + terrainH(x, z).toFixed(2));
+  DUMMIES.forEach(d => { if (Math.abs(terrainH(d.home.x, d.home.z)) > .01) w('dummy', d.home.x, d.home.z); });
+  PLATFORMS.forEach(P => { if (P.kind !== 'bridge' && !P.tmp && Math.abs(terrainH(P.x, P.z)) > .05) w('platform', P.x, P.z); });
+  COLLIDERS.forEach(c => { if (c.deco && Math.abs(terrainH(c.x, c.z)) > .3) w('collider', c.x, c.z); });
+  for (let x = -28; x <= 28; x += 2) for (let z = -6; z <= 48; z += 2) if (Math.abs(terrainH(x, z)) > .01) { w('zone F', x, z); return; }
+}
 
 const COLLIDERS = [];
 // 可站立平台(高台);deco:true = 場景裝飾(換場景時清掉);tmp:true = 法術產生的暫時平台(由法術自己移除)
@@ -63,12 +169,26 @@ function platContains(P, x, z, m) {
   if (P.kind === 'cyl') return Math.hypot(x - P.x, z - P.z) <= P.r + m;
   const L = platLocal(P, x, z); return Math.abs(L.lx) <= P.hx + m && Math.abs(L.lz) <= P.hz + m;
 }
-function surfaceY(x, z) { let y = 0; for (const P of PLATFORMS) if (P.top > y && platContains(P, x, z, 0)) y = P.top; return y; }
-function groundAt(x, z, y) { let g = 0; for (const P of PLATFORMS) if (P.top > g && P.top <= y + STEP_UP && platContains(P, x, z, 0.15)) g = P.top; return g; }
+// bridge:{ kind:'bridge', x, z, hx(半長,沿本地 x), hz(半寬), yaw, top(兩端頂面), sag(中央下垂), bottom }
+function platTop(P, x, z) {
+  if (P.kind !== 'bridge') return P.top;
+  const u = clamp(platLocal(P, x, z).lx / P.hx, -1, 1); return P.top - P.sag * (1 - u * u);
+}
+// yRef:只考慮頂面 ≤ yRef + 0.5 的平台(避免瞄準橋下谷底時落點跑到橋面上);省略 = 全部
+function surfaceY(x, z, yRef) {
+  let y = terrainH(x, z); const lim = yRef == null ? Infinity : yRef + .5;
+  for (const P of PLATFORMS) { if (!platContains(P, x, z, 0)) continue; const t = platTop(P, x, z); if (t > y && t <= lim) y = t; }
+  return y;
+}
+function groundAt(x, z, y) {
+  let g = terrainH(x, z);
+  for (const P of PLATFORMS) { if (!platContains(P, x, z, .15)) continue; const t = platTop(P, x, z); if (t > g && t <= y + STEP_UP) g = t; }
+  return g;
+}
 function nearPlatform(x, z, m) { return PLATFORMS.some(P => platContains(P, x, z, m)); }
 function pushOutPlatforms(p) {
   for (const P of PLATFORMS) {
-    if (P.top <= p.y + STEP_UP) continue;
+    if (platTop(P, p.x, p.z) <= p.y + STEP_UP || (P.bottom != null && p.y + PLAYER_H < P.bottom)) continue;
     if (P.kind === 'cyl') {
       const dx = p.x - P.x, dz = p.z - P.z, d = Math.hypot(dx, dz), m = P.r + PLAYER_R;
       if (d >= m) continue;

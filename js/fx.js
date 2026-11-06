@@ -132,6 +132,7 @@ function makeOrb(el) {
 }
 
 // ---------- 施法位置光圈(圓形 / 矩形) ----------
+const _indN = new THREE.Vector3(0, 1, 0), _indUp = new THREE.Vector3(0, 1, 0), _indQ = new THREE.Quaternion();
 class Indicator {
   constructor(scene) {
     this.mat = new THREE.ShaderMaterial({
@@ -177,7 +178,9 @@ void main(){
   // mode 0: R 半徑;mode 1: halfX,halfY 為矩形半長寬,yaw 為矩形旋轉
   set(x, z, mode, a, b, yaw, prog, alpha, hex, y) {
     const u = this.mat.uniforms;
-    this.root.position.set(x, (y || 0) + 0.07, z); this.root.rotation.y = yaw || 0;
+    this.root.rotation.set(0, yaw || 0, 0);
+    if (typeof groundNormal === 'function') { groundNormal(x, z, y, mode === 0 ? a * .5 : Math.max(a, b) * .5, _indN); _indQ.setFromUnitVectors(_indUp, _indN); this.root.quaternion.premultiply(_indQ); }
+    this.root.position.set(x, (y || 0) + .07 + .3 * (1 - _indN.y), z);
     u.uMode.value = mode; u.uProg.value = prog; u.uAlpha.value = alpha;
     if (hex != null) u.uCol.value.setHex(hex);
     let S;
