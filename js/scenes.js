@@ -1,0 +1,309 @@
+'use strict';
+// 可切換場景:月夜訓練場 / 羅馬競技場 / 宮廷訓練場 / 非洲叢林
+// 場景只負責「看起來」與碰撞物;標靶與玩法不動。切換:N 鍵、上方按鈕、?scene=0~3
+(function () {
+  const TAU = Math.PI * 2, MOBILE = IS_TOUCH;
+  let deco = null, cur = -1;
+  const nightGround = ground.material.map;
+  const _o = new THREE.Object3D(), _c = new THREE.Color();
+  const mat = (color, o) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: .92 }, o || {}));
+  const add = (m, cast) => { m.castShadow = cast !== false; m.receiveShadow = true; deco.add(m); return m; };
+  const mesh = (geo, material, x, y, z, cast) => { const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); return add(m, cast); };
+  const col = (x, z, r) => COLLIDERS.push({ x, z, r, deco: true });
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  // 標靶區(不要放裝飾)
+  const clearOf = (x, z, m) => !(x > -22 - (m || 0) && x < 22 + (m || 0) && z > 0 - (m || 0) && z < 42 + (m || 0));
+  // list 每項:[x,y,z,ry,sx,sy,sz,rx,rz,color]
+  function inst(geo, material, list, cast) {
+    const im = new THREE.InstancedMesh(geo, material, list.length);
+    list.forEach((a, i) => {
+      _o.position.set(a[0], a[1], a[2]); _o.rotation.set(a[7] || 0, a[3] || 0, a[8] || 0);
+      _o.scale.set(a[4] == null ? 1 : a[4], a[5] == null ? 1 : a[5], a[6] == null ? 1 : a[6]);
+      _o.updateMatrix(); im.setMatrixAt(i, _o.matrix);
+      if (a[9] != null) im.setColorAt(i, _c.set(a[9]));
+    });
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.frustumCulled = false; return add(im, cast);
+  }
+  const faceCenter = (x, z) => Math.atan2(-x, -z);   // 平面法線朝向場中心
+  const speck = (g, s, n, a) => { for (let i = 0; i < n; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(255,255,255,' + a + ')' : 'rgba(0,0,0,' + a * 1.5 + ')'; g.fillRect(Math.random() * s, Math.random() * s, 2, 2); } };
+  function rep(t, x, y) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(x, y); t.anisotropy = 4; return t; }
+
+  /* ---------- 貼圖 ---------- */
+  const sandTex = () => rep(canvasTex(256, (g, s) => {
+    g.fillStyle = '#cdb07a'; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 500; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(150,110,60,.07)' : 'rgba(255,240,200,.08)'; g.beginPath(); g.arc(Math.random() * s, Math.random() * s, rnd(4, 16), 0, TAU); g.fill(); }
+    speck(g, s, 3000, .06);
+  }), 30, 30);
+  const facadeTex = () => rep(canvasTex(256, (g, s) => {
+    g.fillStyle = '#cdb88f'; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 1800; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(255,255,255,.05)' : 'rgba(70,50,20,.07)'; g.fillRect(Math.random() * s, Math.random() * s, 3, 2); }
+    const rh = s / 3;
+    for (let r = 0; r < 3; r++) {
+      const y0 = r * rh;
+      if (r === 0) { g.fillStyle = '#3a2f22'; [32, 96, 160, 224].forEach(x => g.fillRect(x - 9, y0 + 18, 18, 30)); }
+      else {
+        g.fillStyle = '#2b2218';
+        [64, 192].forEach(cx => { g.beginPath(); g.moveTo(cx - 30, y0 + rh - 6); g.lineTo(cx - 30, y0 + 30); g.arc(cx, y0 + 30, 30, Math.PI, 0); g.lineTo(cx + 30, y0 + rh - 6); g.closePath(); g.fill(); });
+      }
+      g.fillStyle = 'rgba(70,50,25,.45)'; g.fillRect(0, y0 + rh - 5, s, 5);
+    }
+  }), 30, 1);
+  const seatTex = () => rep(canvasTex(256, (g, s) => {
+    g.fillStyle = '#d6c7a0'; g.fillRect(0, 0, s, s);
+    g.fillStyle = 'rgba(90,70,40,.5)'; g.fillRect(0, 0, s, 6); g.fillRect(0, s / 2, s, 3);
+    for (let i = 0; i < 8; i++) g.fillRect(i * 32, 0, 2, s);
+    speck(g, s, 2000, .06);
+  }), 22, 4);
+  const brickTex = () => rep(canvasTex(256, (g, s) => {
+    g.fillStyle = '#4d483f'; g.fillRect(0, 0, s, s);
+    const bw = s / 4, bh = s / 8;
+    for (let r = 0; r < 8; r++) for (let k = -1; k < 5; k++) {
+      g.fillStyle = 'rgb(' + (122 + rnd(-14, 14)) + ',' + (115 + rnd(-14, 14)) + ',' + (102 + rnd(-14, 14)) + ')';
+      g.fillRect(k * bw + (r % 2) * bw / 2 + 2, r * bh + 2, bw - 4, bh - 4);
+    }
+    speck(g, s, 1500, .05);
+  }), 24, 1);
+  const floorTex = () => rep(canvasTex(256, (g, s) => {
+    const h = s / 2;
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#4f4a42' : '#cfc3a3'; g.fillRect(i * h, j * h, h, h); }
+    speck(g, s, 2500, .05);
+    g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 3; g.strokeRect(0, 0, h, h); g.strokeRect(h, 0, h, h); g.strokeRect(0, h, h, h); g.strokeRect(h, h, h, h);
+  }), 45, 45);
+  const glassTex = () => canvasTex(128, (g, s) => {
+    const gr = g.createLinearGradient(0, 0, 0, s); gr.addColorStop(0, '#dcecff'); gr.addColorStop(1, '#8fb2ee'); g.fillStyle = gr; g.fillRect(0, 0, s, s);
+    g.strokeStyle = '#33405a'; g.lineWidth = 4; for (let i = 0; i <= 3; i++) { g.beginPath(); g.moveTo(i * s / 3, 0); g.lineTo(i * s / 3, s); g.stroke(); }
+    for (let i = 0; i <= 6; i++) { g.beginPath(); g.moveTo(0, i * s / 6); g.lineTo(s, i * s / 6); g.stroke(); }
+  });
+  const bannerTex = c => canvasTex(128, (g, s) => {
+    g.fillStyle = c; g.fillRect(0, 0, s, s); g.strokeStyle = '#d9b14f'; g.lineWidth = 6; g.strokeRect(6, 6, s - 12, s - 12);
+    g.fillStyle = '#d9b14f'; g.beginPath(); g.arc(s / 2, s / 2, 24, 0, TAU); g.fill(); g.fillStyle = c; g.beginPath(); g.arc(s / 2, s / 2, 12, 0, TAU); g.fill();
+  });
+  const jungleTex = () => rep(canvasTex(256, (g, s) => {
+    g.fillStyle = '#4d3d24'; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 420; i++) { g.fillStyle = pick(['rgba(60,110,40,.22)', 'rgba(30,20,10,.18)', 'rgba(130,90,40,.2)']); g.beginPath(); g.arc(Math.random() * s, Math.random() * s, rnd(3, 14), 0, TAU); g.fill(); }
+    speck(g, s, 3000, .06);
+  }), 30, 30);
+
+  /* ---------- 場景 ---------- */
+  function stoneBraz(x, z) {
+    mesh(new THREE.CylinderGeometry(.5, .7, 2.2, 8), mat(0x777c92), x, 1.1, z);
+    col(x, z, .8); BRAZIERS.push({ x, y: 2.3, z });
+  }
+  function buildNight() {
+    const pm = mat(0x6a6f85);
+    for (let i = 0; i < 28; i++) {
+      const a = i / 28 * TAU, h = rnd(3, 5.5), m = mesh(new THREE.BoxGeometry(1.4, h, 1.4), pm, Math.cos(a) * 56, h / 2, Math.sin(a) * 56); m.rotation.y = rnd(0, 3);
+    }
+    for (let i = 0; i < 70; i++) {
+      const a = rnd(0, TAU), r = rnd(62, 95), g = new THREE.Group(), h = rnd(5, 9);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.3, .4, 2, 6), new THREE.MeshStandardMaterial({ color: 0x4a3322 })); trunk.position.y = 1; g.add(trunk);
+      for (let k = 0; k < 3; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(2.4 - k * .5, h / 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x1e3a33, roughness: 1 })); c.position.y = 2.6 + k * h / 4; g.add(c); }
+      g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); deco.add(g);
+    }
+    [[-18, -6], [20, -10], [-24, 18], [26, 14], [0, 36], [-10, -30], [14, -34]].forEach(p => stoneBraz(p[0], p[1]));
+  }
+
+  function buildColosseum() {
+    mesh(new THREE.CylinderGeometry(56, 56, 3.2, 64, 1, true), mat(0xbfa982, { side: THREE.BackSide }), 0, 1.6, 0, false);
+    mesh(new THREE.CylinderGeometry(70, 56, 10, 64, 1, true), mat(0xffffff, { map: seatTex(), side: THREE.DoubleSide }), 0, 8.2, 0, false);
+    mesh(new THREE.CylinderGeometry(70, 70, 28, 64, 1, true), mat(0xffffff, { map: facadeTex(), side: THREE.BackSide }), 0, 14, 0, false);
+    // 地面環紋
+    [[46.5, 47.3], [9, 9.6]].forEach(r => { const m = new THREE.Mesh(new THREE.RingGeometry(r[0], r[1], 64), new THREE.MeshBasicMaterial({ color: 0x8a6a3a, transparent: true, opacity: .5, fog: true })); m.rotation.x = -Math.PI / 2; m.position.y = .03; deco.add(m); });
+    // 閘門
+    for (let i = 0; i < 3; i++) { const a = i / 3 * TAU + .5, x = Math.cos(a) * 55.6, z = Math.sin(a) * 55.6; const m = mesh(new THREE.BoxGeometry(7, 4.4, .6), mat(0x241a12), x, 2.2, z, false); m.rotation.y = faceCenter(x, z); }
+    // 青銅火盆
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * TAU + .2, x = Math.cos(a) * 54, z = Math.sin(a) * 54;
+      mesh(new THREE.CylinderGeometry(.12, .2, 2, 6), mat(0x6b4f2a, { metalness: .5 }), x, 1, z);
+      mesh(new THREE.CylinderGeometry(.6, .35, .5, 10), mat(0x8a6a2a, { metalness: .6 }), x, 2.2, z);
+      BRAZIERS.push({ x, y: 2.5, z });
+    }
+    // 殘破石柱
+    [[-30, -12], [30, -14], [-38, 10], [40, 12], [-14, -34], [16, -36], [-44, -22], [44, -24], [0, -44]].forEach(p => {
+      const h = rnd(2, 5.5);
+      mesh(new THREE.BoxGeometry(2.6, .6, 2.6), mat(0xd2c29a), p[0], .3, p[1]);
+      mesh(new THREE.CylinderGeometry(.85, 1, h, 14), mat(0xd9caa0), p[0], .6 + h / 2, p[1]);
+      col(p[0], p[1], 1.2);
+    });
+  }
+
+  function buildHall() {
+    mesh(new THREE.CylinderGeometry(60, 60, 24, 64, 1, true), mat(0xbbbbbb, { map: brickTex(), side: THREE.BackSide }), 0, 12, 0, false);
+    const ceil = mesh(new THREE.CircleGeometry(60, 48), mat(0x2b1e15), 0, 24, 0, false); ceil.rotation.x = Math.PI / 2;
+    const beamM = mat(0x1d140d);
+    for (let i = 0; i < 8; i++) { const b = mesh(new THREE.BoxGeometry(118, .9, 1.2), beamM, 0, 23.4, 0, false); b.rotation.y = i * Math.PI / 8; }
+    // 地毯
+    const carpet = mesh(new THREE.PlaneGeometry(7, 104), mat(0x7a1a22), 0, .03, 0, false); carpet.rotation.x = -Math.PI / 2;
+    [-3.1, 3.1].forEach(x => { const s = mesh(new THREE.PlaneGeometry(.35, 104), mat(0xc9a24a), x, .04, 0, false); s.rotation.x = -Math.PI / 2; });
+    // 柱子(實例化)
+    const sh = [], bs = [], cp = [];
+    for (let i = 0; i < 20; i++) {
+      const a = i / 20 * TAU, x = Math.cos(a) * 56, z = Math.sin(a) * 56;
+      sh.push([x, 11, z]); bs.push([x, .5, z, -a]); cp.push([x, 22.6, z, -a]);
+    }
+    inst(new THREE.CylinderGeometry(1.1, 1.2, 22, 14), mat(0xcfc5ad), sh);
+    inst(new THREE.BoxGeometry(3, 1, 3), mat(0xb5aa90), bs);
+    inst(new THREE.BoxGeometry(3, 1.2, 3), mat(0xb5aa90), cp);
+    // 窗與旗幟(柱間)
+    const gm = new THREE.MeshBasicMaterial({ map: glassTex() }), bA = mat(0xffffff, { map: bannerTex('#8a1a2a'), side: THREE.DoubleSide }), bB = mat(0xffffff, { map: bannerTex('#1d3a7a'), side: THREE.DoubleSide });
+    for (let i = 0; i < 20; i++) {
+      const a = (i + .5) / 20 * TAU, x = Math.cos(a) * 59.3, z = Math.sin(a) * 59.3;
+      if (i % 2 === 0) { const w = mesh(new THREE.PlaneGeometry(5, 12), gm, x, 12.5, z, false); w.rotation.y = faceCenter(x, z); }
+      else { const b = mesh(new THREE.PlaneGeometry(3.4, 10), (i % 4 === 1) ? bA : bB, x * .995, 13, z * .995, false); b.rotation.y = faceCenter(x, z); }
+    }
+    // 壁火把
+    for (let i = 0; i < 20; i += 2) {
+      const a = i / 20 * TAU, x = Math.cos(a) * 54.3, z = Math.sin(a) * 54.3;
+      mesh(new THREE.CylinderGeometry(.1, .15, 1, 6), mat(0x3a2a1a), x, 3.7, z, false);
+      mesh(new THREE.CylinderGeometry(.35, .2, .35, 8), mat(0x6b5a2a, { metalness: .5 }), x, 4.3, z, false);
+      BRAZIERS.push({ x, y: 4.6, z });
+    }
+    // 吊燈
+    [[0, 0], [-28, -10], [28, -10]].forEach(p => {
+      mesh(new THREE.CylinderGeometry(.06, .06, 8, 4), mat(0x222222), p[0], 20, p[1], false);
+      const ring = mesh(new THREE.TorusGeometry(3, .15, 6, 20), mat(0x8a6a2a, { metalness: .6 }), p[0], 16, p[1], false); ring.rotation.x = Math.PI / 2;
+      for (let k = 0; k < 8; k++) { const s = glowSprite(0xffc070, 1.6, .9); s.position.set(p[0] + Math.cos(k / 8 * TAU) * 3, 16.6, p[1] + Math.sin(k / 8 * TAU) * 3); deco.add(s); }
+    });
+    // 訓練木樁 / 兵器架 / 乾草
+    const wood = mat(0x7a5230);
+    [[-34, 4], [34, 4], [-40, 20], [40, 20], [-30, -26], [30, -26]].forEach(p => {
+      mesh(new THREE.CylinderGeometry(.35, .4, 2.2, 8), wood, p[0], 1.1, p[1]); mesh(new THREE.BoxGeometry(1.4, .18, .18), wood, p[0], 1.6, p[1]); col(p[0], p[1], .6);
+    });
+    [[-46, 8, 1.2], [46, 8, 1.8], [-24, -42, 0], [24, -42, 0]].forEach(p => {
+      const r = mesh(new THREE.BoxGeometry(3.4, 1.8, .5), wood, p[0], .9, p[1]); r.rotation.y = p[2];
+      for (let k = 0; k < 4; k++) { const s = mesh(new THREE.BoxGeometry(.1, 2.2, .1), mat(0x9aa0b0, { metalness: .7, roughness: .4 }), p[0] + (k - 1.5) * .7 * Math.cos(p[2]), 1.5, p[1] - (k - 1.5) * .7 * Math.sin(p[2]), false); s.rotation.z = .15; }
+      col(p[0], p[1], 1.8);
+    });
+    for (let i = 0; i < 6; i++) { const x = pick([-1, 1]) * rnd(26, 46), z = rnd(-30, 44); if (!clearOf(x, z, 2) || nearPlatform(x, z, 2)) continue; const m = mesh(new THREE.CylinderGeometry(.9, .9, 1.2, 12), mat(0xc2a45a), x, .6, z); m.rotation.z = Math.PI / 2; m.rotation.y = rnd(0, 3); col(x, z, 1.1); }
+  }
+
+  function buildJungle() {
+    const greens = [0x2f5a2a, 0x3c6e2e, 0x28501f, 0x4a7a32];
+    const trunks = [], canopies = [], vines = [];
+    const nTree = MOBILE ? 90 : 150;
+    for (let i = 0; i < nTree; i++) {
+      const a = rnd(0, TAU), r = i < nTree * .55 ? rnd(57, 68) : rnd(68, 115), x = Math.cos(a) * r, z = Math.sin(a) * r, kind = Math.random();
+      if (kind < .55) {
+        const h = rnd(11, 20), tr = rnd(.5, .9);
+        trunks.push([x, h / 2, z, 0, tr, h, tr, 0, 0, 0x5a4330]);
+        for (let k = 0; k < 3; k++) canopies.push([x + rnd(-2.5, 2.5), h + rnd(-2, 1.5), z + rnd(-2.5, 2.5), 0, rnd(4, 6.5), rnd(2.5, 3.5), rnd(4, 6.5), 0, 0, pick(greens)]);
+        if (Math.random() < .5) { const L = rnd(5, 8); vines.push([x + rnd(-2, 2), h - 3 - L / 2, z + rnd(-2, 2), 0, 1, L, 1, 0, 0, 0x2c4a22]); }
+      } else if (kind < .85) {
+        const h = rnd(6, 9);
+        trunks.push([x, h / 2, z, 0, rnd(.35, .5), h, rnd(.35, .5), 0, 0, 0x6a5238]);
+        canopies.push([x, h + .5, z, 0, rnd(6, 8), 1.2, rnd(6, 8), 0, 0, 0x5d7a32]);
+      } else {
+        const h = rnd(8, 11), tr = rnd(1.8, 2.4);
+        trunks.push([x, h / 2, z, 0, tr, h, tr, 0, 0, 0x7a6a55]);
+        for (let k = 0; k < 3; k++) canopies.push([x + rnd(-2.5, 2.5), h + rnd(0, 1.5), z + rnd(-2.5, 2.5), 0, rnd(2, 3), 1.2, rnd(2, 3), 0, 0, pick(greens)]);
+      }
+    }
+    inst(new THREE.CylinderGeometry(.7, 1, 1, 7), mat(0xffffff), trunks);
+    inst(new THREE.IcosahedronGeometry(1, 1), mat(0xffffff, { roughness: 1 }), canopies);
+    if (vines.length) inst(new THREE.CylinderGeometry(.06, .06, 1, 4), mat(0xffffff), vines, false);
+    // 草叢
+    const grass = [], nG = MOBILE ? 260 : 600;
+    for (let i = 0, t = 0; i < nG && t < nG * 3; t++) {
+      const a = rnd(0, TAU), r = rnd(7, 54), x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (!clearOf(x, z, 1.5) || nearPlatform(x, z, .5)) continue; i++;
+      for (let k = 0; k < 3; k++) { const sy = rnd(.6, 1.3); grass.push([x + rnd(-.3, .3), sy / 2, z + rnd(-.3, .3), rnd(0, 3), 1, sy, 1, rnd(-.25, .25), rnd(-.25, .25), pick([0x5f8f3a, 0x7a9a40, 0x4a7a2a])]); }
+    }
+    inst(new THREE.ConeGeometry(.18, 1, 4), mat(0xffffff, { roughness: 1 }), grass, false);
+    // 岩石
+    for (let i = 0, t = 0; i < 12 && t < 100; t++) {
+      const a = rnd(0, TAU), r = rnd(24, 50), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3)) continue; i++;
+      const s = rnd(1.2, 3), m = mesh(new THREE.DodecahedronGeometry(1, 0), mat(0x6f6a5c), x, s * .5, z); m.scale.set(s, s * .7, s * rnd(.8, 1.2)); m.rotation.y = rnd(0, 3); if (s > 1.8) col(x, z, s * .9);
+    }
+    // 石圖騰
+    for (let i = 0, t = 0; i < 4 && t < 100; t++) {
+      const a = rnd(0, TAU), r = rnd(36, 48), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3)) continue; i++;
+      const sm = mat(0x7d7868), dk = mat(0x1d1a14);
+      [[2.2, 1.2], [1.7, 1.2], [1.3, 1.1]].forEach((b, k) => { const y = 0.6 + k * 1.2 + (k > 0 ? 0 : 0); const m = mesh(new THREE.BoxGeometry(b[0], b[1], b[0]), sm, x, y, z); m.rotation.y = k * .3; mesh(new THREE.BoxGeometry(.3, .25, .1), dk, x - .35, y + .1, z + b[0] / 2 + .01, false).rotation.y = k * .3; });
+      col(x, z, 1.4);
+    }
+    // 竹火把
+    for (let i = 0, t = 0; i < 8 && t < 200; t++) {
+      const a = rnd(0, TAU), r = rnd(28, 48), x = Math.cos(a) * r, z = Math.sin(a) * r; if (!clearOf(x, z, 3) || nearPlatform(x, z, 3)) continue; i++;
+      mesh(new THREE.CylinderGeometry(.1, .15, 2.6, 6), mat(0x6b4a2a), x, 1.3, z);
+      mesh(new THREE.CylinderGeometry(.35, .18, .35, 8), mat(0x3a2a18), x, 2.7, z, false);
+      col(x, z, .4); BRAZIERS.push({ x, y: 2.9, z });
+    }
+  }
+
+  const SCENES = [
+    { name: '月夜訓練場', build: buildNight, ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x5a5f78, platTrim: 0x8a90b0 },
+    { name: '羅馬競技場', build: buildColosseum, ground: sandTex, gtint: 0xffffff, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.9, .7, .4], clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .8], dir: [0xfff1d6, 1.25], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0xd2c29a, platTrim: 0xe8dcb8 },
+    { name: '宮廷訓練場', build: buildHall, ground: floorTex, gtint: 0xffffff, fog: [0x1a140e, 70, 220], indoor: true, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, 1.05], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x5a3a22, platTrim: 0xc9a24a },
+    { name: '非洲叢林', build: buildJungle, ground: jungleTex, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [1, .6, .25], clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.15], sun: [-32, 24, 22], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -12, 3, 3, 3.5, 0], ['box', -29.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x6f6a5c, platTrim: 0x4a7a32 }
+  ];
+
+  // 可站立高台:box [kind,x,z,hx,hz,top,yaw] / cyl [kind,x,z,r,top]
+  function buildPlats(S) {
+    const pm = mat(S.platCol), tm = mat(S.platTrim);
+    S.plats.forEach(e => {
+      if (e[0] === 'box') {
+        const x = e[1], z = e[2], hx = e[3], hz = e[4], top = e[5], yaw = e[6];
+        mesh(new THREE.BoxGeometry(hx * 2, top, hz * 2), pm, x, top / 2, z).rotation.y = yaw;
+        mesh(new THREE.BoxGeometry(hx * 2 + .2, .12, hz * 2 + .2), tm, x, top, z, false).rotation.y = yaw;
+        addPlatform({ kind: 'box', x, z, hx, hz, top, yaw, deco: true });
+      } else {
+        const x = e[1], z = e[2], r = e[3], top = e[4];
+        mesh(new THREE.CylinderGeometry(r, r * 1.05, top, 20), pm, x, top / 2, z);
+        mesh(new THREE.CylinderGeometry(r + .1, r + .1, .12, 20), tm, x, top, z, false);
+        addPlatform({ kind: 'cyl', x, z, r, top, deco: true });
+      }
+    });
+  }
+
+  function clearDeco() {
+    if (!deco) return;
+    scene.remove(deco);
+    deco.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map && m.map !== nightGround) m.map.dispose(); m.dispose(); });
+    });
+    deco = null;
+    for (let i = COLLIDERS.length - 1; i >= 0; i--) if (COLLIDERS[i].deco) COLLIDERS.splice(i, 1);
+    for (let i = PLATFORMS.length - 1; i >= 0; i--) if (PLATFORMS[i].deco) PLATFORMS.splice(i, 1);
+    BRAZIERS.length = 0;
+  }
+  let groundTex = null;
+  function setScene(i) {
+    i = ((i % SCENES.length) + SCENES.length) % SCENES.length;
+    const S = SCENES[i];
+    clearDeco();
+    if (groundTex && groundTex !== nightGround) groundTex.dispose();
+    scene.fog.color.setHex(S.fog[0]); scene.fog.near = S.fog[1]; scene.fog.far = S.fog[2];
+    sky.visible = !S.indoor; renderer.setClearColor(S.clear);
+    const u = sky.material.uniforms;
+    u.uHor.value.setRGB(S.hor[0], S.hor[1], S.hor[2]); u.uTop.value.setRGB(S.top[0], S.top[1], S.top[2]); u.uGnd.value.setRGB(S.gnd[0], S.gnd[1], S.gnd[2]);
+    u.uSunCol.value.setRGB(S.sunCol[0], S.sunCol[1], S.sunCol[2]); u.uSunDir.value.set(S.sun[0], S.sun[1], S.sun[2]).normalize();
+    skyStars.visible = skyMoon.visible = !!S.stars;
+    hemi.color.setHex(S.hemi[0]); hemi.groundColor.setHex(S.hemi[1]); hemi.intensity = S.hemi[2];
+    moonLight.color.setHex(S.dir[0]); moonLight.intensity = S.dir[1];
+    window.SUNOFF.x = S.sun[0]; window.SUNOFF.y = S.sun[1]; window.SUNOFF.z = S.sun[2];
+    groundTex = S.ground(); ground.material.map = groundTex; ground.material.needsUpdate = true;
+    deco = new THREE.Group(); scene.add(deco);
+    buildPlats(S);
+    S.build();
+    cur = i;
+    SCORCH.forEach(s => { scene.remove(s.m); s.m.material.dispose(); }); SCORCH.length = 0;
+    [...document.querySelectorAll('#sceneBar button')].forEach((b, k) => b.classList.toggle('on', k === i));
+    try { localStorage.setItem('mageSandbox.scene', i); } catch (e) { }
+    if (window.banner && window.G) window.banner(S.name, '#ffe3b0');
+  }
+  window.SUNOFF = { x: -20, y: 40, z: 15 };
+  window.setScene = setScene;
+  window.nextScene = () => setScene(cur + 1);
+
+  // 場景按鈕
+  const bar = document.createElement('div'); bar.id = 'sceneBar';
+  SCENES.forEach((s, k) => { const b = document.createElement('button'); b.textContent = s.name; b.onclick = () => setScene(k); bar.appendChild(b); });
+  document.body.appendChild(bar);
+  addEventListener('keydown', e => { if (e.code === 'KeyN' && !e.ctrlKey && !e.repeat && e.target.tagName !== 'INPUT') setScene(cur + 1); });
+
+  let start = 0;
+  try { const q = /[?&]scene=(\d)/.exec(location.search); start = q ? +q[1] : (+localStorage.getItem('mageSandbox.scene') || 0); } catch (e) { }
+  setScene(start);
+})();

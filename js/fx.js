@@ -159,9 +159,9 @@ void main(){
     this.root.add(this.mesh); this.root.visible = false; scene.add(this.root);
   }
   // mode 0: R 半徑;mode 1: halfX,halfY 為矩形半長寬,yaw 為矩形旋轉
-  set(x, z, mode, a, b, yaw, prog, alpha, hex) {
+  set(x, z, mode, a, b, yaw, prog, alpha, hex, y) {
     const u = this.mat.uniforms;
-    this.root.position.set(x, 0.07, z); this.root.rotation.y = yaw || 0;
+    this.root.position.set(x, (y || 0) + 0.07, z); this.root.rotation.y = yaw || 0;
     u.uMode.value = mode; u.uProg.value = prog; u.uAlpha.value = alpha;
     if (hex != null) u.uCol.value.setHex(hex);
     let S;

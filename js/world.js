@@ -15,8 +15,9 @@ const smoke = new Particles(scene, IS_TOUCH ? 1500 : 2500, false);
 // 天空
 const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 24, 16), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { uHor: { value: new THREE.Color(.24, .2, .4) }, uTop: { value: new THREE.Color(.03, .05, .16) }, uGnd: { value: new THREE.Color(.12, .1, .2) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(0, 0, 0) } },
   vertexShader: 'varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-  fragmentShader: 'varying vec3 vP;void main(){float h=normalize(vP).y;vec3 hor=vec3(.24,.2,.4);vec3 top=vec3(.03,.05,.16);vec3 c=mix(hor,top,smoothstep(0.,.55,h));c=mix(vec3(.12,.1,.2),c,smoothstep(-.1,.05,h));gl_FragColor=vec4(c,1.);}'
+  fragmentShader: 'uniform vec3 uHor,uTop,uGnd,uSunDir,uSunCol;varying vec3 vP;void main(){vec3 n=normalize(vP);float h=n.y;vec3 c=mix(uHor,uTop,smoothstep(0.,.55,h));c=mix(uGnd,c,smoothstep(-.1,.05,h));float s=max(dot(n,normalize(uSunDir)),0.);c+=uSunCol*(pow(s,6.)*.35+pow(s,120.));gl_FragColor=vec4(c,1.);}'
 }));
 sky.renderOrder = -10; scene.add(sky);
 {
@@ -26,10 +27,11 @@ sky.renderOrder = -10; scene.add(sky);
   const st = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, fog: false, depthWrite: false }));
   st.frustumCulled = false; sky.add(st);
   const moon = glowSprite(0xaab8ff, 70, .8); moon.position.set(-150, 190, 260); moon.material.fog = false; sky.add(moon);
+  var skyStars = st, skyMoon = moon;
 }
 
 // 燈光
-scene.add(new THREE.HemisphereLight(0x8a9bff, 0x2a2438, .75));
+const hemi = new THREE.HemisphereLight(0x8a9bff, 0x2a2438, .75); scene.add(hemi);
 const moonLight = new THREE.DirectionalLight(0xaab8ff, .95);
 moonLight.position.set(-20, 40, 15); moonLight.castShadow = true;
 moonLight.shadow.mapSize.set(IS_TOUCH ? 1024 : 2048, IS_TOUCH ? 1024 : 2048);
@@ -51,29 +53,44 @@ const ground = new THREE.Mesh(new THREE.CircleGeometry(90, 64), new THREE.MeshSt
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
 const COLLIDERS = [];
-const ARENA_R = 52;
-// 圍牆石柱
-for (let i = 0; i < 28; i++) {
-  const a = i / 28 * 6.2832, h = rnd(3, 5.5);
-  const m = new THREE.Mesh(new THREE.BoxGeometry(1.4, h, 1.4), new THREE.MeshStandardMaterial({ color: 0x6a6f85, roughness: .9 }));
-  m.position.set(Math.cos(a) * 56, h / 2, Math.sin(a) * 56); m.rotation.y = rnd(0, 3); m.castShadow = m.receiveShadow = true; scene.add(m);
+// 可站立平台(高台);deco:true = 場景裝飾(換場景時清掉);tmp:true = 法術產生的暫時平台(由法術自己移除)
+const PLAYER_R = 0.4, STEP_UP = 0.25;
+const PLATFORMS = [];
+function addPlatform(o) { o.yaw = o.yaw || 0; o.c = Math.cos(o.yaw); o.s = Math.sin(o.yaw); PLATFORMS.push(o); return o; }
+function removePlatform(o) { const i = PLATFORMS.indexOf(o); if (i >= 0) PLATFORMS.splice(i, 1); }
+function platLocal(P, x, z) { const dx = x - P.x, dz = z - P.z; return { lx: dx * P.c - dz * P.s, lz: dx * P.s + dz * P.c }; }
+function platContains(P, x, z, m) {
+  if (P.kind === 'cyl') return Math.hypot(x - P.x, z - P.z) <= P.r + m;
+  const L = platLocal(P, x, z); return Math.abs(L.lx) <= P.hx + m && Math.abs(L.lz) <= P.hz + m;
 }
-// 樹
-for (let i = 0; i < 70; i++) {
-  const a = rnd(0, 6.283), r = rnd(62, 95), g = new THREE.Group();
-  const h = rnd(5, 9);
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.3, .4, 2, 6), new THREE.MeshStandardMaterial({ color: 0x4a3322 })); trunk.position.y = 1;
-  g.add(trunk);
-  for (let k = 0; k < 3; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(2.4 - k * .5, h / 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x1e3a33, roughness: 1 })); c.position.y = 2.6 + k * h / 4; g.add(c); }
-  g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); scene.add(g);
+function surfaceY(x, z) { let y = 0; for (const P of PLATFORMS) if (P.top > y && platContains(P, x, z, 0)) y = P.top; return y; }
+function groundAt(x, z, y) { let g = 0; for (const P of PLATFORMS) if (P.top > g && P.top <= y + STEP_UP && platContains(P, x, z, 0.15)) g = P.top; return g; }
+function nearPlatform(x, z, m) { return PLATFORMS.some(P => platContains(P, x, z, m)); }
+function pushOutPlatforms(p) {
+  for (const P of PLATFORMS) {
+    if (P.top <= p.y + STEP_UP) continue;
+    if (P.kind === 'cyl') {
+      const dx = p.x - P.x, dz = p.z - P.z, d = Math.hypot(dx, dz), m = P.r + PLAYER_R;
+      if (d >= m) continue;
+      if (d > 1e-4) { p.x = P.x + dx / d * m; p.z = P.z + dz / d * m; } else p.x = P.x + m;
+      continue;
+    }
+    const L = platLocal(P, p.x, p.z);
+    const qx = clamp(L.lx, -P.hx, P.hx), qz = clamp(L.lz, -P.hz, P.hz);
+    const ex = L.lx - qx, ez = L.lz - qz, d = Math.hypot(ex, ez);
+    if (d >= PLAYER_R) continue;
+    let nx = L.lx, nz = L.lz;
+    if (d > 1e-4) { nx = qx + ex / d * PLAYER_R; nz = qz + ez / d * PLAYER_R; }
+    else { // 中心在盒子內:從穿透最淺的那一邊推出
+      const px = P.hx - Math.abs(L.lx), pz = P.hz - Math.abs(L.lz);
+      if (px < pz) nx = Math.sign(L.lx || 1) * (P.hx + PLAYER_R); else nz = Math.sign(L.lz || 1) * (P.hz + PLAYER_R);
+    }
+    p.x = P.x + nx * P.c + nz * P.s; p.z = P.z - nx * P.s + nz * P.c;
+  }
 }
-// 內部柱子與火盆
+let ARENA_R = 52;
 const BRAZIERS = [];
-[[-18, -6], [20, -10], [-24, 18], [26, 14], [0, 36], [-10, -30], [14, -34]].forEach(([x, z]) => {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(.5, .7, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x777c92, roughness: .9 }));
-  m.position.set(x, 1.1, z); m.castShadow = m.receiveShadow = true; scene.add(m);
-  COLLIDERS.push({ x, z, r: .8 }); BRAZIERS.push({ x, y: 2.3, z });
-});
+// 場景裝飾由 scenes.js 建立
 
 // 稻草人標靶
 const DUMMIES = [];

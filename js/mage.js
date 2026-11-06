@@ -87,13 +87,15 @@ class Mage {
       pose(L, lerp(-.35, -1.2, c) - .2 * k, lerp(-.06, -.45, c), lerp(-1.0, -.5, c));
       pose(R, lerp(sw * .8, -1.2, c) - .2 * k, lerp(.06, .45, c), lerp(-.1, -.5, c));
     }
-    if (s.roll >= 0) {  // 側翻滾:繞身體中心翻一圈、收手
+    const rp = s.roll >= 0 ? s.roll : (s.flip >= 0 ? s.flip : -1);
+    const phi = s.roll >= 0 ? s.rollPhi : 0;          // phi=0 → 繞本地 x 軸 = 前空翻
+    if (rp >= 0) {  // 側翻滾 / 前空翻:繞身體中心翻一圈、收手
       pose(L, -2, .2, -1.4); pose(R, -2, -.2, -1.4);
-      const ax = new V3(Math.cos(s.rollPhi), 0, -Math.sin(s.rollPhi));
-      this.body.quaternion.setFromAxisAngle(ax, Math.PI * 2 * s.roll);
+      const ax = new V3(Math.cos(phi), 0, -Math.sin(phi));
+      this.body.quaternion.setFromAxisAngle(ax, Math.PI * 2 * rp);
       const c = new V3(0, .9, 0);
       this.body.position.copy(c).sub(c.clone().applyQuaternion(this.body.quaternion));
-      this.body.position.y += .25 * Math.sin(Math.PI * s.roll);
+      this.body.position.y += .25 * Math.sin(Math.PI * rp);
     }
     this.root.updateMatrixWorld(true);
     const v = new V3(), v2 = new V3();

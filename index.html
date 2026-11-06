@@ -31,10 +31,16 @@ canvas{display:block}
 #dmgLayer{position:fixed;inset:0;pointer-events:none;overflow:hidden}
 .dmg{position:absolute;left:0;top:0;font-weight:bold;font-size:20px;color:#ffd35a;text-shadow:0 0 4px #a02800,0 2px 2px #000}
 #banner{position:fixed;left:50%;top:22%;transform:translateX(-50%);font-size:34px;font-weight:bold;text-shadow:0 0 10px #000,0 2px 2px #000;pointer-events:none;opacity:0}
+#sceneBar{position:fixed;left:50%;top:8px;transform:translateX(-50%);display:flex;gap:6px;z-index:5}
+#sceneBar button{background:rgba(14,16,40,.7);color:#ddd;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+#sceneBar button.on{border-color:#ffb24a;color:#fff;box-shadow:0 0 10px rgba(255,150,40,.5)}
+body.touch #sceneBar{top:4px;gap:4px}
+body.touch #sceneBar button{padding:2px 6px;font-size:10px}
 #flash{position:fixed;inset:0;background:radial-gradient(transparent 40%,#f00);pointer-events:none;opacity:0;transition:opacity .25s}
 html,body,canvas{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
 #touchUI,#portraitMsg{display:none}
 body.touch #touchUI{display:block}
+body.pad #touchUI{display:none}
 body.touch #hint{display:none}
 body.touch #hotbar{left:auto;right:18px;bottom:auto;top:12px;transform:none}
 body.touch .slot{width:54px;height:54px}
@@ -51,6 +57,8 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 #btnAtk.on{transform:scale(1.12);box-shadow:0 0 28px #ff8a1a}
 .tb{position:fixed;width:62px;height:62px;border-radius:50%;background:rgba(30,40,90,.7);border:2px solid rgba(160,200,255,.6);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:bold;touch-action:none}
 .tb.sm{width:46px;height:46px;font-size:11px}
+.tb.air{border-color:#9fe8ff;box-shadow:0 0 14px #6fd0ff}
+.tb.spent{opacity:.4}
 #btnRoll{right:calc(170px + env(safe-area-inset-right));bottom:calc(36px + env(safe-area-inset-bottom))}
 #btnJump{right:calc(48px + env(safe-area-inset-right));bottom:calc(158px + env(safe-area-inset-bottom))}
 #btnWeap{right:calc(130px + env(safe-area-inset-right));bottom:calc(130px + env(safe-area-inset-bottom))}
@@ -69,14 +77,14 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 </head>
 <body>
 <div id="hint">
-<b>WASD</b> 移動 ・ <b>Shift</b> 跑 ・ <b>Space</b> 跳<br>
+<b>WASD</b> 移動 ・ <b>Shift</b> 跑<br>
 <b>1 / 2 / 3</b> 選法術(光圈出現,可邊走邊選位置)<br>
 <b>按住左鍵</b> 集氣(光圈跟著滑鼠,施法中不能移動)・<b>放開</b> 施放<br>
-<b>滾輪</b> 調整範圍 ・ <b>Q / E</b> 旋轉火牆 ・ <b>Esc / X</b> 取消<br>
-<b>右鍵拖曳</b> 轉視角 ・ <b>Ctrl+滾輪</b> 縮放 ・ <b>Tab</b> 法杖/魔法書<br>
-<b>Space</b> 高跳 ・ <b>Ctrl / F</b> 側翻滾(翻滾中短暫無敵,可取消集氣)<br>
+<b>滾輪</b> 調整範圍 ・ <b>Q / E</b> 旋轉牆(只在選牆時)・ <b>Esc / X</b> 取消<br>
+<b>右鍵拖曳</b> 轉視角 ・ <b>Ctrl+滾輪</b> 縮放 ・ <b>Tab</b> 法杖(重擊)/ 魔法書(速唱)<br>
+<b>Space</b> 跳 / 空中再按一次二段跳 ・ <b>F</b> 翻滾(翻滾中短暫無敵,空中可側翻一次)<br>
 <b>T</b> 腳下來襲測試(紅圈預告後爆炸)・ <b>Y</b> 自動來襲<br>
-<b>P</b> 參數面板 ・ <b>R</b> 重置標靶 ・ <b>H</b> 隱藏說明
+<b>N</b> 換場景 ・ <b>C</b> 鏡頭重置 ・ <b>P</b> 參數面板 ・ <b>R</b> 重置標靶與計數 ・ <b>H</b> 隱藏說明
 </div>
 <div id="info"></div>
 <div id="chant"></div>
@@ -107,6 +115,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <script src="js/fx.js"></script>
 <script src="js/mage.js"></script>
 <script src="js/world.js"></script>
+<script src="js/scenes.js"></script>
 <script src="js/game.js"></script>
 <script src="js/touch.js"></script>
 <script>if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});</script>
