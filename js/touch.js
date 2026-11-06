@@ -106,6 +106,8 @@
     if (edge(11)) resetCam();                                // 右搖桿按下:鏡頭重置
     if (edge(12)) G.zoom = clamp(G.zoom * .9, .5, 1.9);      // 十字上:拉近
     if (edge(13)) G.zoom = clamp(G.zoom * 1.1, .5, 1.9);     // 十字下:拉遠
+    if (edge(14)) cycleElement(-1);                          // 十字左:上一屬性
+    if (edge(15)) cycleElement(1);                           // 十字右:下一屬性
     prev = gp.buttons.map(x => x.pressed);
   };
 })();
