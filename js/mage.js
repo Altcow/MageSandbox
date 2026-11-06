@@ -6,6 +6,7 @@ class Mage {
     const M = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .75, metalness: .05 }, o || {}));
     this.root = new THREE.Group(); this.body = new THREE.Group(); this.root.add(this.body); scene.add(this.root);
     this.yaw = 0; this.walkPh = 0; this.weapon = 'staff'; this.glow = 0; this.swap = 1; this.flip = 0;
+    this.spinY = 0; this.shieldUp = 0; this.opq = 1;   // 旋風斬轉身 / 衝鋒盾舉盾 / 潛行透明度(classes.js classTick 每幀寫入)
     const robe = M(0x3a3f9c), robe2 = M(0x2a2e78), gold = M(0xe0b04a, { metalness: .6, roughness: .35 });
     this.robeM = robe; this.robe2M = robe2;   // 職業袍色用
     const skin = M(0xf1c9a5), hair = M(0xe9ecff), boot = M(0x5a3a22), dark = new THREE.MeshBasicMaterial({ color: 0x151525 });
@@ -96,6 +97,15 @@ class Mage {
   tipWorld(out) { const A = { staff: this.tipAnchor, book: this.orbAnchor, bow: this.bowTip, swordShield: this.swordTip, daggers: this.dagTip }[this.weapon] || this.orbAnchor; A.getWorldPosition(out); return out; }
   setElementColor(hex) { this.gemMat.color.setHex(hex); this.gemMat.emissive.setHex(hex); this.staffGlow.material.color.setHex(hex); this.bookGlow.material.color.setHex(hex); }
 
+  // 潛行半透明(a:1 = 正常):只改身體的一般混合材質,加亮光暈不動
+  setOpacity(a) {
+    this.body.traverse(o => {
+      const m = o.material; if (!m || m.blending === THREE.AdditiveBlending) return;
+      const u = m.userData; if (u.o0 === undefined) { u.o0 = m.opacity; u.t0 = m.transparent; u.d0 = m.depthWrite; }
+      m.transparent = a < 1 || u.t0; m.opacity = u.o0 * a; m.depthWrite = a >= 1 ? u.d0 : false; o.castShadow = a >= 1;
+    });
+  }
+
   // anim: {move, cast(0..1), kick(0..1), charge(0..1), t}
   update(dt, s) {
     this.root.rotation.y = this.yaw;
@@ -106,7 +116,7 @@ class Mage {
     this.feet[0].position.y = .1 + Math.max(0, Math.cos(this.walkPh)) * .08 * Math.min(1, s.move);
     this.feet[1].position.y = .1 + Math.max(0, -Math.cos(this.walkPh)) * .08 * Math.min(1, s.move);
     this.body.position.y = Math.abs(Math.sin(this.walkPh)) * .06 * Math.min(1, s.move) + Math.sin(s.t * 2) * .012 + s.hover;
-    this.body.rotation.set(.1 * Math.min(1, s.move) - .07 * s.cast + .16 * s.kick, 0, 0);
+    this.body.rotation.set(.1 * Math.min(1, s.move) - .07 * s.cast + .16 * s.kick, this.spinY, 0);
     this.head.rotation.x = -.18 * s.cast + (s.cast > .5 ? Math.sin(s.t * 3) * .02 : 0);
     const c = s.cast, k = s.kick, L = this.armL, R = this.armR;
     const pose = (a, sx, sz, ex) => { a.sh.rotation.set(sx, 0, sz); a.el.rotation.set(ex, 0, 0); };
@@ -119,7 +129,7 @@ class Mage {
     } else if (this.weapon === 'bow') {
       pose(L, -1.45, -.12, -.1); pose(R, -1.45, lerp(.1, .42, c), lerp(-.4, -1.5, c));
     } else if (this.weapon === 'swordShield') {
-      pose(R, lerp(-.12, -2.1, c) - .2 * k, lerp(-.08, -.25, c), lerp(-.35, -.2, c)); pose(L, -.5, -.25, -.6);
+      pose(R, lerp(-.12, -2.1, c) - .2 * k, lerp(-.08, -.25, c), lerp(-.35, -.2, c)); pose(L, lerp(-.5, -1.35, this.shieldUp), -.25, lerp(-.6, -1.2, this.shieldUp));
     } else {
       pose(L, -1.1, lerp(-.1, -.5, c), -1.2); pose(R, -1.1, lerp(.1, .5, c), -1.2);
     }
