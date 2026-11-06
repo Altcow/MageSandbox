@@ -24,8 +24,17 @@ canvas{display:block}
 .slot i{position:absolute;left:0;bottom:0;height:5px;background:linear-gradient(90deg,#ff9a2a,#ffe27a);width:0}
 #chargeBox{position:fixed;left:50%;bottom:108px;transform:translateX(-50%);width:300px;text-align:center;font-size:13px;opacity:0;transition:opacity .15s}
 #chargeBox.on{opacity:1}
-#chargeBar{height:10px;border-radius:6px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);overflow:hidden;margin-bottom:3px}
-#chargeFill{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff7a1a,#ffe27a)}
+#chargeBar{position:relative;height:10px;border-radius:6px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);overflow:hidden;margin-bottom:3px}
+#chargeBar .tk{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.7);z-index:1}
+#chargeFill{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff7a1a,#ffe27a)}
+#elBar{position:fixed;bottom:18px;left:calc(50% + 136px);display:flex;gap:6px;z-index:4;transition:opacity .15s}
+#elBar.busy{opacity:.25;pointer-events:none}
+.elc{position:relative;width:40px;height:40px;border-radius:10px;background:rgba(14,16,40,.75);border:2px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;user-select:none}
+.elc b{position:absolute;left:3px;top:1px;font-size:10px;color:#ffc46b}
+.elc.sel{box-shadow:0 0 12px rgba(255,255,255,.4)}
+body.touch #elBar{bottom:auto;top:72px;left:auto;right:60px;gap:4px}
+body.touch .elc{width:36px;height:36px;font-size:17px}
+body.touch .elc b{display:none}
 #chargeBox.max #chargeFill{background:#fff;box-shadow:0 0 12px #ffd27a}
 #chant{position:fixed;left:0;top:0;font-size:17px;font-weight:bold;color:#ffe3b0;text-shadow:0 0 8px #ff8a1a,0 0 2px #000;white-space:nowrap;pointer-events:none;opacity:0;transform:translate(-50%,-100%)}
 #dmgLayer{position:fixed;inset:0;pointer-events:none;overflow:hidden}
@@ -89,7 +98,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <button id="hintBtn" title="操作說明 (H)">?</button>
 <div id="hint">
 <b>WASD</b> 移動 ・ <b>Shift</b> 跑<br>
-<b>1 / 2 / 3</b> 選法術(光圈出現,可邊走邊選位置)<br>
+<b>1 / 2 / 3</b> 選法術(光圈出現,可邊走邊選位置)・<b>Z / V 或 4~9</b> 切換屬性(水火風土光暗)<br>
 <b>按住左鍵</b> 集氣(光圈跟著滑鼠,施法中不能移動)・<b>放開</b> 施放<br>
 <b>滾輪</b> 調整範圍 ・ <b>Q / E</b> 旋轉牆(只在選牆時)・ <b>Esc / X</b> 取消<br>
 <b>右鍵拖曳</b> 轉視角 ・ <b>Ctrl+滾輪</b> 縮放 ・ <b>Tab</b> 法杖(重擊)/ 魔法書(速唱)<br>
@@ -99,8 +108,9 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 </div>
 <div id="info"></div>
 <div id="chant"></div>
-<div id="chargeBox"><div id="chargeBar"><i id="chargeFill"></i></div><span id="chargeTxt"></span></div>
+<div id="chargeBox"><div id="chargeBar"><i id="chargeFill"></i><i class="tk" style="left:50%"></i><i class="tk" style="left:calc(100% - 1px)"></i></div><span id="chargeTxt"></span></div>
 <div id="hotbar"></div>
+<div id="elBar"></div>
 <div id="dmgLayer"></div>
 <div id="touchUI">
   <div id="stickBase"><div id="stickKnob"></div></div>
@@ -128,6 +138,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <script src="js/world.js"></script>
 <script src="js/scenes.js"></script>
 <script src="js/game.js"></script>
+<script src="js/spells.js"></script>
 <script src="js/classes.js"></script>
 <script src="js/touch.js"></script>
 <script>if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});</script>

@@ -5,13 +5,14 @@
 
 const rgbOf = h => [(h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255];
 const curSkill = i => G.cls === 'mage' ? SKILLS[i] : CLASSES[G.cls].skills[i];
-const baseOf = i => curSkill(i).base || curSkill(i).id;   // 法師招式沒有 base,直接用 id(fireball / firewall / meteor)
+const baseOf = i => curSkill(i).base || curSkill(i).id;
+const spellOf = i => G.cls === 'mage' ? SPELLS[G.el][i] : CLASSES[G.cls].skills[i];   // 名稱/圖示/咒語/喊招:法師依目前屬性,其他職業用自己的招式   // 法師招式沒有 base,直接用 id(fireball / firewall / meteor)
 const moveCharge = () => !!CLASSES[G.cls].moveWhileCharging;   // 集氣中可移動(劍士、刺客)
 
 // 暫時技能:base 指定沿用哪一招既有行為;cast 留給 D2~D4(有值時 launchSpell 改呼叫它)
 function phSkill(id, name, icon, base, cd, chant, shout) {
   const b = SKILLS.find(s => s.id === base);
-  return { id, name, icon, base, shape: b.shape, aim: b.shape === 'wall' ? 'wall' : 'circle', cd: cd || 0, chant, shout, cast: null, img: null };
+  return { id, name, icon, base, kind: b.kind, shape: b.shape, aim: b.shape === 'wall' ? 'wall' : 'circle', cd: cd || 0, chant, shout, cast: null, img: null };
 }
 
 const CLASSES = {
@@ -36,10 +37,11 @@ const CLASS_ORDER = ['mage', 'archer', 'swordsman', 'assassin'];
 
 /* ---------- 氣場色(形狀同 fx.js 的 EL:hex / core / c0 / c1) ---------- */
 const _aeCache = {};
-// 法師沿用 EL.fire(任務 C 會改為目前屬性的 EL 表)
+// 法師用目前屬性的 EL 表;其他職業用自己的氣場色(欄位形狀與 EL 相同:hex / core / c0 / c1 / css0 / css1 / name)
+const cssOf = h => '#' + h.toString(16).padStart(6, '0');
 function auraEl() {
-  if (G.cls === 'mage') return EL.fire;
-  return _aeCache[G.cls] || (_aeCache[G.cls] = (() => { const a = CLASSES[G.cls].aura; return { hex: a.hex, core: a.sub, c0: rgbOf(a.main), c1: rgbOf(a.sub), dark: a.dark }; })());
+  if (G.cls === 'mage') return EL[G.el];
+  return _aeCache[G.cls] || (_aeCache[G.cls] = (() => { const a = CLASSES[G.cls].aura; return { name: CLASSES[G.cls].name, hex: a.hex, core: a.sub, c0: rgbOf(a.main), c1: rgbOf(a.sub), s0: rgbOf(a.main), s1: rgbOf(a.sub), css0: cssOf(a.hex), css1: cssOf(a.sub), dark: a.dark }; })());
 }
 // 集氣氣場:環繞粒子(集氣中)、放開後收束到武器尖端;同時存在的粒子桌機 ≤150、手機 ≤60
 const AURA = { acc: 0, gather: 0 };
@@ -70,7 +72,11 @@ function auraGatherTick(dt) {
 
 /* ---------- 快捷列與冷卻 ---------- */
 function refreshHotbar() {
-  slots.forEach((el, i) => { const s = curSkill(i); el.querySelector('.ic').textContent = s.icon; el.querySelector('.nm').textContent = s.name; });
+  slots.forEach((el, i) => {
+    const s = spellOf(i);
+    el.querySelector('.ic').innerHTML = s.img ? '<img src="' + s.img + '" alt="" style="width:34px;height:34px">' : s.icon;
+    el.querySelector('.nm').textContent = s.name;
+  });
 }
 function updateCdHUD() {
   slots.forEach((el, i) => {
@@ -102,7 +108,7 @@ function setClass(c) {
   if (G.state !== 'ready' || !CLASS_ORDER.includes(c) || c === G.cls) return;
   const C = CLASSES[c];
   G.cls = c; try { localStorage.setItem('mageSandbox.cls', c); } catch (e) { }
-  mage.setWeapon(c === 'mage' ? G.weapon : C.weapons[0]); mage.setRobeColor(C.robe); mage.setElementColor(auraEl().hex);
+  mage.setWeapon(c === 'mage' ? G.weapon : C.weapons[0]); mage.setRobeColor(C.robe); applyElColors();
   G.skill = 0; G.lastSkill = 0; G.wallOff = 0;
   refreshHotbar(); refreshClsBar(); syncElBar();
   banner(C.name, clsHex(c));
@@ -113,7 +119,7 @@ function initClass() {
   try { const s = localStorage.getItem('mageSandbox.cls'); if (CLASS_ORDER.includes(s)) c = s; } catch (e) { }
   G.cls = c;
   mage.setWeapon(c === 'mage' ? G.weapon : CLASSES[c].weapons[0], true); mage.setRobeColor(CLASSES[c].robe);
-  buildClsBar(); refreshHotbar(); refreshClsBar(); syncElBar();
+  buildClsBar(); applyElColors(); refreshHotbar(); refreshClsBar(); syncElBar();
 }
 initClass();
 startLoop();

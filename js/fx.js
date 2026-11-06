@@ -8,9 +8,16 @@ const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
 const angDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 const easeOut = t => 1 - (1 - t) * (1 - t);
 
-// 元素色表(之後要加冰/雷,在這裡加一筆即可)
+// 元素色表(C-1):新增屬性只要在這裡加一筆並登記到 EL_ORDER
+// hex 光圈 / 光環 / 光源 / 能量球光暈;c0,c1 加亮粒子;s0,s1 煙池粒子;core 能量球核心;orb 核心形狀;css0,css1 UI 色;img 圖示圖檔(沒有就 null 退回 ch)
+const EL_ORDER = ['water', 'fire', 'wind', 'earth', 'light', 'dark'];
 const EL = {
-  fire: { hex: 0xff7a1a, c0: [1, 0.92, 0.55], c1: [0.95, 0.22, 0.03], core: 0xffd890 }
+  water: { name: '水', ch: '💧', img: null, hex: 0x3aa8ff, c0: [.75, .92, 1], c1: [.1, .35, .9], s0: [.6, .78, .95], s1: [.3, .45, .7], core: 0xbfe8ff, orb: 'sphere', css0: '#7fd0ff', css1: '#1a6cff' },
+  fire: { name: '火', ch: '🔥', img: null, hex: 0xff7a1a, c0: [1, .92, .55], c1: [.95, .22, .03], s0: [.25, .2, .18], s1: [.08, .08, .09], core: 0xffd890, orb: 'sphere', css0: '#ff7a1a', css1: '#ffe27a' },
+  wind: { name: '風', ch: '🌪️', img: null, hex: 0x8affc8, c0: [.9, 1, .95], c1: [.35, .85, .6], s0: [.85, .95, .9], s1: [.5, .6, .55], core: 0xe8fff4, coreOpa: .45, orb: 'sphere', css0: '#b8ffe0', css1: '#3ad69a' },
+  earth: { name: '土', ch: '🪨', img: null, hex: 0xc89a52, c0: [1, .8, .45], c1: [.6, .3, .08], s0: [.55, .45, .32], s1: [.3, .25, .18], core: 0x7a5a3a, orb: 'rock', css0: '#e0b070', css1: '#7a5230' },
+  light: { name: '光', ch: '✨', img: null, hex: 0xfff2a0, c0: [1, 1, .92], c1: [1, .78, .3], s0: null, s1: null, core: 0xffffff, orb: 'sphere', css0: '#fff6c0', css1: '#ffc84a' },
+  dark: { name: '暗', ch: '🌑', img: null, hex: 0x9a4dff, c0: [.78, .5, 1], c1: [.3, .05, .55], s0: [.16, .06, .26], s1: [.04, .02, .07], core: 0x14061f, orb: 'void', css0: '#c08aff', css1: '#5a1a9a' }
 };
 
 function canvasTex(size, draw) {
@@ -112,8 +119,14 @@ class Particles {
 // ---------- 能量球 ----------
 function makeOrb(el) {
   const g = new THREE.Group();
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 16), new THREE.MeshBasicMaterial({ color: el.core }));
-  g.add(core, glowSprite(el.hex, 3.2, 0.9), glowSprite(el.hex, 7, 0.35));
+  let core;
+  if (el.orb === 'rock') {   // 土:稜角岩塊,自發光弱
+    core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 0), new THREE.MeshStandardMaterial({ color: el.core, flatShading: true, emissive: el.hex, emissiveIntensity: 0.25 }));
+    g.add(core, glowSprite(el.hex, 5, 0.4));
+  } else {   // 球;風的核心半透明;暗的核心為黑(外圈光暈為紫)
+    core = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 16), new THREE.MeshBasicMaterial({ color: el.core, transparent: !!el.coreOpa, opacity: el.coreOpa || 1 }));
+    g.add(core, glowSprite(el.hex, 3.2, 0.9), glowSprite(el.hex, 7, 0.35));
+  }
   g.r = 0.1; g.setR = r => { g.r = r; g.scale.setScalar(r); };
   g.setR(0.1); return g;
 }
@@ -123,10 +136,10 @@ class Indicator {
   constructor(scene) {
     this.mat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      uniforms: { uT: { value: 0 }, uMode: { value: 0 }, uR: { value: 3 }, uProg: { value: 0 }, uAlpha: { value: 1 }, uS: { value: 4 }, uCol: { value: new THREE.Color(0xff8a2a) }, uHalf: { value: new THREE.Vector2(4, 1) } },
+      uniforms: { uT: { value: 0 }, uMode: { value: 0 }, uR: { value: 3 }, uProg: { value: 0 }, uAlpha: { value: 1 }, uS: { value: 4 }, uCol: { value: new THREE.Color(0xff8a2a) }, uHalf: { value: new THREE.Vector2(4, 1) }, uRM: { value: 0 }, uHalfM: { value: new THREE.Vector2(0, 0) } },
       vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
       fragmentShader: `precision highp float;varying vec2 vUv;
-uniform float uT,uMode,uR,uProg,uAlpha,uS;uniform vec3 uCol;uniform vec2 uHalf;
+uniform float uT,uMode,uR,uProg,uAlpha,uS,uRM;uniform vec3 uCol;uniform vec2 uHalf,uHalfM;
 float line(float d,float w){return 1.0-smoothstep(0.0,w,abs(d));}
 void main(){
  vec2 p=(vUv-0.5)*2.0*uS;float a=0.0;float w=0.07+0.012*uR;
@@ -142,6 +155,7 @@ void main(){
   a+=pow(0.5+0.5*sin(ang*4.0-uT*1.6),8.0)*inside*(1.0-smoothstep(uR*0.3,uR*0.9,r))*0.35;
   a+=(1.0-smoothstep(0.0,0.18+0.03*uR,r))*0.8;
   a+=line(r-uR*0.5,w*0.7)*0.25;
+  a+=line(r-uRM,w*0.6)*0.35*step(uR+0.01,uRM);
  }else{
   vec2 q=abs(p)-uHalf;float sd=length(max(q,0.0))+min(max(q.x,q.y),0.0);
   float inside=1.0-smoothstep(-0.02,0.0,sd);
@@ -149,6 +163,8 @@ void main(){
   a+=inside*0.12;
   a+=inside*step(abs(p.x)/uHalf.x,uProg)*0.35*step(0.001,uProg);
   a+=inside*(0.5+0.5*sin(p.x*3.0+uT*3.0))*0.10;
+  vec2 qm=abs(p)-uHalfM;float sdm=length(max(qm,0.0))+min(max(qm.x,qm.y),0.0);
+  a+=line(sdm,w*0.6)*0.35*step(max(uHalf.x,uHalf.y)+0.01,max(uHalfM.x,uHalfM.y));
  }
  gl_FragColor=vec4(uCol*(1.0+uProg*0.8),clamp(a,0.0,1.0)*uAlpha);
 }`
@@ -165,10 +181,15 @@ void main(){
     u.uMode.value = mode; u.uProg.value = prog; u.uAlpha.value = alpha;
     if (hex != null) u.uCol.value.setHex(hex);
     let S;
-    if (mode === 0) { u.uR.value = a; S = a + 0.6; }
-    else { u.uHalf.value.set(a, b); u.uR.value = Math.max(a, b); S = Math.max(a, b) + 0.6; }
+    if (mode === 0) { u.uR.value = a; S = Math.max(a, this.mR || 0) + 0.6; }
+    else { u.uHalf.value.set(a, b); u.uR.value = Math.max(a, b); S = Math.max(a, b, this.mA || 0, this.mB || 0) + 0.6; }
     u.uS.value = S; this.mesh.scale.set(S * 2, S * 2, 1);
     this.root.visible = true;
+  }
+  // 滿集氣外圈(C-0b 光圈雙層):圓形傳 rm;矩形傳 hx,hy 半長寬;全部傳 0 即關閉外圈
+  setMax(rm, hx, hy) {
+    this.mR = rm || 0; this.mA = hx || 0; this.mB = hy || 0;
+    this.mat.uniforms.uRM.value = this.mR; this.mat.uniforms.uHalfM.value.set(this.mA, this.mB);
   }
   tick(t) { this.mat.uniforms.uT.value = t; }
   hide() { this.root.visible = false; }
