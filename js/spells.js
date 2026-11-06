@@ -29,14 +29,14 @@ const SPELLS = {
     { name: '隕石術', icon: '☄️', img: 'assets/icons/sp_fire_sky.png', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石術!', preview: q => '燃燒 ' + _m(3, q) + ' s' }
   ],
   wind: [
-    { name: '風刃術', icon: '🌀', img: null, chant: '疾風之刃,隨我意行,斬裂虛空——', shout: '風刃術!', preview: q => '擊退 ' + _m(5, q) + ' m' },
-    { name: '風壁術', icon: '🍃', img: null, chant: '流轉之風,環繞成壁,拒敵於外——', shout: '風壁術!', preview: q => '推出 ' + _m(2.5, q) + ' m' },
-    { name: '龍捲風', icon: '🌪️', img: null, chant: '天地之息,旋而不止,捲起萬物——', shout: '龍捲風!', preview: q => '吸引 ' + _m(4, q) + ' m/s' }
+    { name: '風刃術', icon: '🌀', img: 'assets/icons/sp_wind_bolt.png', chant: '疾風之刃,隨我意行,斬裂虛空——', shout: '風刃術!', preview: q => '擊退 ' + _m(5, q) + ' m' },
+    { name: '風壁術', icon: '🍃', img: 'assets/icons/sp_wind_wall.png', chant: '流轉之風,環繞成壁,拒敵於外——', shout: '風壁術!', preview: q => '推出 ' + _m(2.5, q) + ' m' },
+    { name: '龍捲風', icon: '🌪️', img: 'assets/icons/sp_wind_sky.png', chant: '天地之息,旋而不止,捲起萬物——', shout: '龍捲風!', preview: q => '吸引 ' + _m(4, q) + ' m/s' }
   ],
   earth: [
-    { name: '岩彈術', icon: '🪨', img: null, chant: '沉眠之岩,醒於我手,化為重擊之石——', shout: '岩彈術!', preview: q => '擊飛 ' + _m(1.2, q) + ' m' },
-    { name: '石牆術', icon: '🗿', img: null, chant: '大地之骨,拔地而起,築我屏障——', shout: '石牆術!', preview: q => '擊飛 ' + _m(1, q) + ' m' },
-    { name: '地裂石柱', icon: '⛰️', img: null, chant: '撼地之力,裂土而出,石柱貫天——', shout: '地裂石柱!', preview: q => '擊飛 ' + _m(1.8, q) + ' m' }
+    { name: '岩彈術', icon: '🪨', img: 'assets/icons/sp_earth_bolt.png', chant: '沉眠之岩,醒於我手,化為重擊之石——', shout: '岩彈術!', preview: q => '擊飛 ' + _m(1.2, q) + ' m' },
+    { name: '石牆術', icon: '🗿', img: 'assets/icons/sp_earth_wall.png', chant: '大地之骨,拔地而起,築我屏障——', shout: '石牆術!', preview: q => '擊飛 ' + _m(1, q) + ' m' },
+    { name: '地裂石柱', icon: '⛰️', img: 'assets/icons/sp_earth_sky.png', chant: '撼地之力,裂土而出,石柱貫天——', shout: '地裂石柱!', preview: q => '擊飛 ' + _m(1.8, q) + ' m' }
   ],
   light: [
     { name: '聖光彈', icon: '✨', img: 'assets/icons/sp_light_bolt.png', chant: '晨曦之光,凝為一點,穿透黑暗——', shout: '聖光彈!', preview: q => '連鎖 ' + Math.max(1, Math.round(2 * _f(q))) + ' 跳' },
