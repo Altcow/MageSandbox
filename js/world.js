@@ -208,7 +208,7 @@ class Dummy {
     this.slowT = Math.max(0, this.slowT - dt); this.stunT = Math.max(0, this.stunT - dt); this.litT = Math.max(0, this.litT - dt); this.windT = Math.max(0, this.windT - dt);
     if (this.erodeT > 0) {
       this.erodeT -= dt; this.erodeAcc += dt;
-      if (this.erodeAcc >= .5) { this.erodeAcc -= .5; this.hit(4, 0, 0, 0, 'dark'); if (this.dead) return; }
+      if (this.erodeAcc >= .5) { this.erodeAcc -= .5; this.hit(4, 0, 0, 0, 'dark', 'dot'); if (this.dead) return; }
     } else this.erodeAcc = 0;
     if (this.burn > 0) {
       this.burn -= dt; this.burnT += dt;

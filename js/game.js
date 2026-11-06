@@ -52,7 +52,7 @@ const NEUTRAL_W = { name: '', tag: '', chargeMul: 1, dmgMul: 1, rangeMul: 1, rec
 const NEUTRAL_EL = { chargeMul: 1, rangeMul: 1, speedMul: 1 };
 const W = () => G.cls === 'mage' ? WEAPONS[G.weapon] : NEUTRAL_W;
 const elm = () => G.cls === 'mage' ? ELMOD[G.el] : NEUTRAL_EL;   // ELMOD 在 spells.js(執行期才讀)
-const skillRange = () => sc(G.skill).range * W().rangeMul * elm().rangeMul;
+const skillRange = () => (G.skill >= 0 && curSkill(G.skill).aim === 'line' ? Math.max(sc(G.skill).range, skillRad()) : sc(G.skill).range) * W().rangeMul * elm().rangeMul;
 const chargeTimeEff = () => sc(G.skill).chargeTime * W().chargeMul * elm().chargeMul;
 function weaponDesc() {
   const w = W(), parts = [];
@@ -215,7 +215,7 @@ function applyElColors() {
 /* ================= 側翻滾(短暫無敵)與來襲測試 ================= */
 function tryRoll() {
   const p = mage.root.position;
-  if (G.rollCD > 0 || G.roll || G.stun > 0) return;
+  if (G.rollCD > 0 || G.roll || G.stun > 0 || G.dash || G.spin) return;
   if (G.state === 'cast' && !G.launched) return;
   const air = !G.ground;
   if (air && G.airRolls <= 0) return;
@@ -228,13 +228,13 @@ function tryRoll() {
   } else { dx = -Math.cos(mage.yaw); dz = Math.sin(mage.yaw); }  // 沒按方向:往角色右側翻
   if (air) { G.airRolls = 0; G.vy = 0; }
   G.roll = { t: 0, dx, dz, phi: angDiff(mage.yaw, Math.atan2(dx, dz)), dist: air ? CFG.airRollDist : CFG.rollDist, time: air ? CFG.airRollTime : CFG.rollTime, air };
-  for (let i = 0; i < 6; i++) smoke.emit(p.x + rnd(-.3, .3), p.y + .15, p.z + rnd(-.3, .3), rnd(-1, 1), rnd(.3, 1), rnd(-1, 1), rnd(.5, .9), rnd(.8, 1.4), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5);
+  if (!G.stealth) for (let i = 0; i < 6; i++) smoke.emit(p.x + rnd(-.3, .3), p.y + .15, p.z + rnd(-.3, .3), rnd(-1, 1), rnd(.3, 1), rnd(-1, 1), rnd(.5, .9), rnd(.8, 1.4), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5);
 }
 function banner(txt, color) {
   const b = document.getElementById('banner'); b.textContent = txt; b.style.color = color; b.style.opacity = 1; b._t = 1.2;
 }
 function strike() {
-  const p = mage.root.position, pos = new V3(p.x, surfaceY(p.x, p.z), p.z), R = 2.4, W = 1.2, wi = new Indicator(scene); let t = 0;
+  const p = mage.root.position, S = G.stealth, pos = S ? new V3(S.x, surfaceY(S.x, S.z), S.z) : new V3(p.x, surfaceY(p.x, p.z), p.z), R = 2.4, W = 1.2, wi = new Indicator(scene); let t = 0;
   addFx(dt => {
     t += dt;
     if (t < W) { wi.set(pos.x, pos.z, 0, R, 0, 0, t / W, .9, 0xff2030, pos.y); wi.tick(G.time); return true; }
@@ -243,8 +243,10 @@ function strike() {
     const q = mage.root.position, inside = Math.hypot(q.x - pos.x, q.z - pos.z) < R && Math.abs(q.y - pos.y) < 3;
     if (inside && q.y - pos.y >= 1.2) { G.dodged++; banner('跳躍閃避!', '#8fe8ff'); }
     else if (inside && G.invuln) { G.dodged++; banner('翻滾閃避!', '#8fe8ff'); }
-    else if (!inside) { G.dodged++; banner('走位躲開', '#bff0a0'); }
+    else if (inside && shieldOn()) { G.dodged++; banner('盾擋!', '#ffd27a'); }
+    else if (!inside) { G.dodged++; if (S) banner('目標遺失', '#c08aff'); else banner('走位躲開', '#bff0a0'); }
     else {
+      if (G.stealth) revealStealth('hit');   // 潛行中被紅圈炸到:顯形
       G.hits++; G.stun = .6; G.vy = 5; banner('致命一擊!', '#ff5050');
       const f = document.getElementById('flash'); f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120);
       if (G.state === 'charging') cancelCharge();
@@ -294,7 +296,7 @@ function pickStick(out) {
 function startCharge() {
   if (G.state !== 'ready' || G.roll || G.stun > 0) return;
   if (G.skill < 0) G.skill = G.lastSkill;
-  if (G.cd[curSkill(G.skill).id] > 0) return;   // 冷卻中不能開始集氣
+  if (G.cd[curSkill(G.skill).id] > 0 || skillBlocked(curSkill(G.skill))) return;   // 冷卻中 / 虛弱中不能開始集氣
   G.state = 'charging'; G.chargeT = 0; G.charge = 0; G.queued = false; G.maxFlash = false; G.halfFlash = false;
   { const p = mage.root.position, x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z), z); }
   G.orb = makeOrb(auraEl()); scene.add(G.orb);
@@ -318,7 +320,7 @@ function release() {
     skill: sk, spell: sp, base: baseOf(G.skill), idx: G.skill, el: G.cls === 'mage' ? G.el : 'fire', target: G.target.clone(), q, charge: q,
     r: skillRad() * CHG.size(q), power: 0.35 + 0.65 * q,
     dmgK: CHG.dmg(q) * W().dmgMul, sizeK: CHG.size(q), durK: CHG.dur(q), fxK: CHG.fx(q),
-    wallYaw: dir + G.wallOff, dmgMul: W().dmgMul, recover: sc(G.skill).recover * W().recoverMul
+    dir, wallYaw: dir + G.wallOff, dmgMul: W().dmgMul, recover: sc(G.skill).recover * W().recoverMul
   };
   if (sk.cd) G.cd[sk.id] = sk.cd;   // 冷卻從施放開始計
   auraGather();                     // 氣場收束到武器尖端
@@ -356,7 +358,7 @@ function updateCasting(dt) {
 /* ================= 玩家移動 ================= */
 function updatePlayer(dt) {
   // mc:劍士 / 刺客集氣中可移動;lock 為不能移動;face 為面向瞄準點
-  const p = mage.root.position, K = G.keys, mc = G.state === 'charging' && moveCharge(), lock = (G.state === 'charging' && !mc) || G.state === 'cast', face = lock || mc;
+  const p = mage.root.position, K = G.keys, mc = G.state === 'charging' && moveCharge(), lock = (G.state === 'charging' && !mc) || (G.state === 'cast' && !G.spin), face = lock || mc;
   const mi = moveInput(); let ix = mi.ix, iz = mi.iz, speedN = 0, ty = mage.yaw;
   G.rollCD = Math.max(0, G.rollCD - dt); G.stun = Math.max(0, G.stun - dt);
   const free = !lock && !G.roll && G.stun <= 0;
@@ -370,12 +372,13 @@ function updatePlayer(dt) {
     const l = Math.hypot(ix, iz); ix /= l; iz /= l;
     const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
     const dx = fx * iz + rx * ix, dz = fz * iz + rz * ix;
-    const sp = CFG.moveSpeed * (mi.run ? CFG.runMul : 1) * mi.s;
+    const sp = CFG.moveSpeed * (mi.run ? CFG.runMul : 1) * mi.s * (G.spdK || 1);
     p.x += dx * sp * dt; p.z += dz * sp * dt; ty = Math.atan2(dx, dz); speedN = sp / CFG.moveSpeed;
   }
   if (!G.roll && (face && G.skill >= 0 || (G.state === 'cast' && G.pending))) {
     const t = G.state === 'cast' ? G.pending.target : G.target; ty = Math.atan2(t.x - p.x, t.z - p.z);
   }
+  if (G.dash) ty = G.dash.yaw;   // 衝鋒 / 閃身:面向位移方向(D3、D4)
   mage.yaw += angDiff(mage.yaw, ty) * Math.min(1, dt * (face ? 16 : 11));
   for (const c of COLLIDERS) {
     if (c.ref && c.ref.dead) continue;
@@ -422,6 +425,7 @@ function updateAim(dt) {
   const charging = G.state === 'charging', q = charging ? G.charge : 0, rs = skillRad();
   const pulse = charging && G.charge >= 1 ? .75 + .25 * Math.sin(G.time * 14) : 1;
   const alpha = (charging ? .95 : .55) * pulse;
+  if (aimSpecial(sk, p, charging, q, rs, alpha, E)) return;   // 方向型 / 前方 / 自身 / 無光圈(classes.js)
   // 光圈雙層(C-0b):外圈 = 滿集氣範圍 R(setMax),內圈 = 實際範圍 R × CHG.size(q)
   if (sk.shape === 'wall') {
     if (G.keys.KeyQ) G.wallOff += dt * 1.8; if (G.keys.KeyE) G.wallOff -= dt * 1.8;
@@ -792,6 +796,7 @@ function updateHUD() {
   else t += '<br>未選擇法術(按 1/2/3)';
   t += '<br>' + (G.ground ? '跳躍 ● ●' : (G.airJumps > 0 ? '空中步 ●' : '空中步 ○'));
   t += '<br>閃避 ' + G.dodged + ' ・ 被擊中 ' + G.hits + (G.autoStrike ? ' ・ 自動來襲 ON' : '');
+  t += classInfo();
   if (infoEl._t !== t) { infoEl.innerHTML = t; infoEl._t = t; }
   const air = !G.ground;
   btnJumpEl.classList.toggle('air', air && G.airJumps > 0); btnJumpEl.classList.toggle('spent', air && G.airJumps <= 0);
@@ -842,7 +847,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, .05) * (window.TS || 1); last = now; G.time += dt;
   if (window.inputTick) inputTick(dt);
-  updatePlayer(dt); updateAim(dt); updateCasting(dt);
+  classTick(dt); updatePlayer(dt); updateAim(dt); updateCasting(dt);
   mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip });
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);
   fire.update(dt); smoke.update(dt); updateDmgTexts(dt); updateHUD();

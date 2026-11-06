@@ -53,6 +53,7 @@ body.touch #clsBar button{padding:2px 6px;font-size:10px}
 .cdmask{position:absolute;left:0;right:0;top:0;height:0;background:rgba(0,0,0,.55);pointer-events:none}
 .cdt{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-size:18px;font-weight:bold;color:#fff;text-shadow:0 0 4px #000;pointer-events:none}
 #flash{position:fixed;inset:0;background:radial-gradient(transparent 40%,#f00);pointer-events:none;opacity:0;transition:opacity .25s}
+#stealthFx{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;box-shadow:inset 0 0 120px rgba(120,60,200,.55)}
 html,body,canvas{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
 #touchUI,#portraitMsg{display:none}
 body.touch #touchUI{display:block}
@@ -123,6 +124,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <div id="portraitMsg">請把手機轉成橫向</div>
 <div id="banner"></div>
 <div id="flash"></div>
+<div id="stealthFx"></div>
 <div id="gear" title="參數面板 (P)">⚙</div>
 <div id="panel"></div>
 
@@ -139,6 +141,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <script src="js/scenes.js"></script>
 <script src="js/game.js"></script>
 <script src="js/spells.js"></script>
+<script src="js/skills.js"></script>
 <script src="js/classes.js"></script>
 <script src="js/touch.js"></script>
 <script>if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});</script>
