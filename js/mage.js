@@ -11,21 +11,22 @@ class Mage {
     this.robeM = robe; this.robe2M = robe2;   // 職業袍色用
     const skin = M(0xf1c9a5), hair = M(0xe9ecff), boot = M(0x5a3a22), dark = new THREE.MeshBasicMaterial({ color: 0x151525 });
     const add = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; (parent || this.body).add(m); return m; };
-    add(new THREE.CylinderGeometry(.27, .52, .95, 24), robe, 0, .7, 0);
-    add(new THREE.TorusGeometry(.515, .03, 8, 32), gold, 0, .24, 0).rotation.x = Math.PI / 2;
-    add(new THREE.CylinderGeometry(.24, .29, .42, 20), robe, 0, 1.33, 0);
-    add(new THREE.TorusGeometry(.28, .035, 8, 24), gold, 0, 1.14, 0).rotation.x = Math.PI / 2;
-    add(new THREE.SphereGeometry(.3, 16, 12), robe2, 0, 1.5, -.02).scale.set(1.1, .45, .85);
+    const robeLow = add(new THREE.CylinderGeometry(.27, .52, .95, 24), robe, 0, .7, 0);
+    const hemRing = add(new THREE.TorusGeometry(.515, .03, 8, 32), gold, 0, .24, 0); hemRing.rotation.x = Math.PI / 2;
+    const robeUp = add(new THREE.CylinderGeometry(.24, .29, .42, 20), robe, 0, 1.33, 0);
+    const collar = add(new THREE.TorusGeometry(.28, .035, 8, 24), gold, 0, 1.14, 0); collar.rotation.x = Math.PI / 2;
+    const shoulders = add(new THREE.SphereGeometry(.3, 16, 12), robe2, 0, 1.5, -.02); shoulders.scale.set(1.1, .45, .85);
     this.head = new THREE.Group(); this.head.position.set(0, 1.72, 0); this.body.add(this.head);
+    const mageHead = new THREE.Group(); this.head.add(mageHead);
     add(new THREE.SphereGeometry(.24, 24, 18), skin, 0, 0, 0, this.head);
-    add(new THREE.SphereGeometry(.255, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), hair, 0, .02, -.03, this.head);
-    add(new THREE.SphereGeometry(.2, 16, 12), hair, 0, -.12, -.15, this.head).scale.set(.95, 1.2, .6);
+    add(new THREE.SphereGeometry(.255, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), hair, 0, .02, -.03, mageHead);
+    add(new THREE.SphereGeometry(.2, 16, 12), hair, 0, -.12, -.15, mageHead).scale.set(.95, 1.2, .6);
     add(new THREE.SphereGeometry(.035, 8, 8), dark, .085, -.01, .215, this.head);
     add(new THREE.SphereGeometry(.035, 8, 8), dark, -.085, -.01, .215, this.head);
-    add(new THREE.CylinderGeometry(.46, .46, .035, 28), robe2, 0, .2, 0, this.head);
-    add(new THREE.TorusGeometry(.285, .02, 6, 24), gold, 0, .24, 0, this.head).rotation.x = Math.PI / 2;
-    add(new THREE.ConeGeometry(.28, .62, 24), robe2, 0, .52, 0, this.head).rotation.x = -.15;
-    add(new THREE.ConeGeometry(.12, .3, 16), robe2, 0, .88, -.1, this.head).rotation.x = -.55;
+    add(new THREE.CylinderGeometry(.46, .46, .035, 28), robe2, 0, .2, 0, mageHead);
+    add(new THREE.TorusGeometry(.285, .02, 6, 24), gold, 0, .24, 0, mageHead).rotation.x = Math.PI / 2;
+    add(new THREE.ConeGeometry(.28, .62, 24), robe2, 0, .52, 0, mageHead).rotation.x = -.15;
+    add(new THREE.ConeGeometry(.12, .3, 16), robe2, 0, .88, -.1, mageHead).rotation.x = -.55;
     this.feet = [-1, 1].map(s => { const f = add(new THREE.SphereGeometry(.12, 12, 10), boot, s * .15, .1, .05); f.scale.set(1, .7, 1.5); return f; });
     // 手臂:side=+1 為角色左手(x+),-1 為右手
     this.arms = [1, -1].map(side => {
@@ -86,12 +87,62 @@ class Mage {
       return g;
     });
     this.dagTip = new THREE.Object3D(); this.dagTip.position.y = .32; this.daggers[1].add(this.dagTip);
+    // 職業外型(每職業一組 Group,只建一次;切換只改 visible 與軀幹寬度,見 setClassLook)
+    const grp = parent => { const g = new THREE.Group(); (parent || this.body).add(g); return g; };
+    const leather = M(0x6b4a2a), pants = M(0x2e2620), black = M(0x17141d), cloth = M(0x1a1620), red = M(0xc0281e), plate = M(0x9aa3b2, { metalness: .6, roughness: .4 }), tail = M(0x3d1f6e);
+    this.robeLow = robeLow; this.hemRing = hemRing;
+    this.torso = [robeLow, hemRing, robeUp, collar, shoulders];
+    this.torso.forEach(m => { m.userData.bx = m.scale.x; m.userData.bz = m.scale.z; });
+    // 弓箭手:綠兜帽、短束腰袍、深色褲、背後箭袋、皮護腕
+    const archerH = grp(this.head), archerB = grp(), archerArm = this.arms.map(a => grp(a.el));
+    add(new THREE.SphereGeometry(.275, 20, 12, 0, Math.PI * 2, 0, Math.PI * .42), robe, 0, .01, 0, archerH);
+    add(new THREE.SphereGeometry(.29, 18, 12, Math.PI * .8, Math.PI * 1.4, Math.PI * .3, Math.PI * .45), robe2, 0, -.02, 0, archerH);
+    const quiver = new THREE.Group(); quiver.position.set(.14, 1.12, -.25); quiver.rotation.z = -.3; archerB.add(quiver);
+    add(new THREE.CylinderGeometry(.075, .085, .55, 12), leather, 0, 0, 0, quiver);
+    const fletch = new THREE.ConeGeometry(.024, .12, 4);
+    [-.04, 0, .05].forEach(x => add(fletch, str, x, .33, 0, quiver));
+    add(new THREE.CylinderGeometry(.27, .36, .5, 20), robe, 0, .9, 0, archerB);
+    add(new THREE.TorusGeometry(.31, .03, 8, 24), leather, 0, 1.0, 0, archerB).rotation.x = Math.PI / 2;
+    [-.13, .13].forEach(x => add(new THREE.CylinderGeometry(.085, .075, .55, 12), pants, x, .42, 0, archerB));
+    archerArm.forEach(g => add(new THREE.CylinderGeometry(.142, .142, .12, 12), leather, 0, -.2, 0, g));
+    // 劍士:鐵盔、面甲縫隙、紅羽飾、肩甲、銀灰胸甲、紅披風
+    const swH = grp(this.head), swB = grp(), swS = this.arms.map(a => grp(a.sh));
+    add(new THREE.SphereGeometry(.28, 20, 12, 0, Math.PI * 2, 0, Math.PI * .5), steel, 0, .02, 0, swH);
+    add(new THREE.TorusGeometry(.28, .02, 6, 24), steel, 0, .02, 0, swH).rotation.x = Math.PI / 2;
+    add(new THREE.BoxGeometry(.24, .014, .03), dark, 0, .035, .272, swH);
+    add(new THREE.ConeGeometry(.045, .3, 6), red, 0, .33, -.08, swH).rotation.x = -.35;
+    swS.forEach(g => add(new THREE.SphereGeometry(.15, 14, 8, 0, Math.PI * 2, 0, Math.PI * .5), steel, 0, .02, 0, g));
+    add(new THREE.CylinderGeometry(.33, .35, .42, 18, 1, true), plate, 0, 1.2, 0, swB);
+    add(new THREE.BoxGeometry(.42, .7, .03), robe, 0, 1.12, -.36, swB);
+    // 刺客:深紫兜帽、黑面罩(露眼)、短外套、長圍巾、腰後雙刀
+    const asH = grp(this.head), asB = grp();
+    add(new THREE.SphereGeometry(.275, 20, 12, 0, Math.PI * 2, 0, Math.PI * .45), robe2, 0, .01, 0, asH);
+    add(new THREE.SphereGeometry(.29, 18, 12, Math.PI * .8, Math.PI * 1.4, Math.PI * .3, Math.PI * .45), robe2, 0, -.02, 0, asH);
+    add(new THREE.SphereGeometry(.252, 16, 8, 0, Math.PI * 2, Math.PI * .58, Math.PI * .26), cloth, 0, 0, 0, asH);
+    add(new THREE.TorusGeometry(.25, .045, 8, 20), tail, 0, 1.45, 0, asB).rotation.x = Math.PI / 2;
+    add(new THREE.BoxGeometry(.1, .7, .03), tail, 0, 1.1, -.36, asB);
+    add(new THREE.CylinderGeometry(.25, .28, .5, 16), robe, 0, .9, 0, asB);
+    [-.12, .12].forEach(x => add(new THREE.CylinderGeometry(.07, .065, .55, 10), black, x, .42, 0, asB));
+    [-1, 1].forEach(s => {
+      add(new THREE.BoxGeometry(.04, .3, .012), steel, s * .11, .98, -.29, asB).rotation.x = -.15;
+      add(new THREE.BoxGeometry(.05, .08, .045), wood, s * .11, 1.17, -.29, asB);
+    });
+    this.looks = { mage: [mageHead], archer: [archerH, archerB, ...archerArm], swordsman: [swH, swB, ...swS], assassin: [asH, asB] };
     this.setWeapon('staff', true);
+    this.setClassLook('mage');
   }
   setWeapon(w, instant) {
     this.weapon = w; if (!instant) this.swap = 0; this.staff.visible = w === 'staff'; this.book.visible = w === 'book';
     this.bow.visible = w === 'bow'; this.sword.visible = w === 'swordShield'; this.shield.visible = w === 'swordShield';
     this.daggers.forEach(g => { g.visible = w === 'daggers'; });
+  }
+  // 職業外型:切換各職業 Group 的可見性;軀幹寬度(弓箭手較輕、劍士較壯、刺客較瘦),只改 x/z 不動 y(腳與碰撞基準不變)
+  setClassLook(cls) {
+    const look = this.looks[cls] ? cls : 'mage';
+    for (const c in this.looks) this.looks[c].forEach(g => { g.visible = c === look; });
+    const k = { mage: 1, archer: .92, swordsman: 1.12, assassin: .85 }[look];
+    this.torso.forEach(m => { m.scale.x = m.userData.bx * k; m.scale.z = m.userData.bz * k; });
+    this.robeLow.visible = this.hemRing.visible = look === 'mage' || look === 'swordsman';
   }
   setRobeColor(hex) { this.robeM.color.setHex(hex); this.robe2M.color.setHex(hex).multiplyScalar(.75); }
   tipWorld(out) { const A = { staff: this.tipAnchor, book: this.orbAnchor, bow: this.bowTip, swordShield: this.swordTip, daggers: this.dagTip }[this.weapon] || this.orbAnchor; A.getWorldPosition(out); return out; }
