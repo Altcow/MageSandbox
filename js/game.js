@@ -526,12 +526,13 @@ function damageArea(pos, R, dmg, burn, el) {
 function explode(pos, R, power, o) {
   o = o || {};
   const gy = o.gy != null ? o.gy : 0, el = o.el || 'fire', E = EL[el], B = EL_BURST[el], FXM = el === 'fire' ? 1 : CFG.fxq;
+  const fy = o.flatY != null ? o.flatY : 1, smA = o.smokeA != null ? o.smokeA : .55;   // 風:水平化 / 煙較淡
   const k = Math.sqrt(R / 2), c0 = E.c0, c1 = E.c1, fireSm = el === 'fire';
   const sc0 = fireSm ? [.28, .22, .2] : (E.s0 || [.25, .2, .18]), sc1 = fireSm ? [.08, .08, .09] : (E.s1 || [.08, .08, .09]);
   const n = Math.floor(Math.min(260, Math.floor((50 + 30 * power) * R / 2.5)) * B.bright * FXM);
   for (let i = 0; i < n; i++) {
     const d = new V3(rnd(-1, 1), rnd(-.2, 1), rnd(-1, 1)).normalize(), sp = rnd(.3, 1) * R * 3.2;
-    fire.emit(pos.x + d.x * R * .2, pos.y + d.y * R * .2, pos.z + d.z * R * .2, d.x * sp, d.y * sp, d.z * sp, rnd(.35, .8), rnd(.8, 1.6) * k * .8, c0, c1, 1, 2.2, 0, 2.5);
+    fire.emit(pos.x + d.x * R * .2, pos.y + d.y * R * .2, pos.z + d.z * R * .2, d.x * sp, d.y * sp * fy, d.z * sp, rnd(.35, .8), rnd(.8, 1.6) * k * .8, c0, c1, 1, 2.2, 0, 2.5);
   }
   const m = Math.floor(25 * power * k * B.spark * FXM), spc = fireSm ? [1, .95, .7] : c0;
   for (let i = 0; i < m; i++) {
@@ -539,7 +540,7 @@ function explode(pos, R, power, o) {
     fire.emit(pos.x, pos.y, pos.z, d.x * sp, d.y * sp, d.z * sp, rnd(.6, 1.4), rnd(.12, .25), spc, c1, 1, .2, 9, .6);
   }
   const sm = Math.floor(10 * k * B.smoke * FXM);
-  for (let i = 0; i < sm; i++) smoke.emit(pos.x + rnd(-R, R) * .4, pos.y + .3, pos.z + rnd(-R, R) * .4, rnd(-1, 1), rnd(.8, 2.2), rnd(-1, 1), rnd(1.6, 2.8), rnd(2, 4) * k * .8, sc0, sc1, .55, 2.5, -.3, .8);
+  for (let i = 0; i < sm; i++) smoke.emit(pos.x + rnd(-R, R) * .4, pos.y + .3, pos.z + rnd(-R, R) * .4, rnd(-1, 1), rnd(.8, 2.2), rnd(-1, 1), rnd(1.6, 2.8), rnd(2, 4) * k * .8, sc0, sc1, smA, 2.5, -.3, .8);
   const ring = new THREE.Mesh(RING_GEO, new THREE.MeshBasicMaterial({ color: B.ring, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2; ring.position.set(pos.x, gy + .08, pos.z); scene.add(ring);
   const flash = new THREE.Mesh(ICO_GEO, new THREE.MeshBasicMaterial({ color: B.flash, transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -554,10 +555,13 @@ function explode(pos, R, power, o) {
     spr.scale.setScalar(R * 5 * (1 - u * .5)); spr.material.opacity = Math.pow(1 - u, 2.5);
   });
   flashLight(new V3(pos.x, pos.y + 1.5, pos.z), B.light, 6 * Math.min(2, k) * B.lightK, .5, 14 + R * 3);
-  // 焦痕
-  const sc2 = new THREE.Mesh(SCORCH_GEO, new THREE.MeshBasicMaterial({ map: SCORCH_TEX, transparent: true, depthWrite: false, opacity: .75, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-  sc2.rotation.x = -Math.PI / 2; sc2.rotation.z = rnd(0, 6); sc2.position.set(pos.x, gy + .03 + (SCORCH.length % 7) * .002, pos.z); sc2.scale.setScalar(R * 2.4 * rnd(.9, 1.1)); scene.add(sc2);
-  SCORCH.push({ m: sc2, age: 0 }); if (SCORCH.length > 30) { const o2 = SCORCH.shift(); scene.remove(o2.m); o2.m.material.dispose(); }
+  // 焦痕(EL_SCORCH 為 null 的屬性不留焦痕)
+  const scH = EL_SCORCH[el];
+  if (scH) {
+    const sc2 = new THREE.Mesh(SCORCH_GEO, new THREE.MeshBasicMaterial({ map: SCORCH_TEX, color: new THREE.Color(scH[0], scH[1], scH[2]), transparent: true, depthWrite: false, opacity: .75, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    sc2.rotation.x = -Math.PI / 2; sc2.rotation.z = rnd(0, 6); sc2.position.set(pos.x, gy + .03 + (SCORCH.length % 7) * .002, pos.z); sc2.scale.setScalar(R * 2.4 * rnd(.9, 1.1)); scene.add(sc2);
+    SCORCH.push({ m: sc2, age: 0 }); if (SCORCH.length > 30) { const o2 = SCORCH.shift(); scene.remove(o2.m); o2.m.material.dispose(); }
+  }
   const dc = Math.hypot(pos.x - camera.position.x, pos.z - camera.position.z);
   G.shake = Math.max(G.shake, .14 * k * power * CFG.shake / (1 + dc * .03));
   if (o.dmg !== 0) {
@@ -571,7 +575,9 @@ function explode(pos, R, power, o) {
 function launchSpell(P, orb) {
   if (!orb) { orb = makeOrb(auraEl()); scene.add(orb); mage.tipWorld(orb.position); orb.setR(.3); }
   if (P.skill.cast) return P.skill.cast(P, orb);   // D2~D4 專屬招式
-  ({ bolt: castFireball, wall: castFirewall, sky: castMeteor })[P.skill.kind](P, orb);
+  // 元素 + 形狀查表(SHAPE_FN 在 spells.js);查不到退回火系原行為
+  const row = SHAPE_FN[P.el] || SHAPE_FN.fire, f = row[P.skill.kind] || SHAPE_FN.fire[P.skill.kind];
+  f(P, orb);
 }
 
 function trail(a, b, n, size, life, el) {

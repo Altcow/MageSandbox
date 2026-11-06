@@ -2,9 +2,9 @@
 // 六屬性招式表與元素效果(C0/C1)。
 // 載入順序:fx.js → mage.js → world.js → scenes.js → game.js → spells.js → touch.js。
 // 本檔只在執行期被呼叫(不在載入時讀 game.js 的變數),所以 game.js 頂層不可直接使用 SPELLS / ELMOD / EL_BURST。
-// C1 階段五個新屬性的招式仍借用火系三招的形狀與行為,只換顏色、數量倍率與元素狀態效果;各屬性專屬的投射 / 牆 / 大招留到 C2、C3。
+// C2/C3:五個新屬性的投射 / 牆 / 大招已實作於本檔下半(火系三招仍在 game.js)。
 
-// 屬性倍率(C-2):集氣時間、範圍、投射速度(speedMul 於 C2 投射實作時才使用)
+// 屬性倍率(C-2):集氣時間、範圍、投射速度(speedMul 用於投射)
 const ELMOD = {
   water: { chargeMul: 1.0, rangeMul: 1.0, speedMul: 0.9 },
   fire:  { chargeMul: 1.0, rangeMul: 1.0, speedMul: 1.0 },
@@ -51,7 +51,7 @@ const SPELLS = {
 };
 
 // 爆炸參數(C-4 burstEl 表):bright 加亮粒子倍率、spark 火花倍率、smoke 煙倍率、ring 環色、flash 閃光色、light 光源色、lightK 光源強度倍率
-// 火系的值即為現有 explode 的寫死值;其他屬性只換顏色與數量(水滴 / 風的水平化 / 土碎石 / 暗的先吸入 留到 C2)
+// 火系的值即為現有 explode 的寫死值;其他屬性只換顏色與數量(水滴 / 風的水平化 / 土碎石 / 暗的先吸入 已於 C2/C3 實作)
 const EL_BURST = {
   water: { bright: 0.8, spark: 0.5, smoke: 1.2, ring: 0x8fd8ff, flash: 0x6fc0ff, light: 0x4aa8ff, lightK: 0.7 },
   fire:  { bright: 1,   spark: 1,   smoke: 1,   ring: 0xffb050, flash: 0xffa040, light: 0xff8a30, lightK: 1 },
@@ -102,3 +102,594 @@ function areaEl(pos, R, B, el, P, fx) {
     hitEl(d, dmg, el, dx / l, dz / l, f);
   }
 }
+
+// ================= C2/C3:水、風、土、光、暗的專屬招式(投射 / 牆 / 大招) =================
+// 投射走 castBolt(共用引擎)、牆走 spawnZone(共用引擎)、大招各自一個函式(能量球先飛 → 時間軸)。
+// 火系三招仍是 game.js 的 castFireball / castFirewall / castMeteor;launchSpell 依 SHAPE_FN[元素][形狀] 查表。
+// 本段只在執行期被呼叫;用到的 game.js / world.js / fx.js 全域都在那之後才會用到。
+
+// 爆炸焦痕色(explode 讀取):RGB 乘數,焦痕貼圖本身很暗所以需要 >1 才看得出棕 / 紫;null = 不留焦痕
+const EL_SCORCH = { fire: [1, 1, 1], water: null, wind: null, earth: [3, 2, 1.2], light: null, dark: [6, 2.5, 9] };
+const BOLT_SPEED = 32;                       // 火球基準速度(m/s),各屬性 × ELMOD[el].speedMul
+const CHAIN_R = 6, BEAM_MAX = 16;            // 連鎖跳躍範圍(m)、同時存在的連鎖光束上限
+const LEAF0 = [.6, .75, .45], LEAF1 = [.35, .3, .15];
+const BEAM_GEO = new THREE.BoxGeometry(1, 1, 1), MOON_GEO = new THREE.RingGeometry(.6, .75, 24, 1, 0, Math.PI);
+const ROCK_GEO = new THREE.IcosahedronGeometry(.1, 0), SPIKE_GEO = new THREE.ConeGeometry(.45, 2.2, 5), BOX_GEO = new THREE.BoxGeometry(1, 2, 1);
+const COL_GEO = new THREE.CylinderGeometry(1, 1, 1, 12, 1, true), SPH_GEO = new THREE.SphereGeometry(1, 20, 14), TORUS_GEO = new THREE.TorusGeometry(1.4, .05, 6, 48);
+const STONE_MAT = new THREE.MeshStandardMaterial({ color: 0x7d7868, flatShading: true, roughness: 1 });
+let BEAM_N = 0;
+
+/* ---------- 共用小工具 ---------- */
+const FXQ = () => CFG.fxq || 1;                                  // 新屬性粒子量(C-9)
+const fq = n => Math.max(1, Math.round(n * FXQ()));
+function after(t, fn) { let k = 0; addFx(dt => { k += dt; if (k < t) return true; fn(); return false; }); }
+function nearestDummy(x, z, r) {
+  let best = null, bd = r;
+  for (const d of DUMMIES) { if (d.dead) continue; const dd = Math.hypot(d.x - x, d.z - z); if (dd < bd) { bd = dd; best = d; } }
+  return best;
+}
+function disposeInd(wi) { scene.remove(wi.root); wi.mat.dispose(); wi.mesh.geometry.dispose(); }
+function tpath(a, b, n, fn) { for (let i = 0; i < n; i++) { const t = Math.random(); fn(lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t)); } }
+
+// LIGHTS[4] 持續光源(牆 / 龍捲 / 黑洞):後施放者優先;只有 owner 會驅動亮度,結束時只關自己的燈
+function claimLight(token, hex, pos, dist) { const L = LIGHTS[4]; L.userData.owner = token; L.color.setHex(hex); L.position.copy(pos); L.distance = dist; L.intensity = 0; }
+function driveLight(token, inten) { const L = LIGHTS[4]; if (L.userData.owner === token) L.intensity = inten; }
+function endLight(token) { const L = LIGHTS[4]; if (L.userData.owner === token) { L.intensity = 0; L.userData.owner = null; } }
+
+// 連鎖光束:加亮細長 mesh + 沿線撒粒子;全場上限 BEAM_MAX 條(超過只不畫,傷害照算)
+function beam(a, b, E, w, life) {
+  if (BEAM_N >= BEAM_MAX) return;
+  BEAM_N++;
+  const m = new THREE.Mesh(BEAM_GEO, new THREE.MeshBasicMaterial({ color: E.hex, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  m.position.copy(a).add(b).multiplyScalar(.5); m.lookAt(b); m.scale.set(w, w, a.distanceTo(b) || .01); scene.add(m);
+  tpath(a, b, fq(10), (x, y, z) => fire.emit(x, y, z, rnd(-.5, .5), rnd(-.5, .5), rnd(-.5, .5), rnd(.15, .25), rnd(.15, .3), E.c0, E.c1, 1, .3, 0, 1));
+  let t = 0;
+  addFx(dt => {
+    t += dt / life;
+    if (t >= 1) { scene.remove(m); m.material.dispose(); BEAM_N--; return false; }
+    m.material.opacity = .9 * (1 - t);
+  });
+}
+// 連鎖(C-6 光):從 from 往 CHAIN_R 內最近、這次連鎖還沒打過的活標靶跳,每跳間隔 .06 s、傷害 dmg;找不到就停止
+function chainHop(from, seen, hops, dmg, el) {
+  if (hops <= 0) return;
+  let best = null, bd = CHAIN_R;
+  for (const d of DUMMIES) { if (d.dead || seen.has(d)) continue; const dd = Math.hypot(d.x - from.x, d.z - from.z); if (dd < bd) { bd = dd; best = d; } }
+  if (!best) return;
+  seen.add(best);
+  after(.06, () => {
+    beam(new V3(from.x, from.y + 1.1, from.z), new V3(best.x, best.y + 1.1, best.z), EL[el], .12, .18);
+    best.hit(dmg, best.x - from.x, best.z - from.z, 0, el);
+    chainHop(best, seen, hops - 1, dmg, el);
+  });
+}
+function chainFrom(first, hops, dmg, el) { chainHop(first, new Set([first]), hops, dmg, el); }
+
+/* ---------- 投射(C-4)共用引擎 ---------- */
+// 能量球從杖頭飛向目標(end.y = 目標地面 + endY),弧高 = 距離 × arc,每幀 st.trail,到達後 st.impact(end, P)
+function castBolt(P, orb, st) {
+  const E = EL[P.el], gy = P.target.y, start = orb.position.clone(), end = P.target.clone(); end.y = gy + (st.endY || .4);
+  const dist = start.distanceTo(end), dur = clamp(dist / st.speed, st.dmin || .2, st.dmax || .9), prev = start.clone();
+  let t = 0;
+  orb.setR(Math.max(orb.r, .3) * (.8 + P.power * .6));
+  addFx(dt => {
+    t += dt / dur; const u = Math.min(t, 1);
+    orb.position.lerpVectors(start, end, u); orb.position.y += Math.sin(Math.PI * u) * dist * st.arc;
+    st.trail(prev, orb.position, orb, E);
+    prev.copy(orb.position);
+    if (u >= 1) { scene.remove(orb); st.impact(end, P); return false; }
+  });
+}
+// 飛行軌跡(每幀):a → b 為上一幀到這一幀,o 為能量球,E 為屬性表
+const TRAIL = {
+  water: (a, b, o, E) => {
+    tpath(a, b, fq(4), (x, y, z) => fire.emit(x, y, z, rnd(-.6, .6), rnd(-.3, .8), rnd(-.6, .6), rnd(.3, .45), o.r * rnd(.8, 1.2), E.c0, E.c1, .9, .3, -.5, .4));
+    smoke.emit(b.x, b.y, b.z, rnd(-.2, .2), 0, rnd(-.2, .2), .7, o.r * .6, E.s0, E.s1, .9, 1, 9, 0);   // 水滴(grav 9 往下掉)
+  },
+  wind: (a, b, o, E) => tpath(a, b, fq(3), (x, y, z) => fire.emit(x, y, z, rnd(-.8, .8), rnd(-.3, .3), rnd(-.8, .8), .25, rnd(.1, .18), E.c0, E.c1, 1, .3, 0, 4)),
+  earth: (a, b, o, E) => {
+    o.rotation.x += .25; o.rotation.y += .35;   // 岩塊翻滾
+    for (let i = 0; i < fq(1); i++) smoke.emit(b.x + rnd(-.2, .2), b.y, b.z + rnd(-.2, .2), rnd(-.4, .4), rnd(0, .4), rnd(-.4, .4), .6, o.r * 1.2, E.s0, E.s1, .6, 1.5, 0, .3);
+  },
+  light: (a, b, o, E) => tpath(a, b, fq(8), (x, y, z) => fire.emit(x, y, z, rnd(-.3, .3), rnd(-.3, .3), rnd(-.3, .3), .2, rnd(.15, .3), E.c0, E.c1, 1, .5, 0, 1)),
+  dark: (a, b, o, E) => { for (let i = 0; i < fq(2); i++) smoke.emit(b.x + rnd(-.15, .15), b.y + rnd(-.15, .15), b.z + rnd(-.15, .15), rnd(-.2, .2), rnd(.2, .5), rnd(-.2, .2), .6, o.r * 1.5, E.s0, E.s1, .6, 1, -.3, .3); }
+};
+
+// 爆炸後的碎石(土投射):拋物線飛散 0.6 s 後移除
+function debris(p, n, col, size) {
+  const mat = new THREE.MeshStandardMaterial({ color: col, flatShading: true, roughness: 1 }), parts = [];
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(ROCK_GEO, mat);
+    m.position.copy(p); m.scale.setScalar(size * rnd(.6, 1.2)); scene.add(m);
+    parts.push({ m, v: new V3(rnd(-3, 3), rnd(4, 8), rnd(-3, 3)), s: new V3(rnd(-6, 6), rnd(-6, 6), rnd(-6, 6)) });
+  }
+  let t = 0;
+  addFx(dt => {
+    t += dt;
+    for (const k of parts) {
+      k.v.y -= 20 * dt; k.m.position.addScaledVector(k.v, dt); k.m.rotation.x += k.s.x * dt; k.m.rotation.y += k.s.y * dt;
+      if (k.m.position.y < .05) { k.m.position.y = .05; k.v.set(0, 0, 0); }
+    }
+    if (t < .6) return true;
+    for (const k of parts) scene.remove(k.m);
+    mat.dispose(); return false;
+  });
+}
+
+/* ---------- 牆類(C-5)共用引擎 ---------- */
+// 沿用火牆的分段、啟動延遲、淡出、地面光圈與 LIGHTS[4];差異由 st 提供
+// st:hex / indHex / alpha(地面光圈)、lightHex / lightInt(持續光源,0 = 不用)、tickInt + onTick(每跳)、
+//     emit(seg, ramp, c)(每段每幀)、onSegOn(seg, c)(段第一次啟動)、frame(c)(每幀)、onStart(c) / onEnd(c)
+// c:{ P, gy, ax, az, half, thick, dur, segs, age, dt, fade, token, plat };牆軸 = (ax, az),法線 across = (-az, ax)
+function spawnZone(P, st) {
+  const gy = P.target.y, cfg = sc(P.idx), half = P.r / 2, thick = cfg.thick, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw);
+  const n = Math.ceil(P.r / .7) + 1, segs = [];
+  for (let i = 0; i < n; i++) { const o = (i / (n - 1) - .5) * P.r; segs.push({ o, x: P.target.x + ax * o, z: P.target.z + az * o, on: Math.abs(o) / half * .4, acc: 0, went: false, mesh: null }); }
+  const c = { P, gy, ax, az, half, thick, dur: cfg.duration * P.durK, segs, age: 0, dt: 0, fade: 1, tick: 0, token: {}, plat: null };
+  const wi = new Indicator(scene);
+  flashLight(new V3(P.target.x, gy + 1.5, P.target.z), st.hex, 4, .5, 20);
+  G.shake = Math.max(G.shake, .08 * CFG.shake);
+  if (st.lightInt) claimLight(c.token, st.lightHex, new V3(P.target.x, gy + 1.8, P.target.z), 10 + P.r * 1.3);
+  if (st.onStart) st.onStart(c);
+  addFx(dt => {
+    c.age += dt; c.dt = dt; c.fade = c.age > c.dur - 1 ? Math.max(0, c.dur - c.age) : 1;
+    if (c.age >= c.dur) { disposeInd(wi); if (st.onEnd) st.onEnd(c); if (st.lightInt) endLight(c.token); return false; }
+    wi.set(P.target.x, P.target.z, 1, half, thick / 2, P.wallYaw, 0, (st.alpha || .35) * c.fade * (.8 + .2 * Math.sin(c.age * 12)), st.indHex, gy); wi.tick(c.age);
+    if (st.lightInt) driveLight(c.token, st.lightInt * c.fade * (.85 + Math.random() * .3));
+    if (st.frame) st.frame(c);
+    for (const s of segs) {
+      if (c.age < s.on) continue;
+      if (!s.went) { s.went = true; if (st.onSegOn) st.onSegOn(s, c); }
+      if (st.emit) st.emit(s, Math.min(1, (c.age - s.on) / .25) * c.fade, c);
+    }
+    if (st.tickInt && (c.tick += dt) >= st.tickInt) { c.tick = 0; st.onTick(c); }
+  });
+}
+// 標靶是否在牆範圍內(高度差 > 2.5 m 不算),回傳沿牆 along / 垂直牆 across
+function inZone(d, c) {
+  if (d.dead || Math.abs(d.y - c.gy) > 2.5) return null;
+  const dx = d.x - c.P.target.x, dz = d.z - c.P.target.z, along = dx * c.ax + dz * c.az, across = dx * -c.az + dz * c.ax;
+  if (Math.abs(along) > c.half + .4 || Math.abs(across) > c.thick / 2 + .6) return null;
+  return { along, across };
+}
+// 牆每跳傷害:B × dmgK,效果由牆外側推(擊退類 .6 s 冷卻,避免每跳重複推)
+function zoneTick(c, B, el, fx) {
+  for (const d of DUMMIES) {
+    const r = inZone(d, c); if (!r) continue;
+    const sg = Math.sign(r.across) || 1, f = Object.assign({}, fx);
+    if (f.knock) { if (d.windT > 0) delete f.knock; else d.windT = .6; }
+    hitEl(d, B * c.P.dmgK, el, -c.az * sg, c.ax * sg, f);
+  }
+}
+
+/* ---------- 大招(C-6)共用 ---------- */
+// 能量球飛到 to(time 秒),每幀小拖尾,到達後呼叫 done
+function orbFly(orb, to, time, E, done) {
+  const from = orb.position.clone(); let t = 0;
+  addFx(dt => {
+    t += dt / time; const u = Math.min(1, t);
+    orb.position.lerpVectors(from, to, u);
+    for (let i = 0; i < fq(3); i++) fire.emit(orb.position.x + rnd(-.2, .2), orb.position.y + rnd(-.2, .2), orb.position.z + rnd(-.2, .2), rnd(-.4, .4), rnd(-.4, .4), rnd(-.4, .4), .35, orb.r * rnd(1, 1.4), E.c0, E.c1, .9, .3, -.5, .4);
+    if (u >= 1) { done(); return false; }
+  });
+}
+
+/* ---------- 各屬性 3 招 ---------- */
+
+// 水彈術:減速(3 s);爆炸水滴噴濺,無焦痕
+function castWaterBolt(P, orb) {
+  const E = EL.water;
+  castBolt(P, orb, {
+    speed: BOLT_SPEED * ELMOD.water.speedMul, arc: .06, trail: TRAIL.water,
+    impact(end, Q) {
+      explode(end, Q.r, Q.power, { dmg: 0, el: 'water', gy: Q.target.y, fxK: Q.fxK });
+      for (let i = 0; i < fq(30); i++) smoke.emit(end.x + rnd(-.4, .4), end.y, end.z + rnd(-.4, .4), rnd(-1.2, 1.2), rnd(4, 7), rnd(-1.2, 1.2), rnd(.6, .9), rnd(.12, .22), E.s0, E.s1, .9, 1, 9, .2);
+      areaEl(end, Q.r, 70, 'water', Q);
+    }
+  });
+}
+// 水幕術:每段噴泉(加亮藍粒子向上、grav 9 拋物線落回),每 .3 s 減速 3 s
+function castWaterWall(P, orb) {
+  const E = EL.water;
+  castBolt(P, orb, {
+    speed: 36, arc: 0, endY: .5, dmin: .2, dmax: .6, trail: TRAIL.water,
+    impact: (end, Q) => spawnZone(Q, {
+      hex: E.hex, indHex: E.hex, alpha: .35, lightHex: 0x4aa8ff, lightInt: 1.8, tickInt: .3,
+      emit(s, ramp, c) {
+        s.acc += c.dt * 24 * ramp * FXQ();
+        while (s.acc >= 1) {
+          s.acc -= 1; const lx = rnd(-c.thick / 2, c.thick / 2), x = s.x - c.az * lx, z = s.z + c.ax * lx;
+          fire.emit(x, c.gy + rnd(0, .2), z, rnd(-.3, .3), rnd(4, 6), rnd(-.3, .3), rnd(.5, .8), rnd(.35, .6), E.c0, E.c1, .95, .35, 9, .3);
+          if (Math.random() < .15) smoke.emit(x, c.gy + 1.2, z, rnd(-.2, .2), rnd(.3, .8), rnd(-.2, .2), 1.2, rnd(.8, 1.2), E.s0, E.s1, .25, 1.5, -.1, .5);
+        }
+      },
+      onTick: c => zoneTick(c, 6, 'water', { slow: 3 })
+    })
+  });
+}
+// 間歇泉:地面水圈預告 → 多道小水柱(小擊飛)→ 中央大水柱(大擊飛 + 大範圍)
+function castGeyser(P, orb) {
+  const E = EL.water, gy = P.target.y, R = P.r, sched = [], n = CHG.count(10, P.q);
+  for (let i = 0; i < n; i++) sched.push({ t: .5 + (i / n) * 1.8 + rnd(0, .2), big: false });
+  sched.push({ t: 2.6, big: true });
+  const geyser = (x, y, z, big) => {
+    const h = big ? 7 : 4, rad = big ? 1.2 : .6, rr = big ? P.r * .8 : Math.max(1.6, P.r * .3), lift = (big ? 1.2 : .6) * P.fxK;
+    areaEl(new V3(x, y, z), rr, big ? 90 : 40, 'water', P, { slow: 3, lift });
+    const m = new THREE.Mesh(COL_GEO, new THREE.MeshBasicMaterial({ color: E.hex, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    scene.add(m);
+    if (big) flashLight(new V3(x, y + 2, z), E.hex, 5, .4, 18);
+    let t = 0, sprayed = false;
+    addFx(dt => {
+      t += dt;
+      const k = t < .15 ? t / .15 : Math.max(0, 1 - (t - .15) / .35), H = Math.max(.01, h * k);
+      m.scale.set(rad, H, rad); m.position.set(x, y + H / 2, z);
+      if (!sprayed && t >= .12) {
+        sprayed = true;
+        for (let i = 0; i < fq(24); i++) fire.emit(x + rnd(-.3, .3), y + h, z + rnd(-.3, .3), rnd(-1.5, 1.5), rnd(8, 12), rnd(-1.5, 1.5), rnd(.4, .7), rnd(.2, .35), E.c0, E.c1, 1, .3, 12, .3);
+        for (let i = 0; i < fq(10); i++) smoke.emit(x + rnd(-1, 1), y + h * .9, z + rnd(-1, 1), rnd(-1, 1), rnd(2, 5), rnd(-1, 1), rnd(.8, 1.2), rnd(.12, .2), E.s0, E.s1, .9, 1, 9, .2);
+      }
+      if (t >= .5) { scene.remove(m); m.material.dispose(); return false; }
+    });
+  };
+  orbFly(orb, new V3(P.target.x, gy + .3, P.target.z), .3, E, () => {
+    dissolveOrb(orb, E);
+    const wi = new Indicator(scene); let t = 0;
+    addFx(dt => {
+      t += dt;
+      const fin = t > 3.2 ? Math.max(0, 1 - (t - 3.2) / .5) : 1;
+      wi.set(P.target.x, P.target.z, 0, R, 0, 0, Math.min(1, t / .5), .4 * fin, E.hex, gy); wi.tick(t);
+      while (sched.length && t >= sched[0].t) {
+        const e = sched.shift(), ang = rnd(0, 6.283), rr = e.big ? 0 : Math.sqrt(Math.random()) * R * .9;
+        geyser(P.target.x + Math.cos(ang) * rr, gy, P.target.z + Math.sin(ang) * rr, e.big);
+      }
+      if (!sched.length && t > 3.8) { disposeInd(wi); return false; }
+    });
+  });
+}
+
+// 風刃術:半透明月牙飛行(自轉),爆炸水平化 + 白色煙 + 雙層擴散環,擊退 2.5 → 5 m
+function castWindBolt(P, orb) {
+  const E = EL.wind, moon = new THREE.Mesh(MOON_GEO, new THREE.MeshBasicMaterial({ color: E.hex, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  scene.add(moon);
+  castBolt(P, orb, {
+    speed: BOLT_SPEED * ELMOD.wind.speedMul, arc: 0,
+    trail(a, b, o, Ev) {
+      moon.position.copy(b); moon.lookAt(b.x + (b.x - a.x) * 9, b.y, b.z + (b.z - a.z) * 9); moon.rotateZ(.5);
+      TRAIL.wind(a, b, o, Ev);
+    },
+    impact(end, Q) {
+      scene.remove(moon); moon.material.dispose();
+      explode(end, Q.r, Q.power, { dmg: 0, el: 'wind', gy: Q.target.y, fxK: Q.fxK, flatY: .3, smokeA: .25 });
+      burstRing(end, EL_BURST.wind.ring, Q.r); burstRing(end, EL_BURST.wind.ring, Q.r * 1.4);
+      areaEl(end, Q.r, 60, 'wind', Q);
+    }
+  });
+}
+// 風壁術:螺旋上升的風牆,每跳擊退(2.5 → 1.25 m 的牆外推出)
+function castWindWall(P, orb) {
+  const E = EL.wind;
+  castBolt(P, orb, {
+    speed: 36, arc: 0, endY: .5, dmin: .2, dmax: .6, trail: TRAIL.wind,
+    impact: (end, Q) => spawnZone(Q, {
+      hex: E.hex, indHex: E.hex, alpha: .3, lightHex: E.hex, lightInt: 2.5, tickInt: .3,
+      emit(s, ramp, c) {
+        s.acc += c.dt * 20 * ramp * FXQ();
+        while (s.acc >= 1) {
+          s.acc -= 1;
+          const lx = rnd(-c.thick / 2, c.thick / 2), x = s.x - c.az * lx, z = s.z + c.ax * lx, sway = Math.sin(c.age * 6 + s.o) * 1.2;
+          fire.emit(x, c.gy + rnd(0, .4), z, c.ax * sway, rnd(2.5, 4.5), c.az * sway, rnd(.6, .9), rnd(.2, .35), E.c0, E.c1, .9, .5, -.2, .8);
+          if (Math.random() < .3) fire.emit(x, c.gy + rnd(.3, 2.5), z, rnd(-.5, .5), rnd(0, .6), rnd(-.5, .5), rnd(.8, 1.2), rnd(.08, .14), LEAF0, LEAF1, .8, .5, -.4, .8);
+        }
+      },
+      onTick: c => zoneTick(c, 5, 'wind', { knock: 2.5 * c.P.fxK })
+    })
+  });
+}
+// 龍捲風:能量球升到上空成形,龍捲繞圈移動、持續吸引與抬升,結束時爆風擊退 4 → 2 m
+function castTornado(P, orb) {
+  const E = EL.wind, gy = P.target.y, R = P.r, Rm = R * .3, w = 1.2 / Rm, dur = 3.2 + 1.4 * P.q, token = {};
+  orbFly(orb, new V3(P.target.x, gy + 2.5, P.target.z), .3, E, () => {
+    scene.remove(orb);
+    let t = 0, tick = 0, cx = P.target.x, cz = P.target.z;
+    claimLight(token, E.hex, new V3(cx, gy + 2, cz), 14);
+    addFx(dt => {
+      t += dt;
+      const a = t * w; cx = P.target.x + Math.cos(a) * Rm; cz = P.target.z + Math.sin(a) * Rm;
+      const fade = Math.min(1, t / .3) * (t > dur - .5 ? Math.max(0, (dur - t) / .5) : 1);
+      driveLight(token, 1.5 * fade);
+      for (const d of DUMMIES) {
+        if (d.dead) continue;
+        const dist = Math.hypot(d.x - cx, d.z - cz);
+        if (dist > R) continue;
+        d.pull(cx, cz, 4 * P.fxK, dt);
+        if (dist < 1.2) d.lift(1.2);
+      }
+      if ((tick += dt) >= .25) { tick = 0; for (const d of DUMMIES) if (!d.dead && Math.hypot(d.x - cx, d.z - cz) < R) d.hit(7 * P.dmgK, 0, 0, 0, 'wind'); }
+      for (let i = 0; i < fq(10); i++) {
+        const hh = rnd(0, 5), r = .4 + hh * .35, an = t * 8 + hh * 1.2 + rnd(-.2, .2), sp = r * 6;
+        fire.emit(cx + Math.cos(an) * r, gy + hh, cz + Math.sin(an) * r, -Math.sin(an) * sp, rnd(-.3, .3), Math.cos(an) * sp, .25, rnd(.2, .4), E.c0, E.c1, .9 * fade, .5, 0, 2);
+      }
+      for (let i = 0; i < fq(2); i++) smoke.emit(cx + rnd(-1, 1) * R * .3, gy + .1, cz + rnd(-1, 1) * R * .3, rnd(-.5, .5), rnd(.5, 1.5), rnd(-.5, .5), .6, rnd(.6, 1), E.s0, E.s1, .5, 1.5, -.2, .5);
+      for (let i = 0; i < fq(1); i++) fire.emit(cx + rnd(-1, 1) * R * .3, gy + rnd(0, 5), cz + rnd(-1, 1) * R * .3, rnd(-1, 1), rnd(0, 1), rnd(-1, 1), .8, rnd(.1, .18), LEAF0, LEAF1, .8 * fade, .5, 0, 1);
+      if (t >= dur) {
+        endLight(token);
+        const c = new V3(cx, gy, cz);
+        explode(c, R * .7, P.power, { dmg: 0, el: 'wind', gy, fxK: P.fxK, flatY: .3, smokeA: .25 });
+        burstRing(c, EL_BURST.wind.ring, R);
+        areaEl(c, R, 40, 'wind', P, { knock: 4 * P.fxK });
+        G.shake = Math.max(G.shake, .3 * CFG.shake);
+        return false;
+      }
+    });
+  });
+}
+
+// 土:岩彈(擊飛 + 暈眩)
+function castEarthBolt(P, orb) {
+  castBolt(P, orb, {
+    speed: BOLT_SPEED * ELMOD.earth.speedMul, arc: .18, trail: TRAIL.earth,
+    impact(end, Q) {
+      const R = Q.r * .9;
+      explode(end, R, Q.power, { dmg: 0, el: 'earth', gy: Q.target.y, fxK: Q.fxK });
+      debris(end, IS_TOUCH ? 4 : 6, 0x8a6a48, .9);
+      areaEl(end, R, 90, 'earth', Q);
+    }
+  });
+}
+// 石牆術:實體暫時平台(tmp),每段石柱依序升起、各判定一次(擊飛 + 推出),時間到下沉
+function castStoneWall(P, orb) {
+  const E = EL.earth;
+  castBolt(P, orb, {
+    speed: 36, arc: 0, endY: .5, dmin: .2, dmax: .6, trail: TRAIL.earth,
+    impact: (end, Q) => spawnZone(Q, {
+      hex: E.hex, indHex: E.hex, alpha: .35,
+      onStart(c) {
+        const sp = c.P.r / (c.segs.length - 1), segW = sp * .96;
+        c.plat = addPlatform({ kind: 'box', x: c.P.target.x, z: c.P.target.z, hx: c.P.r / 2, hz: c.thick / 2, yaw: c.P.wallYaw, top: c.gy, tmp: true });
+        for (const s of c.segs) {
+          s.mesh = new THREE.Mesh(BOX_GEO, STONE_MAT); s.mesh.scale.set(segW, 1, c.thick);
+          s.mesh.position.set(s.x, c.gy - 1.05, s.z); s.mesh.rotation.y = c.P.wallYaw; scene.add(s.mesh);
+        }
+      },
+      frame(c) {
+        const up = Math.min(1, c.age / .45), sink = Math.min(1, Math.max(0, (c.dur - c.age) / .5));
+        c.plat.top = c.gy + 2 * up * sink;
+        for (const s of c.segs) { const h = Math.min(1, Math.max(0, (c.age - s.on) / .3)) * sink; s.mesh.position.y = c.gy + 2 * h - 1.05; }
+      },
+      onSegOn(s, c) {
+        for (let i = 0; i < fq(6); i++) smoke.emit(s.x + rnd(-.5, .5), c.gy + .2, s.z + rnd(-.5, .5), rnd(-1.5, 1.5), rnd(.5, 1.5), rnd(-1.5, 1.5), rnd(.8, 1.2), rnd(.8, 1.4), E.s0, E.s1, .55, 2, -.1, .6);
+        const sp = c.P.r / (c.segs.length - 1);
+        for (const d of DUMMIES) {
+          const r = inZone(d, c); if (!r || Math.abs(r.along - s.o) > sp / 2 + .05) continue;
+          const sg = Math.sign(r.across) || 1;
+          hitEl(d, 50 * c.P.dmgK, 'earth', -c.az * sg, c.ax * sg, { lift: 1.0 * c.P.fxK, knock: 1.5 * c.P.fxK });
+        }
+      },
+      onEnd(c) { removePlatform(c.plat); for (const s of c.segs) scene.remove(s.mesh); }
+    })
+  });
+}
+// 地裂石柱:地面裂紋預告 → 三圈石柱(中心 / R×.5 / R×.9),每個標靶只吃到所在那一圈
+function castEarthSpikes(P, orb) {
+  const E = EL.earth, gy = P.target.y, R = P.r, cnt = IS_TOUCH ? [1, 5, 8] : [1, 6, 10];
+  const RAD = [0, R * .5, R * .9], BAND = [[0, R * .25], [R * .25, R * .7], [R * .7, R * 1.05]], TIMES = [.6, .8, 1.0];
+  const spike = (x, z) => {
+    const m = new THREE.Mesh(SPIKE_GEO, STONE_MAT);
+    m.rotation.set(rnd(-.15, .15), rnd(0, 6.283), rnd(-.15, .15)); m.position.set(x, gy - 1.1, z); scene.add(m);
+    let t = 0;
+    addFx(dt => {
+      t += dt;
+      let yy;   // 圓錐中心相對地面高度:埋入 -1.1、露出 .4、停留 2.5 s 後沉下
+      if (t < .15) yy = lerp(-1.1, .4, easeOut(t / .15));
+      else if (t < 2.65) yy = .4;
+      else if (t < 3.15) yy = lerp(.4, -1.1, (t - 2.65) / .5);
+      else { scene.remove(m); return false; }
+      m.position.y = gy + yy;
+      return true;
+    });
+  };
+  const ring = k => {
+    const r = RAD[k], n = cnt[k], lo = BAND[k][0], hi = BAND[k][1];
+    for (let i = 0; i < n; i++) {
+      const a = i / n * 6.283 + rnd(0, .4), x = P.target.x + Math.cos(a) * r, z = P.target.z + Math.sin(a) * r;
+      spike(x, z);
+      for (let j = 0; j < fq(3); j++) smoke.emit(x + rnd(-.5, .5), gy + .2, z + rnd(-.5, .5), rnd(-1, 1), rnd(.5, 2), rnd(-1, 1), rnd(1, 1.6), rnd(1, 1.8), E.s0, E.s1, .55, 2, -.2, .6);
+      for (let j = 0; j < fq(2); j++) fire.emit(x, gy + .3, z, rnd(-2, 2), rnd(1, 3), rnd(-2, 2), rnd(.3, .5), rnd(.1, .2), E.c0, E.c1, 1, .3, 9, .5);
+    }
+    for (const d of DUMMIES) {
+      if (d.dead || Math.abs(d.y - gy) > 3) continue;
+      const dx = d.x - P.target.x, dz = d.z - P.target.z, dist = Math.hypot(dx, dz);
+      if (dist < lo || dist >= hi) continue;
+      const l = dist || 1;
+      hitEl(d, 60 * P.dmgK * rnd(.9, 1.1), 'earth', dx / l, dz / l, { lift: 1.8 * P.fxK, stun: 1.0 * P.fxK });
+    }
+    G.shake = Math.max(G.shake, .12 * CFG.shake);
+    if (k === 2) flashLight(new V3(P.target.x, gy + 1.5, P.target.z), E.hex, 5, .5, 20);
+  };
+  orbFly(orb, new V3(P.target.x, gy + .3, P.target.z), .3, E, () => {
+    dissolveOrb(orb, E);
+    const wi = new Indicator(scene); let t = 0, k = 0;
+    addFx(dt => {
+      t += dt;
+      wi.set(P.target.x, P.target.z, 0, R, 0, 0, Math.min(1, t / .6), .45 * (t > 1.4 ? Math.max(0, 1 - (t - 1.4) / .5) : 1), E.hex, gy); wi.tick(t);
+      if (t < .6) for (let j = 0; j < fq(2); j++) { const a = rnd(0, 6.283), r = Math.sqrt(Math.random()) * R * .9; smoke.emit(P.target.x + Math.cos(a) * r, gy + .1, P.target.z + Math.sin(a) * r, rnd(-.3, .3), rnd(.2, .6), rnd(-.3, .3), .7, rnd(.6, 1), E.s0, E.s1, .4, 1.5, -.1, .4); }
+      while (k < 3 && t >= TIMES[k]) { ring(k); k++; }
+      if (k >= 3 && t > 1.9) { disposeInd(wi); return false; }
+    });
+  });
+}
+
+// 聖光彈:細長光痕 → 白金爆炸(無煙無焦痕),連鎖 1 → 2 跳(與預覽同公式 max(1, round(2 × fxK)))
+function castHolyBolt(P, orb) {
+  castBolt(P, orb, {
+    speed: BOLT_SPEED * ELMOD.light.speedMul, arc: 0, trail: TRAIL.light,
+    impact(end, Q) {
+      const R = Q.r * .8;
+      explode(end, R, Q.power, { dmg: 0, el: 'light', gy: Q.target.y, fxK: Q.fxK });
+      areaEl(end, R, 55, 'light', Q, {});
+      const first = nearestDummy(end.x, end.z, R + .4);
+      if (first) chainFrom(first, Math.max(1, Math.round(2 * Q.fxK)), 55 * Q.dmgK * .5, 'light');
+    }
+  });
+}
+// 聖域結界:每 .4 s 照亮 4 s(受傷 ×1.25)
+function castSanctuary(P, orb) {
+  const E = EL.light;
+  castBolt(P, orb, {
+    speed: 36, arc: 0, endY: .5, dmin: .2, dmax: .6, trail: TRAIL.light,
+    impact: (end, Q) => spawnZone(Q, {
+      hex: E.hex, indHex: E.hex, alpha: .5, lightHex: 0xfff2a0, lightInt: 2.5, tickInt: .4,
+      emit(s, ramp, c) {
+        s.acc += c.dt * 20 * ramp * FXQ();
+        while (s.acc >= 1) {
+          s.acc -= 1; const lx = rnd(-c.thick / 2, c.thick / 2);
+          fire.emit(s.x - c.az * lx, c.gy + rnd(0, .2), s.z + c.ax * lx, rnd(-.2, .2), rnd(3, 5), rnd(-.2, .2), .5, rnd(.15, .3), E.c0, E.c1, .9, .3, 0, .5);
+        }
+      },
+      onTick: c => zoneTick(c, 8, 'light', { lit: 4 })
+    })
+  });
+}
+// 聖光柱:能量球往上飛 → 多道小光柱(連鎖 1 跳)→ 中央大光柱(連鎖 1 → 3 跳)
+function castHolyPillar(P, orb) {
+  const E = EL.light, gy = P.target.y, R = P.r, n = CHG.count(10, P.q), sched = [];
+  for (let i = 0; i < n; i++) sched.push({ t: .4 + (i / n) * 1.6 + rnd(0, .15), big: false });
+  sched.push({ t: 2.3, big: true });
+  const pillar = (x, z, rad, big) => {
+    const m = new THREE.Mesh(COL_GEO, new THREE.MeshBasicMaterial({ color: 0xfff6c0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    m.position.set(x, gy + 10, z); m.scale.set(rad, 20, rad); scene.add(m);
+    burstRing(new V3(x, gy, z), 0xfff6c0, rad * 2.5);
+    flashLight(new V3(x, gy + 2, z), 0xfff6c0, big ? 6 : 3, .5, big ? 22 : 14);
+    let t = 0;
+    addFx(dt => {
+      t += dt;
+      const o = t < .08 ? t / .08 : (t < .23 ? 1 : Math.max(0, 1 - (t - .23) / .35));
+      m.material.opacity = .65 * o;
+      if (t >= .58) { scene.remove(m); m.material.dispose(); return false; }
+    });
+  };
+  const small = () => {
+    const ang = rnd(0, 6.283), rr = Math.sqrt(Math.random()) * Math.max(1.4, R * .25), x = P.target.x + Math.cos(ang) * rr, z = P.target.z + Math.sin(ang) * rr;
+    pillar(x, z, .35, false);
+    areaEl(new V3(x, gy, z), 1.4, 45, 'light', P, {});
+    const first = nearestDummy(x, z, 1.8);
+    if (first) chainFrom(first, 1, 45 * P.dmgK * .5, 'light');
+  };
+  const big = () => {
+    const rr = R * .7, x = P.target.x, z = P.target.z;
+    pillar(x, z, .8, true);
+    areaEl(new V3(x, gy, z), rr, 110, 'light', P, {});
+    const first = nearestDummy(x, z, rr + .4);
+    if (first) chainFrom(first, Math.round(1 + 2 * P.q), 110 * P.dmgK * .5, 'light');
+    G.shake = Math.max(G.shake, .3 * CFG.shake);
+  };
+  orbFly(orb, new V3(P.target.x, gy + 20, P.target.z), .45, E, () => {
+    dissolveOrb(orb, E);
+    let t = 0;
+    addFx(dt => {
+      t += dt;
+      while (sched.length && t >= sched[0].t) { const e = sched.shift(); if (e.big) big(); else small(); }
+      return !(!sched.length && t > 3.0);
+    });
+  });
+}
+
+// 暗影彈:能量球為黑核紫邊;命中先吸入(0.25 s),再爆炸並把範圍內標靶拉向爆心、侵蝕 3 s
+function castShadowBolt(P, orb) {
+  castBolt(P, orb, {
+    speed: BOLT_SPEED * ELMOD.dark.speedMul, arc: .04, trail: TRAIL.dark,
+    impact(end, Q) {
+      const E = EL.dark, R = Q.r, gy = Q.target.y;
+      for (let i = 0; i < fq(24); i++) {   // 先吸入:粒子從 1.3R 處往爆心飛,0.3 s 到達
+        const d = new V3(rnd(-1, 1), rnd(-.2, 1), rnd(-1, 1)).normalize(), k = R * 1.3;
+        const sx = end.x + d.x * k, sy = end.y + d.y * k, sz = end.z + d.z * k;
+        fire.emit(sx, sy, sz, (end.x - sx) / .3, (end.y - sy) / .3, (end.z - sz) / .3, .3, rnd(.15, .3), E.c0, E.c1, 1, .5, 0, 0);
+      }
+      after(.25, () => {
+        explode(end, R, Q.power, { dmg: 0, el: 'dark', gy, fxK: Q.fxK });
+        areaEl(end, R, 65, 'dark', Q);
+      });
+    }
+  });
+}
+// 暗影幕:暗紫煙牆,每跳侵蝕 3 s;每幀把範圍內標靶拉向牆中線(3 → 1.5 m/s × fxK)
+function castShadowCurtain(P, orb) {
+  const E = EL.dark;
+  castBolt(P, orb, {
+    speed: 36, arc: 0, endY: .5, dmin: .2, dmax: .6, trail: TRAIL.dark,
+    impact: (end, Q) => spawnZone(Q, {
+      hex: E.hex, indHex: E.hex, alpha: .35, lightHex: 0x9a4dff, lightInt: 1.2, tickInt: .3,
+      emit(s, ramp, c) {
+        s.acc += c.dt * 12 * ramp * FXQ();
+        while (s.acc >= 1) {
+          s.acc -= 1; const lx = rnd(-c.thick / 2, c.thick / 2), x = s.x - c.az * lx, z = s.z + c.ax * lx;
+          smoke.emit(x, c.gy + rnd(.3, 1.2), z, rnd(-.3, .3), rnd(1, 2), rnd(-.3, .3), rnd(.8, 1.2), rnd(1.5, 2.5), E.s0, E.s1, .7, 1, -.3, .3);
+          if (Math.random() < .2) fire.emit(x, c.gy + rnd(0, 1), z, rnd(-.3, .3), rnd(.5, 1), rnd(-.3, .3), .5, rnd(.3, .5), E.c0, E.c1, .7, .5, -.2, .5);
+        }
+      },
+      frame(c) {
+        for (const d of DUMMIES) {
+          const r = inZone(d, c); if (!r) continue;
+          const al = clamp(r.along, -c.half, c.half);
+          d.pull(c.P.target.x + c.ax * al, c.P.target.z + c.az * al, 3 * c.P.fxK, c.dt);
+        }
+      },
+      onTick: c => zoneTick(c, 6, 'dark', { erode: 3 })
+    })
+  });
+}
+// 黑洞:能量球升到上空成形 → 吸引圈內標靶向心移動並侵蝕 → 坍縮爆炸(大傷害,之後標靶彈回原位)
+function castBlackHole(P, orb) {
+  const E = EL.dark, gy = P.target.y, R = P.r, pullR = R * 1.4, attr = 2.4 + P.q, ground0 = new V3(P.target.x, gy, P.target.z);
+  orbFly(orb, new V3(P.target.x, gy + 2.5, P.target.z), .3, E, () => {
+    scene.remove(orb);
+    const C = new V3(P.target.x, gy + 2.5, P.target.z), token = {};
+    const sph = new THREE.Mesh(SPH_GEO, new THREE.MeshBasicMaterial({ color: 0x050008 }));
+    sph.position.copy(C); sph.scale.setScalar(.01); scene.add(sph);
+    const halo = glowSprite(0x9a4dff, 5, .5); halo.position.copy(C); scene.add(halo);
+    const ring = new THREE.Mesh(TORUS_GEO, new THREE.MeshBasicMaterial({ color: 0xb070ff, transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false }));
+    ring.position.copy(C); ring.rotation.x = Math.PI / 2 - .4; scene.add(ring);
+    claimLight(token, 0x9a4dff, C, 14);
+    const endAt = .4 + attr, boom = endAt + .15;
+    let t = 0, tick = 0, boomed = false;
+    addFx(dt => {
+      t += dt;
+      const grow = Math.min(1, t / .4), shrink = t > endAt ? Math.max(0, 1 - (t - endAt) / .15) : 1;
+      sph.scale.setScalar(Math.max(.01, .7 * grow * shrink)); ring.rotation.z += dt * 2.5;
+      if (t <= endAt) {
+        driveLight(token, 1);
+        for (const d of DUMMIES) {
+          if (d.dead) continue;
+          const dist = Math.hypot(d.x - C.x, d.z - C.z);
+          if (dist > pullR) continue;
+          d.pull(C.x, C.z, 6 * P.fxK, dt);
+          if (dist < R) d.erode(3 * P.fxK);
+        }
+        if ((tick += dt) >= .25) { tick = 0; for (const d of DUMMIES) if (!d.dead && Math.hypot(d.x - C.x, d.z - C.z) < R) d.hit(6 * P.dmgK, 0, 0, 0, 'dark'); }
+        for (let i = 0; i < fq(8); i++) {
+          const dd = new V3(rnd(-1, 1), rnd(-.3, 1), rnd(-1, 1)).normalize(), k = R * 1.2;
+          const sx = C.x + dd.x * k, sy = C.y + dd.y * k, sz = C.z + dd.z * k;
+          fire.emit(sx, sy, sz, (C.x - sx) / .6, (C.y - sy) / .6, (C.z - sz) / .6, .6, rnd(.15, .25), E.c0, E.c1, 1, .5, 0, 0);
+        }
+      }
+      if (!boomed && t >= boom) {
+        boomed = true; endLight(token);
+        scene.remove(sph, halo, ring); sph.material.dispose(); halo.material.dispose(); ring.material.dispose();
+        explode(ground0, R * .8, P.power, { dmg: 0, el: 'dark', gy, fxK: P.fxK });
+        areaEl(ground0, R * .8, 100, 'dark', P, {});
+        G.shake = Math.max(G.shake, .35 * CFG.shake);
+        return false;
+      }
+    });
+  });
+}
+
+/* ---------- 形狀查表(launchSpell 用):SHAPE_FN[元素][形狀];火系三招仍用 game.js 原函式 ---------- */
+const SHAPE_FN = {
+  fire: { bolt: castFireball, wall: castFirewall, sky: castMeteor },
+  water: { bolt: castWaterBolt, wall: castWaterWall, sky: castGeyser },
+  wind: { bolt: castWindBolt, wall: castWindWall, sky: castTornado },
+  earth: { bolt: castEarthBolt, wall: castStoneWall, sky: castEarthSpikes },
+  light: { bolt: castHolyBolt, wall: castSanctuary, sky: castHolyPillar },
+  dark: { bolt: castShadowBolt, wall: castShadowCurtain, sky: castBlackHole }
+};
