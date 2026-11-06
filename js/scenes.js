@@ -351,8 +351,9 @@
     moonLight.castShadow = quality > 0;
     const ms = [512, 1024, IS_TOUCH ? 1024 : 2048][quality];
     if (moonLight.shadow.mapSize.x !== ms) { moonLight.shadow.mapSize.set(ms, ms); if (moonLight.shadow.map) { moonLight.shadow.map.dispose(); moonLight.shadow.map = null; } }
-    if (window.CFG) CFG.bloom = quality > 0 && !(IS_TOUCH && quality < 2);
-    _minDt = quality === 0 ? 33 : 0;
+    if (window.CFG) CFG.bloom = quality === 2;   // 泛光只在「高」開(最吃 GPU)
+    window.SHADOWN = [0, 2, 1][quality];          // 陰影重畫頻率:低=不畫、中=隔格、高=每格
+    _minDt = quality === 0 ? 33 : 16;             // 幀率上限:低 30、中高 60(高更新率螢幕也不超過 60)
     if (window.onResize) onResize();
     applyBloomScene();
     try { localStorage.setItem('mageSandbox.q', quality); } catch (e) { }

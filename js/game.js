@@ -852,7 +852,7 @@ function frame(now) {
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);
   fire.update(dt); smoke.update(dt); updateDmgTexts(dt); updateHUD();
   sky.position.copy(camera.position);
-  moonLight.shadow.needsUpdate = true;
+  { const sn = window.SHADOWN == null ? 1 : window.SHADOWN; G.shN = (G.shN || 0) + 1; moonLight.shadow.autoUpdate = false; moonLight.shadow.needsUpdate = sn > 0 && G.shN % sn === 0; }   // 陰影每 sn 格才重畫一次(省電)
   if (bloom) bloom.strength = CFG.bloomStrength * (window.BLOOMK == null ? 1 : window.BLOOMK);
   if (CFG.bloom && composer) composer.render(dt); else renderer.render(scene, camera);
 }
