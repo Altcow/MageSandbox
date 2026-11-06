@@ -252,9 +252,9 @@
 
   const SCENES = [
     { name: '月夜訓練場', build: buildNight, ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea },
-    { name: '羅馬競技場', build: buildColosseum, ground: sandTex, gtint: 0x8f8670, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.9, .7, .4], clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .55], dir: [0xfff1d6, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0x6e6049, platTrim: 0xf6ecd0 },
-    { name: '宮廷訓練場', build: buildHall, ground: floorTex, gtint: 0x8a8478, fog: [0x1a140e, 70, 220], indoor: true, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, .7], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x6a4424, platTrim: 0xe0b85a },
-    { name: '非洲叢林', build: buildJungle, ground: jungleTex, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [1, .6, .25], clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.15], sun: [-32, 24, 22], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -12, 3, 3, 3.5, 0], ['box', -29.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x7d7868, platTrim: 0xb3ad94 }
+    { name: '羅馬競技場', build: buildColosseum, ground: sandTex, gtint: 0x8f8670, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.4, .3, .16], bt: .96, bk: .45, clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .55], dir: [0xfff1d6, .8], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0x6e6049, platTrim: 0xf6ecd0 },
+    { name: '宮廷訓練場', build: buildHall, ground: floorTex, gtint: 0x8a8478, fog: [0x1a140e, 70, 220], indoor: true, bt: .92, bk: .6, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, .7], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x6a4424, platTrim: 0xe0b85a },
+    { name: '非洲叢林', build: buildJungle, ground: jungleTex, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [.45, .28, .12], bt: .93, bk: .55, clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.0], sun: [-32, 24, 22], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -12, 3, 3, 3.5, 0], ['box', -29.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x7d7868, platTrim: 0xb3ad94 }
   ];
 
   // 可站立高台:box [kind,x,z,hx,hz,top,yaw] / cyl [kind,x,z,r,top]
@@ -299,6 +299,11 @@
     loading = true; clearDeco(); loadEl.style.display = 'flex';
     setTimeout(() => { try { buildScene(i); } finally { loading = false; loadEl.style.display = 'none'; } }, 60);
   }
+  // 泛光依場景調整(白天場景門檻高、強度低,避免畫面被洗白);泛光物件在 game.js 才建立,所以載入後也要再套一次
+  function applyBloomScene() {
+    const S = SCENES[cur < 0 ? 0 : cur]; window.BLOOMK = S.bk == null ? 1 : S.bk;
+    if (typeof bloom !== 'undefined' && bloom) bloom.threshold = S.bt == null ? .78 : S.bt;
+  }
   function buildScene(i) {
     const S = SCENES[i];
     clearDeco();
@@ -317,6 +322,7 @@
     buildPlats(S);
     S.build();
     cur = i;
+    applyBloomScene();
     SCORCH.forEach(s => { scene.remove(s.m); s.m.material.dispose(); }); SCORCH.length = 0;
     [...document.querySelectorAll('#sceneBar button')].forEach((b, k) => b.classList.toggle('on', k === i));
     try { localStorage.setItem('mageSandbox.scene', i); } catch (e) { }
@@ -348,6 +354,7 @@
     if (window.CFG) CFG.bloom = quality > 0 && !(IS_TOUCH && quality < 2);
     _minDt = quality === 0 ? 33 : 0;
     if (window.onResize) onResize();
+    applyBloomScene();
     try { localStorage.setItem('mageSandbox.q', quality); } catch (e) { }
   }
   qBtn.onclick = () => { quality = (quality + 1) % 3; applyQuality(); };

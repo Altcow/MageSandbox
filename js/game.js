@@ -443,12 +443,12 @@ function updateOrb(dt) {
   const a = G.auraAmt, p = mage.root.position, E = auraEl();
   mage.glow = a;
   rings.forEach((m, i) => {
-    m.visible = a > .02; m.material.opacity = a * .8;
+    m.visible = a > .02 && G.cls === 'mage'; m.material.opacity = a * .8;   // 符文圈與光環只給法師
     m.scale.setScalar(.7 + a * .5 + i * .12);
     m.position.y = .5 + i * .6 + Math.sin(G.time * 2 + i) * .08;
     m.rotation.set(Math.PI / 2 + Math.sin(G.time * 1.3 + i * 2) * .35, Math.cos(G.time * 1.1 + i) * .3, G.time * (2 + i));
   });
-  runeMesh.material.opacity = a * .9; runeMesh.scale.setScalar(2.4 + a * 1.8); runeGrp.rotation.y = G.time * .9; runeGrp.visible = a > .02;
+  runeMesh.material.opacity = a * .9; runeMesh.scale.setScalar(2.4 + a * 1.8); runeGrp.rotation.y = G.time * .9; runeGrp.visible = a > .02 && G.cls === 'mage';
   const L = LIGHTS[3]; L.color.setHex(E.hex); L.position.set(p.x, p.y + 1.4, p.z); L.intensity = a * 2.6; L.distance = 12;
   runeMesh.material.color.setHex(E.hex); rings.forEach(m => m.material.color.setHex(E.hex));
   if (G.state === 'charging') auraTick(dt);   // 集氣氣場(classes.js)
@@ -853,7 +853,7 @@ function frame(now) {
   fire.update(dt); smoke.update(dt); updateDmgTexts(dt); updateHUD();
   sky.position.copy(camera.position);
   moonLight.shadow.needsUpdate = true;
-  if (bloom) bloom.strength = CFG.bloomStrength;
+  if (bloom) bloom.strength = CFG.bloomStrength * (window.BLOOMK == null ? 1 : window.BLOOMK);
   if (CFG.bloom && composer) composer.render(dt); else renderer.render(scene, camera);
 }
 window.startLoop = () => requestAnimationFrame(frame);   // classes.js 載入後才開始(避免載入途中呼叫)
