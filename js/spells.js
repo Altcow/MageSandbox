@@ -19,14 +19,14 @@ const ELMOD = {
 const _f = q => CHG.fx(q), _pct = q => Math.round(50 * CHG.fx(q)), _m = (n, q) => (n * CHG.fx(q)).toFixed(1);
 const SPELLS = {
   water: [
-    { name: '水彈術', icon: '💧', img: null, chant: '清泉之靈,凝於掌心,化為奔流之彈——', shout: '水彈術!', preview: q => '減速 ' + _pct(q) + '%' },
-    { name: '水幕術', icon: '🌊', img: null, chant: '深潭之水,湧泉而起,化作阻敵之幕——', shout: '水幕術!', preview: q => '減速 ' + _pct(q) + '%' },
-    { name: '間歇泉', icon: '⛲', img: null, chant: '大地之脈,沉睡之泉,聽我號令——噴湧吧!', shout: '間歇泉!', preview: q => '水柱 ' + CHG.count(10, q) + ' 道' }
+    { name: '水彈術', icon: '💧', img: 'assets/icons/sp_water_bolt.png', chant: '清泉之靈,凝於掌心,化為奔流之彈——', shout: '水彈術!', preview: q => '減速 ' + _pct(q) + '%' },
+    { name: '水幕術', icon: '🌊', img: 'assets/icons/sp_water_wall.png', chant: '深潭之水,湧泉而起,化作阻敵之幕——', shout: '水幕術!', preview: q => '減速 ' + _pct(q) + '%' },
+    { name: '間歇泉', icon: '⛲', img: 'assets/icons/sp_water_sky.png', chant: '大地之脈,沉睡之泉,聽我號令——噴湧吧!', shout: '間歇泉!', preview: q => '水柱 ' + CHG.count(10, q) + ' 道' }
   ],
   fire: [
-    { name: '火球術', icon: '🔥', img: null, chant: '火之精靈,聚於我手,化為灼熱之球——燃盡一切!', shout: '火球術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
-    { name: '火牆術', icon: '🧱', img: null, chant: '烈焰之壁,拔地而起,焚盡來犯之敵——', shout: '火牆術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
-    { name: '隕石術', icon: '☄️', img: null, chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石術!', preview: q => '燃燒 ' + _m(3, q) + ' s' }
+    { name: '火球術', icon: '🔥', img: 'assets/icons/sp_fire_bolt.png', chant: '火之精靈,聚於我手,化為灼熱之球——燃盡一切!', shout: '火球術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
+    { name: '火牆術', icon: '🧱', img: 'assets/icons/sp_fire_wall.png', chant: '烈焰之壁,拔地而起,焚盡來犯之敵——', shout: '火牆術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
+    { name: '隕石術', icon: '☄️', img: 'assets/icons/sp_fire_sky.png', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石術!', preview: q => '燃燒 ' + _m(3, q) + ' s' }
   ],
   wind: [
     { name: '風刃術', icon: '🌀', img: null, chant: '疾風之刃,隨我意行,斬裂虛空——', shout: '風刃術!', preview: q => '擊退 ' + _m(5, q) + ' m' },

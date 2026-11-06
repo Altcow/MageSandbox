@@ -20,20 +20,20 @@ const CLASSES = {
   mage: { name: '法師', icon: '🧙', robe: 0x3a3f9c, weapons: ['staff', 'book'], wpn: '法杖', elements: true, moveWhileCharging: false, skills: null, aura: null, img: null },
   archer: { name: '弓箭手', icon: '🏹', robe: 0x2f5a2a, weapons: ['bow'], wpn: '弓', elements: false, moveWhileCharging: false, img: null,
     skills: [
-      mkSkill('quickShot', '瞄準射擊', '🎯', { chant: '箭已搭弦……', shout: '瞄準射擊!', cast: castQuickShot, preview: q => '箭速 ' + Math.round(lerp(45, 70, q)) + ' m/s' }),
+      mkSkill('quickShot', '瞄準射擊', '🎯', { img: 'assets/icons/quick_shot.png', chant: '箭已搭弦……', shout: '瞄準射擊!', cast: castQuickShot, preview: q => '箭速 ' + Math.round(lerp(45, 70, q)) + ' m/s' }),
       mkSkill('shockArrow', '衝擊巨箭', '🏹', { img: 'assets/icons/archer_wave.png', aim: 'line', chant: '拉滿弓弦……', shout: '衝擊巨箭!', cast: castShockArrow, preview: q => '跌倒 ' + (1.8 * CHG.fx(q)).toFixed(1) + ' s' }),
       mkSkill('arrowRain', '箭雨', '🌧️', { img: 'assets/icons/archer_rain.png', kind: 'sky', chant: '箭矢升空……', shout: '箭雨!', cast: castArrowRain, preview: q => '箭 ' + CHG.count(40, q) + ' 支' })],
     aura: { hex: 0xb8e03a, main: 0xb8e03a, sub: 0xf0ff8a, dark: false } },
   swordsman: { name: '劍士', icon: '⚔️', robe: 0x7a2a22, weapons: ['swordShield'], wpn: '劍與盾', elements: false, moveWhileCharging: true, img: null,
     skills: [
-      mkSkill('powerSlash', '蓄力斬', '⚔️', { aim: 'front', chant: '劍氣凝聚……', shout: '蓄力斬!', cast: castPowerSlash, preview: q => '擊退 ' + (1.5 * CHG.fx(q)).toFixed(1) + ' m' }),
-      mkSkill('whirlwind', '旋風斬', '🌀', { aim: 'self', chant: '旋身……', shout: '旋風斬!', cast: castWhirlwind, preview: q => '次數 ' + Math.max(2, Math.round(lerp(.6, 1.8, q) / .3)) }),
+      mkSkill('powerSlash', '蓄力斬', '⚔️', { img: 'assets/icons/power_slash.png', aim: 'front', chant: '劍氣凝聚……', shout: '蓄力斬!', cast: castPowerSlash, preview: q => '擊退 ' + (1.5 * CHG.fx(q)).toFixed(1) + ' m' }),
+      mkSkill('whirlwind', '旋風斬', '🌀', { img: 'assets/icons/whirlwind.png', aim: 'self', chant: '旋身……', shout: '旋風斬!', cast: castWhirlwind, preview: q => '次數 ' + Math.max(2, Math.round(lerp(.6, 1.8, q) / .3)) }),
       mkSkill('shieldCharge', '衝鋒盾', '🛡️', { img: 'assets/icons/shield_charge.png', aim: 'line', cd: 3, chant: '盾牌在前……', shout: '衝鋒盾!', cast: castShieldCharge, preview: q => '暈眩 ' + (2.5 * CHG.fx(q)).toFixed(1) + ' s' })],
     aura: { hex: 0xff3a3a, main: 0xff3a3a, sub: 0xa01010, dark: false } },
   assassin: { name: '刺客', icon: '🗡️', robe: 0x2a2233, weapons: ['daggers'], wpn: '雙匕首', elements: false, moveWhileCharging: true, img: null,
     skills: [
       mkSkill('backstab', '背刺', '🗡️', { img: 'assets/icons/backstab.png', cd: 1, chant: '身影一閃……', shout: '背刺!', cast: castBackstab, preview: q => '背後 ×' + lerp(2.5, 3.5, q).toFixed(1) }),
-      mkSkill('knives', '飛刀', '🔪', { aim: 'line', chant: '扇形展開……', shout: '飛刀!', cast: castKnives, preview: q => '飛刀 ' + CHG.count(7, q) + ' 把' }),
+      mkSkill('knives', '飛刀', '🔪', { img: 'assets/icons/knives.png', aim: 'line', chant: '扇形展開……', shout: '飛刀!', cast: castKnives, preview: q => '飛刀 ' + CHG.count(7, q) + ' 把' }),
       mkSkill('stealth', '潛行', '👤', { img: 'assets/icons/stealth.png', aim: 'none', cd: 6, kind: 'bolt', chant: '隱入暗影……', shout: '潛行!', cast: castStealth, preview: q => '潛行 ' + (10 * CHG.fx(q)).toFixed(1) + ' s' })],
     aura: { hex: 0x9a40ff, main: 0x3a1a5a, sub: 0x9a40ff, dark: true } }
 };
