@@ -222,7 +222,9 @@ function netCombatTick(dt) {
   netBoardTick(now);
 }
 function netSendHit(rp, p, now) {
-  Net.emitEv({ t: 'hit', to: rp.seat, hq: ++netHitSeq, rt: Math.round(now - interpDelay()), k: netLastK, h: p.h, fx: p.fx });
+  // 來源標記(N7):h 第 6 欄為召喚物名;整則都來自召喚物時 k 記召喚物名(擊殺訊息用),sm:1 表示含召喚物傷害
+  const smK = p.h.length && p.h.every(x => x[5]) ? p.h[p.h.length - 1][5] : null;
+  Net.emitEv({ t: 'hit', to: rp.seat, hq: ++netHitSeq, rt: Math.round(now - interpDelay()), k: smK || netLastK, sm: p.h.some(x => x[5]) ? 1 : 0, h: p.h, fx: p.fx });
 }
 
 // 受害者回報的傷害數字:所有看得到對方的人都在對方頭上顯示(自己的數字由 netApplyHit 直接顯示)

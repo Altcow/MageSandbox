@@ -233,7 +233,7 @@ class RemotePlayer {
   _pend() { if (NET_CTX !== null) return null; return this.pend || (this.pend = { h: [], fx: {} }); }
   hit(dmg, dx, dz, burn, el) {
     const p = this._pend(); if (!p) return;
-    p.h.push([Math.round(dmg * 10) / 10, el || 0, Math.round(dx * 100) / 100, Math.round(dz * 100) / 100, Math.round((burn || 0) * 10) / 10]);
+    p.h.push([Math.round(dmg * 10) / 10, el || 0, Math.round(dx * 100) / 100, Math.round(dz * 100) / 100, Math.round((burn || 0) * 10) / 10, window.NET_SM_K || 0]);   // 第 6 欄:來源召喚物名(N7,0 = 非召喚物)
   }
   knock(dirx, dirz, dist) {
     const p = this._pend(); if (!p) return;
@@ -346,6 +346,7 @@ function clearRemotes() {
   const wasOn = window.NETON;
   Object.keys(REMOTES).forEach(destroyRemote);
   window.NETON = false; window.NET_LOCK = false; sendAcc = 0;
+  if (wasOn && typeof netSmReset === 'function') netSmReset();   // 離開對戰:傀儡、本機召喚物、sm 節點清除(netsummon.js,N7)
   if (wasOn && typeof netOnClear === 'function') netOnClear();   // 離開對戰(原本在對戰中才處理):清 debuff、關小計分板與擊殺訊息(netcombat.js)
   if (cdEl) { cdEl.style.display = 'none'; cdLast = ''; }
   restoreDummies();
@@ -361,6 +362,7 @@ function placeLocal(pos) {
 function enterMatch(ev) {
   if (!Net.me) return;
   clearRemotes();
+  if (typeof clearSummons === 'function') clearSummons();   // 新局開始:清掉殘留的召喚物(§6-3)
   const players = ev.players || [];
   const seats = players.map(p => p.id).sort((a, b) => a - b);
   if (typeof window.getSceneIndex === 'function' && ev.scene != null && window.getSceneIndex() !== ev.scene) setScene(ev.scene, true);   // 換場地再來(N6):先切場景,出生點驗證才用新場地
@@ -431,6 +433,7 @@ function netTick(dt) {
   sendAcc += dt;
   if (sendAcc >= iv) { sendAcc = sendAcc >= 2 * iv ? 0 : sendAcc - iv; sendSnap(now); }
   if (typeof netFxTick === 'function') netFxTick(dt);   // 遠端位移招式特效(netcombat.js,§2-9)
+  if (typeof netSmTick === 'function') netSmTick(dt);   // 召喚物快照與傀儡(netsummon.js,N7)
   if (typeof netCombatTick === 'function') netCombatTick(dt);   // 待送命中、吸引位移、小計分板(netcombat.js,N5)
 }
 window.netTick = netTick;

@@ -484,7 +484,8 @@ function castSummon(P, orb) {
 // 每幀(game.js updateWorld 呼叫)
 function updateSummons(dt) {
   smUpdateSlabs(dt);
-  for (let i = SUMMONS.length - 1; i >= 0; i--) SUMMONS[i].update(dt);
+  for (let i = SUMMONS.length - 1; i >= 0; i--) { window.NET_SM_K = SUMMONS[i].def.name; SUMMONS[i].update(dt); }   // NET_SM_K:多人命中的來源標記(N7,單人無作用)
+  window.NET_SM_K = null;
   smSeparate();
   smUpdateFading(dt);
 }

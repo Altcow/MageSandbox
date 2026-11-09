@@ -442,6 +442,9 @@
     emitEv(obj) { return bus && myRoom && mySeat ? bus.emit(obj) : null; },   // 施放等遊戲事件(netcombat.js)
     setSnap(s) { return bus && mySeat ? bus.setState('snap/' + mySeat, s) : Promise.resolve(); },
     snapOf(seat) { const r = root(); return r && r.snap ? r.snap[seat] : undefined; },
+    // 召喚物快照 sm/<座位>(netsummon.js,N7):寫入自己的節點(null = 刪除);讀取任一座位
+    setSm(s) { return bus && mySeat ? bus.setState('sm/' + mySeat, s) : Promise.resolve(); },
+    smOf(seat) { const r = root(); return r && r.sm ? r.sm[seat] : undefined; },
     roundOf() { const r = root(); return r && r.meta && r.meta.round ? r.meta.round : null; },
     metaState() { const r = root(); return r && r.meta && r.meta.state ? r.meta.state : ''; },
     metaResult() { const r = root(); return r && r.meta && typeof r.meta.result === 'string' ? r.meta.result : ''; },
