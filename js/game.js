@@ -125,7 +125,7 @@ const G = {
   ground: true, groundY: 0, airJumps: 1, airRolls: 1, coyote: 0, jumpBuf: 0, flip: -1, lastSkill: 0,
   roll: null, rollCD: 0, invuln: false, stun: 0, dodged: 0, hits: 0, autoStrike: false, strikeT: 2,
   time: 0, cb: 0, kick: 0, vy: 0, frameT: 0, hover: 0, auraAmt: 0, maxFlash: false, halfFlash: false, shoutT: 0, atkHeld: false,
-  cls: 'mage', cd: {}, stealth: null, weak: 0, dash: null, spin: null, px0: 0, pz0: 0, camK: 1, lookX: 0, lookY: 0, aimFar: false, hurtFrom: null, rmbLock: false, rmbEnd: false, lockErr: false,
+  cls: 'mage', cd: {}, stealth: null, weak: 0, dash: null, spin: null, px0: 0, pz0: 0, py0: 0, camK: 1, lookX: 0, lookY: 0, aimFar: false, hurtFrom: null, rmbLock: false, rmbEnd: false, lockErr: false,
   el: 'fire', chgMode: 'A', hp: 100, hpMax: 100, shield: 0, shieldT: 0, downs: 0, slowImmT: 0, mp: 100, mpMax: 100, sp: 100, spMax: 100, mpIdle: 0, spIdle: 0, runLock: false, sitK: 0, sitting: false, down: 0, downK: 0, invulnT: 0, kvx: 0, kvz: 0, slowT: 0, slowPct: 0, burnT: 0, erodeT: 0, litT: 0, lastHitBy: 0, lastHitK: null, lastHitT: 0, tp: 0, stance: 0, stanceCd: 0, stanceBoostT: 0, cr: 0, crIdle: 0, parryT: 0, unyT: 0, ccLog: []   // 非法師:架勢 stance(0/1)、冷卻、加速計時;職業能量 cr;不屈 / 格擋計時;多人控制紀錄 ccLog。 // 目前屬性(C-8,只有法師使用),存 localStorage mageSandbox.el;chgMode = 集氣模式 A/B;hp / shield / downs = S-6 玩家狀態
 };
 try { const v = localStorage.getItem('mageSandbox.el'); if (EL_ORDER.includes(v)) G.el = v; } catch (e) { }
@@ -589,6 +589,7 @@ function updatePlayer(dt) {
   const gMul = (G.roll && G.roll.air) ? CFG.airRollGrav : 1;
   const wasGround = G.ground, step = Math.hypot(p.x - G.px0, p.z - G.pz0);
   G.vy -= GRAV * gMul * dt; p.y += G.vy * dt;
+  const cy = ceilAt(p.x, p.z, G.py0); if (cy != null && p.y + PLAYER_H > cy) { p.y = cy - PLAYER_H - .01; if (G.vy > 0) G.vy = 0; }   // 樓板下撞頭:停在天花板下,不被 pushOut 瞬移到邊緣
   const snap = wasGround && G.vy <= 0 && p.y - gY <= .05 + TER_MAX_TAN * step * 1.3 - G.vy * dt;   // 下坡貼地
   if (p.y <= gY || snap) {
     const impact = G.vy;
@@ -952,7 +953,7 @@ const camPitchMin = () => aimLock() ? -0.30 : -0.10;   // 準心模式可略仰�
 // 相機位置是否被擋:地面(含平地)、平台與橋(橋只擋橋身高度區間,橋底下可通過)。COLLIDERS 不算(避免多人時別人站身後把鏡頭拉近)
 function camBlocked(x, y, z) {
   if (y < terrainH(x, z) + .4) return true;
-  for (const P of PLATFORMS) if (platContains(P, x, z, .2) && y < platTop(P, x, z) + .2 && (P.kind !== 'bridge' || y > P.bottom - .2)) return true;
+  for (const P of PLATFORMS) if (platContains(P, x, z, .2) && y < platTop(P, x, z) + .2 && (P.bottom == null || y > P.bottom - .3)) return true;   // 有 bottom 的(橋 / 樓板):頂下方的樣本才擋
   return false;
 }
 function updateCamera(dt) {
@@ -1121,10 +1122,10 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, .05) * (window.TS || 1); last = now; G.time += dt;
   if (window.inputTick && !(window.NETON && window.NET_LOCK)) inputTick(dt);   // 多人開戰倒數中鎖定輸入(remote.js)
-  G.px0 = mage.root.position.x; G.pz0 = mage.root.position.z;
+  G.px0 = mage.root.position.x; G.pz0 = mage.root.position.z; G.py0 = mage.root.position.y;
   if (window.NETON) netPlayerTick(dt);   // 多人:擊退、撞牆跌倒、無敵紀錄(netcombat.js,在 updatePlayer 之前)
   stTick(dt);                            // 狀態效果計時與 DOT(status.js,單人也跑)
-  classTick(dt); resTick(dt); updatePlayer(dt); updateAim(dt); updateCasting(dt);
+  classTick(dt); resTick(dt); updatePlayer(dt); if (window.sceneTick) sceneTick(dt); updateAim(dt); updateCasting(dt);
   mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK });
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);
   if (window.NETON) netTick(dt);   // 多人:送出快照、開戰倒數(remote.js);單人不執行

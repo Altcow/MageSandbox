@@ -13,7 +13,8 @@
 //   其他:now()、me、isHost、code、stub、online、idleMs(測試時可改短)
 (function () {
   const NET_PROTO = 1;          // 協定版本(meta.v)
-  const NET_BUILD = 10;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
+  const NET_BUILD = 11;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
+  const sceneMax = () => (typeof window.getSceneCount === 'function' ? window.getSceneCount() : 2) - 1;   // 場地索引上限(scenes.js)
   const HB_MS = 10000;          // 心跳間隔
   const STALE_MS = 25000;       // 心跳逾時:超過即視為離開
   const CREATE_WAIT_MS = 1000;  // 建房前等待是否有人已佔用該房號
@@ -626,7 +627,7 @@
     if (!code) { b.leave(); throw { reason: 'network' }; }
     const name = clean(opt.name);
     const max = (+opt.maxPlayers >= 2 && +opt.maxPlayers <= 12) ? Math.round(+opt.maxPlayers) : 6;
-    const scene = Math.max(0, Math.min(3, opt.scene | 0));
+    const scene = Math.max(0, Math.min(sceneMax(), opt.scene | 0));
     const salt = randSalt();
     const pwHash = pw ? await sha256hex(salt + ':' + pw) : null;
     const t = b.now();
@@ -693,7 +694,7 @@
     if (listPlayers().length < 2) throw { reason: 'notEnough' };
     const t = bus.now();
     const n = ((r.meta.round && r.meta.round.n) || 0) + 1;
-    const sc = opt && opt.scene != null ? (opt.scene | 0) : r.meta.scene;
+    const sc = Math.max(0, Math.min(sceneMax(), opt && opt.scene != null ? (opt.scene | 0) : (r.meta.scene | 0)));
     const round = {
       n: n, scene: sc, seed: Math.floor(Math.random() * 2147483647),
       t0: t + 5000, tEnd: t + 5000 + Net.roundLenMs

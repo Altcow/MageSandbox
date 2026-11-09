@@ -12,8 +12,8 @@
   const EL = [['water', '水'], ['fire', '火'], ['wind', '風'], ['earth', '土'], ['light', '光'], ['dark', '暗']];
   const EL_NAME = Object.fromEntries(EL);
   const SCENE_INFO = [
-    { name: '月夜訓練場', cls: 'sc-night' }, { name: '羅馬競技場', cls: 'sc-rome' },
-    { name: '宮廷訓練場', cls: 'sc-hall' }, { name: '非洲叢林', cls: 'sc-jungle' }
+    { name: '月夜訓練場', cls: 'sc-night' },
+    { name: '非洲叢林', cls: 'sc-jungle' }
   ];
   const ROOM_ERR = {
     notfound: (e, code) => '找不到房間 ' + code + ',請確認房號,或房間已關閉',

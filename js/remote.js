@@ -149,7 +149,7 @@ class RemotePlayer {
     this.bar.add(bg, this.fg, this.shBar);
     this.glow = glowSprite(auraOf(this.cls, this.el).hex, .15, 1); this.glow.visible = false; scene.add(this.glow);
 
-    this.px = pos.x; this.py = terrainH(pos.x, pos.z); this.pz = pos.z; this.yaw = Math.atan2(-pos.x, -pos.z);
+    this.px = pos.x; this.py = surfaceY(pos.x, pos.z, (pos.y || 0) + .5); this.pz = pos.z; this.yaw = Math.atan2(-pos.x, -pos.z);
     this.home = new V3(pos.x, 0, pos.z);
     this.col = { x: pos.x, z: pos.z, r: .4, ref: this };
     this.hp = 100; this.max = 100; this.sh = 0;
@@ -297,11 +297,21 @@ function fixSpawn(x, z) {
   }
   return { x, z };
 }
+// 高處出生點(y > 0,場景 spawns 設定):站得上去(surfaceY 與 y 相差 < .15)且 1.5 m 內沒有頂面高度不同的平台;不合格不移動、直接排除
+function spawnOkHigh(x, z, y) {
+  if (Math.abs(surfaceY(x, z, y + .5) - y) >= .15) return false;
+  return !PLATFORMS.some(P => platContains(P, x, z, 1.5) && Math.abs(platTop(P, x, z) - y) >= .15);
+}
 function validSpawnPts(n) {
-  const out = [];
-  SPAWN_PTS.forEach(([x, z]) => { const q = fixSpawn(x, z); if (q) out.push(q); });
+  const out = [], sp = typeof window.getSceneSpawns === 'function' ? window.getSceneSpawns() : null;
+  if (sp) sp.forEach(([x, z, y]) => {
+    y = y || 0;
+    if (y > .01) { if (spawnOkHigh(x, z, y)) out.push({ x, z, y }); else console.error('[remote] 高處出生點不合格(已排除):' + x + ',' + z + ' y=' + y); }
+    else { const q = fixSpawn(x, z); if (q) out.push({ x: q.x, z: q.z, y: 0 }); }
+  });
+  else SPAWN_PTS.forEach(([x, z]) => { const q = fixSpawn(x, z); if (q) out.push({ x: q.x, z: q.z, y: 0 }); });
   if (out.length < Math.max(6, n)) console.error('[remote] 本場景合格出生點不足:' + out.length + ' 點');
-  return out.length ? out : [{ x: 0, z: 0 }];
+  return out.length ? out : [{ x: 0, z: 0, y: 0 }];
 }
 // 開局分配:座位由小到大,第 1 人取第一點,之後每人取「與已分配點最近距離最大」的點(確定性)
 function assignSpawns(seats, pts) {
@@ -360,7 +370,7 @@ function destroyRemote(k) {
 function clearRemotes() {
   const wasOn = window.NETON;
   Object.keys(REMOTES).forEach(destroyRemote);
-  window.NETON = false; window.NET_LOCK = false; sendAcc = 0;
+  window.NETON = false; window.NET_LOCK = false; sendAcc = 0; if (typeof applyArenaR === 'function') applyArenaR();
   if (wasOn && typeof netSmReset === 'function') netSmReset();   // 離開對戰:傀儡、本機召喚物、sm 節點清除(netsummon.js,N7)
   if (wasOn && typeof netOnClear === 'function') netOnClear();   // 離開對戰(原本在對戰中才處理):清 debuff、關小計分板與擊殺訊息(netcombat.js)
   if (cdEl) { cdEl.style.display = 'none'; cdLast = ''; }
@@ -369,7 +379,7 @@ function clearRemotes() {
 // 本機角色移到自己的出生點,面向場中
 function placeLocal(pos) {
   if (!pos) return;
-  mage.root.position.set(pos.x, terrainH(pos.x, pos.z), pos.z);
+  mage.root.position.set(pos.x, surfaceY(pos.x, pos.z, (pos.y || 0) + .5), pos.z);
   mage.yaw = Math.atan2(-pos.x, -pos.z);
   G.vy = 0; G.ground = true; G.coyote = 0; G.speedN = 0;
   if (G.state === 'charging') cancelCharge();
@@ -386,7 +396,7 @@ function enterMatch(ev) {
   const rd = Net.roundOf ? Net.roundOf() : null;
   roundT0 = rd && rd.t0 ? rd.t0 : Net.now();
   stashDummies();
-  window.NETON = true;
+  window.NETON = true; if (typeof applyArenaR === 'function') applyArenaR();   // 多人場地半徑(場景 arenaR 或 32)
   if (typeof netOnClear === 'function') netOnClear();   // 新局開始:HP 回滿、清 debuff(單人時的傷勢不帶進對戰)
   players.forEach(p => { if (p.id !== Net.me) addRemote(p, sp[p.id]); });
   placeLocal(sp[Net.me]);

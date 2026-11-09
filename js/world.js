@@ -215,13 +215,14 @@ function rayTerrain(o, d, tMax) {
   }
 }
 // 場景建好後呼叫:標靶原位、平台腳印、固定碰撞物、平坦保留區 F 若不平就警告
-function checkTerrain() {
+function checkTerrain(zone) {   // zone:平地檢查矩形 [x0, z0, x1, z1](省略 = [-28, -6, 28, 48])
   if (TER.flat) return;
   const w = (m, x, z) => console.warn('[terrain] ' + m + ' @' + x.toFixed(1) + ',' + z.toFixed(1) + ' h=' + terrainH(x, z).toFixed(2));
   DUMMIES.forEach(d => { if (Math.abs(terrainH(d.home.x, d.home.z)) > .01) w('dummy', d.home.x, d.home.z); });
-  PLATFORMS.forEach(P => { if (P.kind !== 'bridge' && !P.tmp && Math.abs(terrainH(P.x, P.z)) > .05) w('platform', P.x, P.z); });
+  PLATFORMS.forEach(P => { if (P.kind !== 'bridge' && P.kind !== 'ramp' && !P.onHill && !P.tmp && Math.abs(terrainH(P.x, P.z)) > .05) w('platform', P.x, P.z); });
   COLLIDERS.forEach(c => { if (c.deco && Math.abs(terrainH(c.x, c.z)) > .3) w('collider', c.x, c.z); });
-  for (let x = -28; x <= 28; x += 2) for (let z = -6; z <= 48; z += 2) if (Math.abs(terrainH(x, z)) > .01) { w('zone F', x, z); return; }
+  const Z = zone || [-28, -6, 28, 48];
+  for (let x = Z[0]; x <= Z[2]; x += 2) for (let z = Z[1]; z <= Z[3]; z += 2) if (Math.abs(terrainH(x, z)) > .01) { w('zone F', x, z); return; }
 }
 
 // 共用減速區(設計 §5-1):玩家、標靶、召喚物都讀這裡;pct 0~1,區內取最大者、不疊加
@@ -255,7 +256,7 @@ function zoneFxAt(x, z, y, ignoreOwner) {   // 狀態區域(Z2):區內他人區�
 }
 const COLLIDERS = [];
 // 可站立平台(高台);deco:true = 場景裝飾(換場景時清掉);tmp:true = 法術產生的暫時平台(由法術自己移除)
-const PLAYER_R = 0.4, STEP_UP = 0.25;
+const PLAYER_R = 0.4, STEP_UP = 0.25, RAMP_UP = 0.6;   // RAMP_UP:坡道上坡門檻(翻滾峰速下 STEP_UP 會被當牆推回)
 const PLATFORMS = [];
 function addPlatform(o) { o.yaw = o.yaw || 0; o.c = Math.cos(o.yaw); o.s = Math.sin(o.yaw); PLATFORMS.push(o); return o; }
 function removePlatform(o) { const i = PLATFORMS.indexOf(o); if (i >= 0) PLATFORMS.splice(i, 1); }
@@ -266,6 +267,7 @@ function platContains(P, x, z, m) {
 }
 // bridge:{ kind:'bridge', x, z, hx(半長,沿本地 x), hz(半寬), yaw, top(兩端頂面), sag(中央下垂), bottom }
 function platTop(P, x, z) {
+  if (P.kind === 'ramp') { const u = clamp(platLocal(P, x, z).lx / P.hx, -1, 1); return P.y0 + (P.y1 - P.y0) * (u + 1) / 2; }
   if (P.kind !== 'bridge') return P.top;
   const u = clamp(platLocal(P, x, z).lx / P.hx, -1, 1); return P.top - P.sag * (1 - u * u);
 }
@@ -277,13 +279,19 @@ function surfaceY(x, z, yRef) {
 }
 function groundAt(x, z, y) {
   let g = terrainH(x, z);
-  for (const P of PLATFORMS) { if (!platContains(P, x, z, .15)) continue; const t = platTop(P, x, z); if (t > g && t <= y + STEP_UP) g = t; }
+  for (const P of PLATFORMS) { if (!platContains(P, x, z, .15)) continue; const t = platTop(P, x, z); if (t > g && t <= y + (P.kind === 'ramp' ? RAMP_UP : STEP_UP)) g = t; }
   return g;
 }
 function nearPlatform(x, z, m) { return PLATFORMS.some(P => platContains(P, x, z, m)); }
+// 樓板天花板:站點上方最低的 bottom(頭頂會撞到);yPrev = 本幀移動前的腳底高度。沒有則 null
+function ceilAt(x, z, yPrev) {
+  let c = null;
+  for (const P of PLATFORMS) if (P.bottom != null && P.bottom >= yPrev + PLAYER_H - .05 && platContains(P, x, z, 0) && (c == null || P.bottom < c)) c = P.bottom;
+  return c;
+}
 function pushOutPlatforms(p) {
   for (const P of PLATFORMS) {
-    if (platTop(P, p.x, p.z) <= p.y + STEP_UP || (P.bottom != null && p.y + PLAYER_H < P.bottom)) continue;
+    if (platTop(P, p.x, p.z) <= p.y + (P.kind === 'ramp' ? RAMP_UP : STEP_UP) || (P.bottom != null && p.y + PLAYER_H < P.bottom)) continue;
     if (P.kind === 'cyl') {
       const dx = p.x - P.x, dz = p.z - P.z, d = Math.hypot(dx, dz), m = P.r + PLAYER_R;
       if (d >= m) continue;
@@ -494,6 +502,16 @@ for (let i = 0; i < 6; i++) _dpos.push([-12 + Math.cos(i / 6 * 6.283) * 5, 26 + 
 for (let i = 0; i < 6; i++) _dpos.push([14 + Math.cos(i / 6 * 6.283) * 4, 30 + Math.sin(i / 6 * 6.283) * 4]);
 _dpos.push([-5, 8], [5, 8], [0, 10], [-16, 6], [16, 6]);
 _dpos.forEach(p => DUMMIES.push(new Dummy(p[0], p[1])));
+// 全部稻草人(含對戰時被收走的);placeDummies 依場景 dummyPos 搬位置,省略 = 還原原 _dpos
+const DUMMY_ALL = DUMMIES.slice();
+function placeDummies(list) {
+  const pts = list && list.length ? list : _dpos;
+  if (pts.length < DUMMY_ALL.length) console.warn('[dummy] dummyPos 少於 ' + DUMMY_ALL.length + ' 個,位置會重疊');
+  DUMMY_ALL.forEach((d, i) => {
+    const p = pts[i % pts.length];
+    d.home.set(p[0], 0, p[1]); d.clearStatus(); d.col.x = p[0]; d.col.z = p[1]; d.g.position.set(p[0], d.y, p[1]);
+  });
+}
 
 // 焦痕貼圖
 const SCORCH = [];

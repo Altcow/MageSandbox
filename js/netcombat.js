@@ -469,7 +469,7 @@ function netFillResult(mode) {
 function netRematch(rotate) {
   const cur = typeof window.getSceneIndex === 'function' ? window.getSceneIndex() : 0;
   let scene = cur;
-  if (rotate) { const c = [0, 1, 2, 3].filter(i => i !== cur); scene = c[Math.floor(Math.random() * c.length)]; }
+  if (rotate) { const n = typeof window.getSceneCount === 'function' ? window.getSceneCount() : 2, c = Array.from({ length: n }, (_, i) => i).filter(i => i !== cur); if (c.length) scene = c[Math.floor(Math.random() * c.length)]; }
   Net.startGame({ scene: scene }).catch(e => { if (netResHint) netResHint.textContent = e && e.reason === 'notEnough' ? '至少需要 2 人才能再來一局' : '再來一局失敗,請再試一次'; });
 }
 // 離開房間回封面(cover.js 會呼叫 Net.leave,remote.js 清掉 REMOTES / 稻草人 / NETON,netOnClear 還原 HUD)

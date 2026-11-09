@@ -1,6 +1,6 @@
 'use strict';
-// 可切換場景:月夜訓練場 / 羅馬競技場 / 宮廷訓練場 / 非洲叢林
-// 場景只負責「看起來」與碰撞物;標靶與玩法不動。切換:N 鍵、上方按鈕、?scene=0~3
+// 可切換場景:月夜訓練場 / 非洲叢林
+// 場景只負責「看起來」與碰撞物;標靶與玩法不動。切換:N 鍵、上方按鈕、?scene=0~1
 (function () {
   const TAU = Math.PI * 2, MOBILE = IS_TOUCH;
   let deco = null, cur = -1;
@@ -27,60 +27,10 @@
     if (parent) { parent.add(im); im.castShadow = cast !== false; im.receiveShadow = true; return im; }
     return add(im, cast);
   }
-  const faceCenter = (x, z) => Math.atan2(-x, -z);   // 平面法線朝向場中心
   const speck = (g, s, n, a) => { for (let i = 0; i < n; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(255,255,255,' + a + ')' : 'rgba(0,0,0,' + a * 1.5 + ')'; g.fillRect(Math.random() * s, Math.random() * s, 2, 2); } };
   function rep(t, x, y) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(x, y); t.anisotropy = 4; return t; }
 
   /* ---------- 貼圖 ---------- */
-  const sandTex = () => rep(canvasTex(256, (g, s) => {
-    g.fillStyle = '#cdb07a'; g.fillRect(0, 0, s, s);
-    for (let i = 0; i < 500; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(150,110,60,.07)' : 'rgba(255,240,200,.08)'; g.beginPath(); g.arc(Math.random() * s, Math.random() * s, rnd(4, 16), 0, TAU); g.fill(); }
-    speck(g, s, 3000, .06);
-  }), 30, 30);
-  const facadeTex = () => rep(canvasTex(256, (g, s) => {
-    g.fillStyle = '#cdb88f'; g.fillRect(0, 0, s, s);
-    for (let i = 0; i < 1800; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(255,255,255,.05)' : 'rgba(70,50,20,.07)'; g.fillRect(Math.random() * s, Math.random() * s, 3, 2); }
-    const rh = s / 3;
-    for (let r = 0; r < 3; r++) {
-      const y0 = r * rh;
-      if (r === 0) { g.fillStyle = '#3a2f22'; [32, 96, 160, 224].forEach(x => g.fillRect(x - 9, y0 + 18, 18, 30)); }
-      else {
-        g.fillStyle = '#2b2218';
-        [64, 192].forEach(cx => { g.beginPath(); g.moveTo(cx - 30, y0 + rh - 6); g.lineTo(cx - 30, y0 + 30); g.arc(cx, y0 + 30, 30, Math.PI, 0); g.lineTo(cx + 30, y0 + rh - 6); g.closePath(); g.fill(); });
-      }
-      g.fillStyle = 'rgba(70,50,25,.45)'; g.fillRect(0, y0 + rh - 5, s, 5);
-    }
-  }), 30, 1);
-  const seatTex = () => rep(canvasTex(256, (g, s) => {
-    g.fillStyle = '#d6c7a0'; g.fillRect(0, 0, s, s);
-    g.fillStyle = 'rgba(90,70,40,.5)'; g.fillRect(0, 0, s, 6); g.fillRect(0, s / 2, s, 3);
-    for (let i = 0; i < 8; i++) g.fillRect(i * 32, 0, 2, s);
-    speck(g, s, 2000, .06);
-  }), 22, 4);
-  const brickTex = () => rep(canvasTex(256, (g, s) => {
-    g.fillStyle = '#4d483f'; g.fillRect(0, 0, s, s);
-    const bw = s / 4, bh = s / 8;
-    for (let r = 0; r < 8; r++) for (let k = -1; k < 5; k++) {
-      g.fillStyle = 'rgb(' + (122 + rnd(-14, 14)) + ',' + (115 + rnd(-14, 14)) + ',' + (102 + rnd(-14, 14)) + ')';
-      g.fillRect(k * bw + (r % 2) * bw / 2 + 2, r * bh + 2, bw - 4, bh - 4);
-    }
-    speck(g, s, 1500, .05);
-  }), 24, 1);
-  const floorTex = () => rep(canvasTex(256, (g, s) => {
-    const h = s / 2;
-    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#4f4a42' : '#cfc3a3'; g.fillRect(i * h, j * h, h, h); }
-    speck(g, s, 2500, .05);
-    g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 3; g.strokeRect(0, 0, h, h); g.strokeRect(h, 0, h, h); g.strokeRect(0, h, h, h); g.strokeRect(h, h, h, h);
-  }), 45, 45);
-  const glassTex = () => canvasTex(128, (g, s) => {
-    const gr = g.createLinearGradient(0, 0, 0, s); gr.addColorStop(0, '#dcecff'); gr.addColorStop(1, '#8fb2ee'); g.fillStyle = gr; g.fillRect(0, 0, s, s);
-    g.strokeStyle = '#33405a'; g.lineWidth = 4; for (let i = 0; i <= 3; i++) { g.beginPath(); g.moveTo(i * s / 3, 0); g.lineTo(i * s / 3, s); g.stroke(); }
-    for (let i = 0; i <= 6; i++) { g.beginPath(); g.moveTo(0, i * s / 6); g.lineTo(s, i * s / 6); g.stroke(); }
-  });
-  const bannerTex = c => canvasTex(128, (g, s) => {
-    g.fillStyle = c; g.fillRect(0, 0, s, s); g.strokeStyle = '#d9b14f'; g.lineWidth = 6; g.strokeRect(6, 6, s - 12, s - 12);
-    g.fillStyle = '#d9b14f'; g.beginPath(); g.arc(s / 2, s / 2, 24, 0, TAU); g.fill(); g.fillStyle = c; g.beginPath(); g.arc(s / 2, s / 2, 12, 0, TAU); g.fill();
-  });
   const jungleTex = () => rep(canvasTex(256, (g, s) => {
     g.fillStyle = '#4d3d24'; g.fillRect(0, 0, s, s);
     for (let i = 0; i < 420; i++) { g.fillStyle = pick(['rgba(60,110,40,.22)', 'rgba(30,20,10,.18)', 'rgba(130,90,40,.2)']); g.beginPath(); g.arc(Math.random() * s, Math.random() * s, rnd(3, 14), 0, TAU); g.fill(); }
@@ -104,80 +54,6 @@
       g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); deco.add(g);
     }
     [[-18, -6], [20, -10], [-24, 18], [26, 14], [0, 36], [-20, -24], [24, -28]].forEach(p => stoneBraz(p[0], p[1]));
-  }
-
-  function buildColosseum() {
-    mesh(new THREE.CylinderGeometry(56, 56, 3.2, 64, 1, true), mat(0xbfa982, { side: THREE.BackSide }), 0, 1.6, 0, false);
-    mesh(new THREE.CylinderGeometry(70, 56, 10, 64, 1, true), mat(0xffffff, { map: seatTex(), side: THREE.DoubleSide }), 0, 8.2, 0, false);
-    mesh(new THREE.CylinderGeometry(70, 70, 28, 64, 1, true), mat(0xffffff, { map: facadeTex(), side: THREE.BackSide }), 0, 14, 0, false);
-    // 地面環紋
-    [[46.5, 47.3, 2.2, 2 * Math.PI - 1.15], [9, 9.6]].forEach(r => { const m = new THREE.Mesh(new THREE.RingGeometry(r[0], r[1], 64, 1, r[2] || 0, r[3] || 2 * Math.PI), new THREE.MeshBasicMaterial({ color: 0x8a6a3a, transparent: true, opacity: .5, fog: true })); m.rotation.x = -Math.PI / 2; m.position.y = .03; deco.add(m); });
-    // 閘門
-    for (let i = 0; i < 3; i++) { const a = i / 3 * TAU + .5, x = Math.cos(a) * 55.6, z = Math.sin(a) * 55.6; const m = mesh(new THREE.BoxGeometry(7, 4.4, .6), mat(0x241a12), x, 2.2, z, false); m.rotation.y = faceCenter(x, z); }
-    // 青銅火盆
-    for (let i = 0; i < 8; i++) {
-      const a = i / 8 * TAU + .2, x = Math.cos(a) * 54, z = Math.sin(a) * 54;
-      mesh(new THREE.CylinderGeometry(.12, .2, 2, 6), mat(0x6b4f2a, { metalness: .5 }), x, 1, z);
-      mesh(new THREE.CylinderGeometry(.6, .35, .5, 10), mat(0x8a6a2a, { metalness: .6 }), x, 2.2, z);
-      BRAZIERS.push({ x, y: 2.5, z });
-    }
-    // 殘破石柱
-    [[-30, -12], [30, -14], [-38, 10], [40, 12], [-34, -30], [34, -30], [-44, -22], [44, -24], [-26, -44]].forEach(p => {
-      const h = rnd(2, 5.5);
-      mesh(new THREE.BoxGeometry(2.6, .6, 2.6), mat(0xd2c29a), p[0], .3, p[1]);
-      mesh(new THREE.CylinderGeometry(.85, 1, h, 14), mat(0xd9caa0), p[0], .6 + h / 2, p[1]);
-      col(p[0], p[1], 1.2);
-    });
-  }
-
-  function buildHall() {
-    mesh(new THREE.CylinderGeometry(60, 60, 24, 64, 1, true), mat(0xbbbbbb, { map: brickTex(), side: THREE.BackSide }), 0, 12, 0, false);
-    const ceil = mesh(new THREE.CircleGeometry(60, 48), mat(0x2b1e15), 0, 24, 0, false); ceil.rotation.x = Math.PI / 2;
-    const beamM = mat(0x1d140d);
-    for (let i = 0; i < 8; i++) { const b = mesh(new THREE.BoxGeometry(118, .9, 1.2), beamM, 0, 23.4, 0, false); b.rotation.y = i * Math.PI / 8; }
-    // 地毯
-    const carpet = mesh(new THREE.PlaneGeometry(7, 72), mat(0x7a1a22), 0, .03, 16, false); carpet.rotation.x = -Math.PI / 2;
-    [-3.1, 3.1].forEach(x => { const s = mesh(new THREE.PlaneGeometry(.35, 72), mat(0xc9a24a), x, .04, 16, false); s.rotation.x = -Math.PI / 2; });
-    // 柱子(實例化)
-    const sh = [], bs = [], cp = [];
-    for (let i = 0; i < 20; i++) {
-      const a = i / 20 * TAU, x = Math.cos(a) * 56, z = Math.sin(a) * 56;
-      sh.push([x, 11, z]); bs.push([x, .5, z, -a]); cp.push([x, 22.6, z, -a]);
-    }
-    inst(new THREE.CylinderGeometry(1.1, 1.2, 22, 14), mat(0xcfc5ad), sh);
-    inst(new THREE.BoxGeometry(3, 1, 3), mat(0xb5aa90), bs);
-    inst(new THREE.BoxGeometry(3, 1.2, 3), mat(0xb5aa90), cp);
-    // 窗與旗幟(柱間)
-    const gm = new THREE.MeshBasicMaterial({ map: glassTex() }), bA = mat(0xffffff, { map: bannerTex('#8a1a2a'), side: THREE.DoubleSide }), bB = mat(0xffffff, { map: bannerTex('#1d3a7a'), side: THREE.DoubleSide });
-    for (let i = 0; i < 20; i++) {
-      const a = (i + .5) / 20 * TAU, x = Math.cos(a) * 59.3, z = Math.sin(a) * 59.3;
-      if (i % 2 === 0) { const w = mesh(new THREE.PlaneGeometry(5, 12), gm, x, 12.5, z, false); w.rotation.y = faceCenter(x, z); }
-      else { const b = mesh(new THREE.PlaneGeometry(3.4, 10), (i % 4 === 1) ? bA : bB, x * .995, 13, z * .995, false); b.rotation.y = faceCenter(x, z); }
-    }
-    // 壁火把
-    for (let i = 0; i < 20; i += 2) {
-      const a = i / 20 * TAU, x = Math.cos(a) * 54.3, z = Math.sin(a) * 54.3;
-      mesh(new THREE.CylinderGeometry(.1, .15, 1, 6), mat(0x3a2a1a), x, 3.7, z, false);
-      mesh(new THREE.CylinderGeometry(.35, .2, .35, 8), mat(0x6b5a2a, { metalness: .5 }), x, 4.3, z, false);
-      BRAZIERS.push({ x, y: 4.6, z });
-    }
-    // 吊燈
-    [[0, 0], [-28, -10], [28, -10]].forEach(p => {
-      mesh(new THREE.CylinderGeometry(.06, .06, 8, 4), mat(0x222222), p[0], 20, p[1], false);
-      const ring = mesh(new THREE.TorusGeometry(3, .15, 6, 20), mat(0x8a6a2a, { metalness: .6 }), p[0], 16, p[1], false); ring.rotation.x = Math.PI / 2;
-      for (let k = 0; k < 8; k++) { const s = glowSprite(0xffc070, 1.6, .9); s.position.set(p[0] + Math.cos(k / 8 * TAU) * 3, 16.6, p[1] + Math.sin(k / 8 * TAU) * 3); deco.add(s); }
-    });
-    // 訓練木樁 / 兵器架 / 乾草
-    const wood = mat(0x7a5230);
-    [[-34, 4], [34, 4], [-40, 20], [40, 20], [-30, -26], [30, -26]].forEach(p => {
-      mesh(new THREE.CylinderGeometry(.35, .4, 2.2, 8), wood, p[0], 1.1, p[1]); mesh(new THREE.BoxGeometry(1.4, .18, .18), wood, p[0], 1.6, p[1]); col(p[0], p[1], .6);
-    });
-    [[-46, 8, 1.2], [46, 8, 1.8], [-30, -40, 0], [30, -40, 0]].forEach(p => {
-      const r = mesh(new THREE.BoxGeometry(3.4, 1.8, .5), wood, p[0], .9, p[1]); r.rotation.y = p[2];
-      for (let k = 0; k < 4; k++) { const s = mesh(new THREE.BoxGeometry(.1, 2.2, .1), mat(0x9aa0b0, { metalness: .7, roughness: .4 }), p[0] + (k - 1.5) * .7 * Math.cos(p[2]), 1.5, p[1] - (k - 1.5) * .7 * Math.sin(p[2]), false); s.rotation.z = .15; }
-      col(p[0], p[1], 1.8);
-    });
-    for (let i = 0; i < 6; i++) { const x = pick([-1, 1]) * rnd(26, 46), z = rnd(-30, 44); if (!clearOf(x, z, 2) || nearPlatform(x, z, 2) || !terrainFlat(x, z, 2)) continue; const m = mesh(new THREE.CylinderGeometry(.9, .9, 1.2, 12), mat(0xc2a45a), x, .6, z); m.rotation.z = Math.PI / 2; m.rotation.y = rnd(0, 3); col(x, z, 1.1); }
   }
 
   function buildJungle() {
@@ -256,28 +132,66 @@
   const SOUTH_T = [['hill', -11, -38, 3, 10, 5], ['hill', 13, -38, 5, 3, 5], ['trench', 0, -30, 0, -40, 3, 3.5, 9, -4]];
   const SOUTH_BR = (sag, style) => [[-8.6, -38, 8.6, -38, 5.05, .8, sag, style]];
   const SCENES = [
-    { name: '月夜訓練場', build: buildNight, terrain: [...SOUTH_T, ['hill', 42, 20, 2, 7, 2.5]], terrainLook: { cliff: 0x6a6f85, dark: .35 }, bridges: SOUTH_BR(.5, 'rope'), bridgeCol: [0x5a4632, 0xb8a070], bridgeGlow: 0x9fd0ff, summit: [-11, -38, 5, 0x9fd0ff], ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea },
-    { name: '羅馬競技場', build: buildColosseum, terrain: SOUTH_T, terrainLook: { cliff: 0xa08a64, dark: .3 }, bridges: SOUTH_BR(.12, 'wood'), bridgeCol: [0x8a6a3a, 0x6b4f2a], summit: [-11, -38, 5, 0xb0302a], ground: sandTex, gtint: 0x8f8670, fog: [0xe2d6bc, 90, 260], hor: [.78, .84, .9], top: [.25, .5, .85], gnd: [.7, .65, .55], sunCol: [.4, .3, .16], bt: .96, bk: .45, clear: 0xd8e4f0, hemi: [0xcfe0ff, 0xb89d70, .55], dir: [0xfff1d6, .8], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -24, -24, 3, 3, 3.5, 0], ['box', -25.5, -25.5, 1.5, 1.5, 7, 0], ['cyl', 24, -26, 2.5, 3.5]], platCol: 0x6e6049, platTrim: 0xf6ecd0 },
-    { name: '宮廷訓練場', build: buildHall, terrain: SOUTH_T, terrainLook: { cliff: 0x5a5248, dark: .3 }, bridges: SOUTH_BR(.1, 'wood'), bridgeCol: [0x5a3a22, 0xc9a24a], summit: [-11, -38, 5, 0xc9a24a], ground: floorTex, gtint: 0x8a8478, fog: [0x1a140e, 70, 220], indoor: true, bt: .92, bk: .6, hor: [0, 0, 0], top: [0, 0, 0], gnd: [0, 0, 0], sunCol: [0, 0, 0], clear: 0x1a140e, hemi: [0xc9b894, 0x5a4632, .7], dir: [0xcfd8ff, .55], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -38, -12, 3, 3, 3.5, 0], ['box', -39.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 38, -12, 2.5, 3.5]], platCol: 0x6a4424, platTrim: 0xe0b85a },
+    { name: '月夜訓練場', build: buildNight, terrain: [...SOUTH_T, ['hill', 42, 20, 2, 7, 2.5], ['hill', -40, 22, 4, 7, 3], ['hill', 36, -32, 3, 6, 2.5]], terrainLook: { cliff: 0x6a6f85, dark: .35 }, bridges: SOUTH_BR(.5, 'rope'), bridgeCol: [0x5a4632, 0xb8a070], bridgeGlow: 0x9fd0ff, summit: [-11, -38, 5, 0x9fd0ff], ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5], ['box', -31, -6.5, .9, .9, 5.3, 0], ['box', 31.5, -19, 1.2, 1.2, 5.3, 0], ['cyl', 34.5, -22, .9, 7.2], ['box', 0, -21, 2, 1.5, 2.4, 0]], ramps: [['ramp', -17.5, -10, 0, -25.4, -10, 3.6, 1.4, 'stone'], ['ramp', 37.6, -14, 0, 30.1, -14, 3.6, 1.4, 'stone']], platCol: 0x454a62, platTrim: 0xb8c0ea },
     { name: '非洲叢林', build: buildJungle, terrain: [...SOUTH_T, ['hill', -42, 18, 2, 8, 3]], terrainLook: { cliff: 0x8a4a2a, dark: .35 }, bridges: SOUTH_BR(.7, 'rope'), bridgeCol: [0x7a5a32, 0x3c5a22], summit: [-11, -38, 5, 0xd86a2a], ground: jungleTex, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [.45, .28, .12], bt: .93, bk: .55, clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.0], sun: [-32, 24, 22], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -12, 3, 3, 3.5, 0], ['box', -29.5, -13.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5]], platCol: 0x7d7868, platTrim: 0xb3ad94 }
   ];
 
-  // 可站立高台:box [kind,x,z,hx,hz,top,yaw] / cyl [kind,x,z,r,top]
+  // 組內網格(坡道 / 樓板用):座標為組的本地座標
+  const gmesh = (parent, geo, material, x, y, z, rz) => { const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); if (rz) m.rotation.z = rz; m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
+  // 可站立高台:box [kind,x,z,hx,hz,top,yaw,base] / cyl [kind,x,z,r,top,base];base = 外觀底部(丘上 / 沼澤用),有 base 即 onHill
   function buildPlats(S) {
     const pm = mat(S.platCol), tm = mat(S.platTrim);
     S.plats.forEach(e => {
+      if (e[0] === 'deck') { buildDeck(e); return; }
       if (e[0] === 'box') {
-        const x = e[1], z = e[2], hx = e[3], hz = e[4], top = e[5], yaw = e[6];
-        mesh(new THREE.BoxGeometry(hx * 2, top, hz * 2), pm, x, top / 2, z).rotation.y = yaw;
+        const x = e[1], z = e[2], hx = e[3], hz = e[4], top = e[5], yaw = e[6], base = e[7] || 0;
+        mesh(new THREE.BoxGeometry(hx * 2, top - base, hz * 2), pm, x, (top + base) / 2, z).rotation.y = yaw;
         mesh(new THREE.BoxGeometry(hx * 2 + .3, .16, hz * 2 + .3), tm, x, top, z, false).rotation.y = yaw;
-        addPlatform({ kind: 'box', x, z, hx, hz, top, yaw, deco: true });
+        addPlatform({ kind: 'box', x, z, hx, hz, top, yaw, deco: true, onHill: base > 0 });
       } else {
-        const x = e[1], z = e[2], r = e[3], top = e[4];
-        mesh(new THREE.CylinderGeometry(r, r * 1.05, top, 20), pm, x, top / 2, z);
+        const x = e[1], z = e[2], r = e[3], top = e[4], base = e[5] || 0;
+        mesh(new THREE.CylinderGeometry(r, r * 1.05, top - base, 20), pm, x, (top + base) / 2, z);
         mesh(new THREE.CylinderGeometry(r + .15, r + .15, .16, 20), tm, x, top, z, false);
-        addPlatform({ kind: 'cyl', x, z, r, top, deco: true });
+        addPlatform({ kind: 'cyl', x, z, r, top, deco: true, onHill: base > 0 });
       }
     });
+  }
+  // 樓板:['deck', x, z, hx, hz, top, yaw, thick];bottom = top − thick(預設 .4);四角支柱到地面,柱子進 COLLIDERS(r .25,內縮 .3 m)
+  function buildDeck(e) {
+    const x = e[1], z = e[2], hx = e[3], hz = e[4], top = e[5], yaw = e[6] || 0, th = e[7] || .4, bot = top - th;
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; deco.add(g);
+    gmesh(g, new THREE.BoxGeometry(hx * 2, th, hz * 2), mat(0x6b4a2c), 0, bot + th / 2, 0);
+    gmesh(g, new THREE.BoxGeometry(hx * 2 + .06, .06, hz * 2 + .06), mat(0x8a6a3e), 0, top, 0);
+    addPlatform({ kind: 'box', x, z, hx, hz, top, yaw, bottom: bot, deco: true });
+    const c = Math.cos(yaw), s = Math.sin(yaw), pm = mat(0x5a3d22);
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sz]) => {
+      const lx = sx * (hx - .3), lz = sz * (hz - .3), px = x + lx * c + lz * s, pz = z - lx * s + lz * c;
+      mesh(new THREE.CylinderGeometry(.14, .14, bot, 6), pm, px, bot / 2, pz);
+      col(px, pz, .25);
+    });
+  }
+  // 坡道:['ramp', x0, z0, y0, x1, z1, y1, w, style];local +x 由起點指向終點(與 buildBridges 同慣例)
+  // style:stair / stone = 實心階梯(實例化);plank = 斜木板 + 支柱 + 外觀扶手;log = 斜放圓木
+  function buildRamp(e) {
+    const [x0, z0, y0, x1, z1, y1, w, style] = e.slice(1);
+    const L = Math.hypot(x1 - x0, z1 - z0), H = L / 2, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, yaw = Math.atan2(-(z1 - z0), x1 - x0);
+    const ym = (y0 + y1) / 2, sl = (y1 - y0) / L, a = Math.atan(sl), yAt = lx => ym + sl * lx, base = Math.min(y0, y1) - 1.2;
+    addPlatform({ kind: 'ramp', x: cx, z: cz, hx: H, hz: w / 2, yaw, y0, y1, top: Math.max(y0, y1), deco: true });
+    const g = new THREE.Group(); g.position.set(cx, 0, cz); g.rotation.y = yaw; deco.add(g);
+    if (style === 'plank') {
+      gmesh(g, new THREE.BoxGeometry(L, .18, w), mat(0x7a5a36), 0, ym - .09 / Math.cos(a), 0, a);
+      [-1, 1].forEach(sd => gmesh(g, new THREE.BoxGeometry(L, .05, .05), mat(0x5a3d22), 0, ym + .6, sd * (w / 2 + .02), a));
+      const posts = [];
+      for (let lx = -H + .4; lx <= H - .4 + 1e-6; lx += 2.5) posts.push([lx, (yAt(lx) - .09 + base) / 2, 0, 0, 1, yAt(lx) - .09 - base, 1]);
+      inst(new THREE.BoxGeometry(.2, 1, .2), mat(0x5a3d22), posts, true, g);
+    } else if (style === 'log') {
+      const tg = new THREE.Group(); tg.position.set(0, ym, 0); tg.rotation.z = a; g.add(tg);
+      gmesh(tg, new THREE.CylinderGeometry(w / 2, w / 2, L, 10), mat(0x5e4630), 0, -w / 2, 0, Math.PI / 2);
+    } else {
+      const n = Math.max(1, Math.ceil(Math.abs(y1 - y0) / .25)), steps = [];
+      for (let i = 0; i < n; i++) { const lx = -H + (i + .5) * L / n, t = yAt(lx); steps.push([lx, (t + base) / 2, 0, 0, L / n, t - base, w]); }
+      inst(new THREE.BoxGeometry(1, 1, 1), mat(style === 'stone' ? 0x7d7868 : 0x7a5a36), steps, true, g);
+    }
   }
 
   // 吊橋:[x0,z0,x1,z1,top,hw,sag,style];橋面是 bridge 平台,外觀全部放在同一個 Group(本地座標,之後可整組擺動)
@@ -330,6 +244,43 @@
     mesh(new THREE.PlaneGeometry(1.4, .8), mat(hex, { side: THREE.DoubleSide }), x + .72, top + 2.6, z);
   }
 
+  // ?plat=1:平台 / 坡道 / 樓板 / 橋的線框(驗收用,只影響外觀;線段放在 deco 內,換場景即清掉)
+  const PLAT_DBG = /[?&]plat=1/.test(location.search);
+  function platWire() {
+    const pts = [], seg = (a, b) => pts.push(new THREE.Vector3(a[0], a[1], a[2]), new THREE.Vector3(b[0], b[1], b[2]));
+    const W = (P, lx, y, lz) => [P.x + lx * P.c + lz * P.s, y, P.z - lx * P.s + lz * P.c];
+    PLATFORMS.forEach(P => {
+      if (P.kind === 'cyl') {
+        const lo = P.bottom != null ? P.bottom : 0, N = 24;
+        for (let k = 0; k < N; k++) {
+          const t0 = k / N * TAU, t1 = (k + 1) / N * TAU, c0 = Math.cos(t0), s0 = Math.sin(t0), c1 = Math.cos(t1), s1 = Math.sin(t1);
+          seg([P.x + c0 * P.r, P.top, P.z + s0 * P.r], [P.x + c1 * P.r, P.top, P.z + s1 * P.r]);
+          seg([P.x + c0 * P.r, lo, P.z + s0 * P.r], [P.x + c1 * P.r, lo, P.z + s1 * P.r]);
+        }
+      } else if (P.kind === 'bridge') {
+        const yb = lx => P.top - P.sag * (1 - (lx / P.hx) * (lx / P.hx)), M = 16;
+        for (let k = 0; k < M; k++) {
+          const a = -P.hx + 2 * P.hx * k / M, b = -P.hx + 2 * P.hx * (k + 1) / M;
+          [-1, 1].forEach(sd => seg(W(P, a, yb(a), sd * P.hz), W(P, b, yb(b), sd * P.hz)));
+          seg(W(P, a, P.bottom, 0), W(P, b, P.bottom, 0));
+        }
+      } else if (P.kind === 'ramp') {
+        const c4 = [[-P.hx, P.y0, -P.hz], [P.hx, P.y1, -P.hz], [P.hx, P.y1, P.hz], [-P.hx, P.y0, P.hz]];
+        for (let k = 0; k < 4; k++) seg(W(P, c4[k][0], c4[k][1], c4[k][2]), W(P, c4[(k + 1) % 4][0], c4[(k + 1) % 4][1], c4[(k + 1) % 4][2]));
+        seg(W(P, -P.hx, P.y0, 0), W(P, P.hx, P.y1, 0));
+      } else {
+        const lo = P.bottom != null ? P.bottom : 0, c4 = [[-P.hx, -P.hz], [P.hx, -P.hz], [P.hx, P.hz], [-P.hx, P.hz]];
+        for (let k = 0; k < 4; k++) {
+          const p = c4[k], q = c4[(k + 1) % 4];
+          seg(W(P, p[0], P.top, p[1]), W(P, q[0], P.top, q[1]));
+          seg(W(P, p[0], lo, p[1]), W(P, q[0], lo, q[1]));
+          seg(W(P, p[0], lo, p[1]), W(P, p[0], P.top, p[1]));
+        }
+      }
+    });
+    const ls = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xff00ff, depthTest: false, transparent: true }));
+    ls.renderOrder = 50; deco.add(ls);
+  }
   function clearDeco() {
     if (!deco) return;
     scene.remove(deco);
@@ -377,16 +328,28 @@
     deco = new THREE.Group(); scene.add(deco);
     setTerrain(FLAT ? [] : S.terrain, S.terrainLook);
     buildPlats(S);
-    if (!FLAT) { buildBridges(S); buildSummit(S); }
+    (S.ramps || []).forEach(buildRamp);
+    if (!FLAT || S.bridgesAlways) buildBridges(S);
+    if (!FLAT) buildSummit(S);
     S.build();
-    checkTerrain();
+    placeDummies(S.dummyPos || null);
+    checkTerrain(S.flatZone);
     cur = i;
+    applyArenaR();
+    if (PLAT_DBG) platWire();
     applyBloomScene();
     SCORCH.forEach(s => { scene.remove(s.m); s.m.material.dispose(); }); SCORCH.length = 0;
     [...document.querySelectorAll('#sceneBar button')].forEach((b, k) => b.classList.toggle('on', k === i));
     try { localStorage.setItem('mageSandbox.scene', i); } catch (e) { }
     if (window.banner && window.G) window.banner(S.name, '#ffe3b0');
   }
+  // 場地半徑:單人 S.arenaR 或 52;多人 S.arenaR 或 32(remote.js 進出對戰時呼叫 applyArenaR)
+  function applyArenaR() { const S = cur >= 0 ? SCENES[cur] : null; ARENA_R = (S && S.arenaR) || (window.NETON ? 32 : 52); }
+  window.applyArenaR = applyArenaR;
+  window.getSceneCount = () => SCENES.length;
+  window.getSceneSpawns = () => (cur >= 0 && SCENES[cur].spawns) || null;   // 多人出生點 [[x,z,y],…];null = 沿用 remote.js 的 SPAWN_PTS
+  window.getSceneCfg = () => (cur >= 0 ? SCENES[cur] : null);               // 目前場景的設定表(草叢 / 霧區等讀這裡)
+  window.sceneTick = dt => { };   // 每幀(game.js 主迴圈 updatePlayer 之後);草叢淡出與霧區視距於批次 4 填入
   window.SUNOFF = { x: -20, y: 40, z: 15 };
   window.setScene = setScene;
   window.nextScene = () => { if (window.NETON) return; setScene(cur + 1); };   // 多人對戰中停用換場(設計 §5-6)
