@@ -22,37 +22,37 @@ const SPELLS = {
     { name: '水彈術', icon: '💧', img: 'assets/icons/sp_water_bolt.png', chant: '清泉之靈,凝於掌心,化為奔流之彈——', shout: '水彈術!', preview: q => '減速 ' + _pct(q) + '%' },
     { name: '水幕術', icon: '🌊', img: 'assets/icons/sp_water_wall.png', chant: '深潭之水,湧泉而起,化作阻敵之幕——', shout: '水幕術!', preview: q => '減速 ' + _pct(q) + '%' },
     { name: '水龍彈', icon: '🐉', img: null, chant: '深淵之龍,聽我呼喚,破浪而出——', shout: '水龍彈!', aim: 'line', line: (q, rs, m) => ({ len: 2.5 * rs * CHG.size(q, m), hw: 1.6 * CHG.thick(q, m), off: 2, maxLen: 2.5 * rs * (m === 'B' ? .6 : 1), maxHw: 1.6 * (m === 'A' ? 1.6 : 1) }), unit: 'copies', unitName: '條', preview: q => '減速 ' + _pct(q) + '%' },
-    { name: '水精靈', icon: '🧚', img: null, chant: '清泉之靈,應我之約,現身吧——', shout: '水精靈!', preview: q => '減速 ' + Math.round(30 * CHG.fx(q)) + '%' }
+    { name: '水精靈', icon: '🧚', img: 'assets/icons/summon_water.png', chant: '清泉之靈,應我之約,現身吧——', shout: '水精靈!', preview: q => '減速 ' + Math.round(30 * CHG.fx(q)) + '%' }
   ],
   fire: [
     { name: '火球術', icon: '🔥', img: 'assets/icons/sp_fire_bolt.png', chant: '火之精靈,聚於我手,化為灼熱之球——燃盡一切!', shout: '火球術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
     { name: '火牆術', icon: '🧱', img: 'assets/icons/sp_fire_wall.png', chant: '烈焰之壁,拔地而起,焚盡來犯之敵——', shout: '火牆術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
     { name: '隕石墜擊', icon: '☄️', img: 'assets/icons/sp_fire_sky.png', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石墜擊!', unit: 'copies', unitName: '顆', preview: q => '坑內減速 55%' },
-    { name: '多頭火蛇', icon: '🐍', img: null, chant: '烈焰之蛇,三首同心,盤踞於此——', shout: '多頭火蛇!', preview: q => '燃燒 ' + _m(1.5, q) + ' s' }
+    { name: '多頭火蛇', icon: '🐍', img: 'assets/icons/summon_fire.png', chant: '烈焰之蛇,三首同心,盤踞於此——', shout: '多頭火蛇!', preview: q => '燃燒 ' + _m(1.5, q) + ' s' }
   ],
   wind: [
     { name: '風刃術', icon: '🌀', img: 'assets/icons/sp_wind_bolt.png', chant: '疾風之刃,隨我意行,斬裂虛空——', shout: '風刃術!', preview: q => '擊退 ' + _m(5, q) + ' m' },
     { name: '風壁術', icon: '🍃', img: 'assets/icons/sp_wind_wall.png', chant: '流轉之風,環繞成壁,拒敵於外——', shout: '風壁術!', preview: q => '推出 ' + _m(2.5, q) + ' m' },
     { name: '風刃切割', icon: '🌬️', img: null, chant: '天穹之風,化為千刃,斬斷前路——', shout: '風刃切割!', aim: 'line', line: (q, rs, m) => ({ len: 32, hw: rs * CHG.size(q, m), off: 1, maxLen: 32, maxHw: rs * (m === 'B' ? .6 : 1) }), unit: 'copies', unitName: '波', preview: q => '傷害 ' + Math.round(130 * CHG.dmg(q)) },
-    { name: '鎌鼬', icon: '🦦', img: null, chant: '疾風之子,藏刃於風,來去無蹤——', shout: '鎌鼬!', preview: q => '真空刃 ' + Math.round(80 * CHG.dmg(q)) }
+    { name: '鎌鼬', icon: '🦦', img: 'assets/icons/summon_wind.png', chant: '疾風之子,藏刃於風,來去無蹤——', shout: '鎌鼬!', preview: q => '真空刃 ' + Math.round(80 * CHG.dmg(q)) }
   ],
   earth: [
     { name: '岩彈術', icon: '🪨', img: 'assets/icons/sp_earth_bolt.png', chant: '沉眠之岩,醒於我手,化為重擊之石——', shout: '岩彈術!', preview: q => '擊飛 ' + _m(1.2, q) + ' m' },
     { name: '石牆術', icon: '🗿', img: 'assets/icons/sp_earth_wall.png', chant: '大地之骨,拔地而起,築我屏障——', shout: '石牆術!', preview: q => '擊飛 ' + _m(1, q) + ' m' },
     { name: '土龍術', icon: '🐉', img: 'assets/icons/sp_earth_sky.png', chant: '大地之龍,破土而出,裂地千里——', shout: '土龍術!', aim: 'line', line: (q, rs, m) => ({ off: 1.5, len: 21.6 + 14.4 * q, hw: Math.max(1, rs * .5), maxLen: 36, maxHw: 6 }), unit: 'count', cntN: 3, unitName: '道', preview: q => '緩速 65% ・ 3 s' },
-    { name: '石頭人', icon: '🗿', img: null, chant: '大地之骨,化為巨像,為我而戰——', shout: '石頭人!', preview: q => '暈眩 ' + _m(.4, q) + ' s' }
+    { name: '石頭人', icon: '🗿', img: 'assets/icons/summon_earth.png', chant: '大地之骨,化為巨像,為我而戰——', shout: '石頭人!', preview: q => '暈眩 ' + _m(.4, q) + ' s' }
   ],
   light: [
     { name: '聖光彈', icon: '✨', img: 'assets/icons/sp_light_bolt.png', chant: '晨曦之光,凝為一點,穿透黑暗——', shout: '聖光彈!', preview: q => '連鎖 ' + Math.max(1, Math.round(2 * _f(q))) + ' 跳' },
     { name: '聖域結界', icon: '🔆', img: 'assets/icons/sp_light_wall.png', chant: '神聖之光,劃地為界,照見一切——', shout: '聖域結界!', preview: q => '易傷 +' + Math.round(25 * _f(q)) + '%' },
     { name: '聖光柱', icon: '🌟', img: 'assets/icons/sp_light_sky.png', chant: '天穹之光,垂落人間,審判降臨——', shout: '聖光柱!', unit: 'count', cntN: 10, unitName: '道', preview: q => '光柱 ' + CHG.count(10, q, curMode()) + ' 道' },
-    { name: '六翼熾天使', icon: '👼', img: null, chant: '六翼之光,降臨守護,照我前路——', shout: '熾天使!', preview: q => '治癒 ' + Math.round(12 * _f(q)) + ' / 2 s' }
+    { name: '六翼熾天使', icon: '👼', img: 'assets/icons/summon_light.png', chant: '六翼之光,降臨守護,照我前路——', shout: '熾天使!', preview: q => '治癒 ' + Math.round(12 * _f(q)) + ' / 2 s' }
   ],
   dark: [
     { name: '暗影彈', icon: '🟣', img: 'assets/icons/sp_dark_bolt.png', chant: '幽冥之影,聚於指尖,吞噬光明——', shout: '暗影彈!', preview: q => '吸引 ' + _m(1.5, q) + ' m' },
     { name: '暗影幕', icon: '🌫️', img: 'assets/icons/sp_dark_wall.png', chant: '無光之幕,自深淵升起,束縛來者——', shout: '暗影幕!', preview: q => '吸向中線 ' + _m(3, q) + ' m/s' },
     { name: '黑洞', icon: '🕳️', img: 'assets/icons/sp_dark_sky.png', chant: '虛無之核,吞星噬月,萬物歸一——', shout: '黑洞!', preview: q => '吸引 ' + _m(6, q) + ' m/s' },
-    { name: '暗影', icon: '👤', img: null, chant: '影中之影,自我足下,甦醒吧——', shout: '暗影!', preview: q => '侵蝕 ' + _m(4, q) + ' s' }
+    { name: '暗影', icon: '👤', img: 'assets/icons/summon_dark.png', chant: '影中之影,自我足下,甦醒吧——', shout: '暗影!', preview: q => '侵蝕 ' + _m(4, q) + ' s' }
   ]
 };
 
