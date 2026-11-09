@@ -419,7 +419,7 @@ body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.co
 <script src="js/netsummon.js"></script>
 <script src="js/qr.js"></script>
 <script src="js/cover.js"></script>
-<script>if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});</script>
+<script>if("serviceWorker" in navigator&&location.protocol==="https:"){var hadCtl=!!navigator.serviceWorker.controller;navigator.serviceWorker.register("sw.js").catch(function(){});navigator.serviceWorker.addEventListener("controllerchange",function(){if(!hadCtl)return;if(window.__swReloaded)return;window.__swReloaded=1;if(document.body.classList.contains("cover")&&!window.NETON){location.reload();return}var t=document.createElement("div");t.textContent="有新版本,點此更新";t.style.cssText="position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;background:#1a2a55;color:#fff;padding:8px 16px;border-radius:18px;font:14px sans-serif;cursor:pointer;box-shadow:0 2px 10px #0008";t.onclick=function(){location.reload()};document.body.appendChild(t)})}</script>
 <script>
 (function(){var h=document.getElementById('hint'),b=document.getElementById('hintBtn');
 try{if(innerWidth<900)h.style.display='none';}catch(e){}
