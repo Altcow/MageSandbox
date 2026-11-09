@@ -165,7 +165,7 @@ function classTick(dt) {
   if (G.stealth) { G.stealth.left -= dt; if (G.stealth.left <= 0) revealStealth('time'); }
   if (G.dash) dashTick(dt, p);
   if (G.spin) spinTick(dt, p);
-  G.spdK = (G.spin ? .5 : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z).pct : 1);   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
+  G.spdK = (G.spin ? .5 : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z, p.y).pct : 1);   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
   if (G.state !== 'charging') AURA.full = false;
   else if (G.charge >= 1 && !AURA.full) { AURA.full = true; auraGather(); }   // 聚能收束:集氣滿時環繞粒子飛向武器尖端
   if (G.stealth || (G.dash && G.dash.kind === 'charge')) auraSpark(dt, p, E);

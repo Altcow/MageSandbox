@@ -834,6 +834,7 @@ function updateWorld(dt) {
   if (G.downT > 0) { G.downT -= dt; if (G.downT <= 0) G.hp = G.hpMax; }
   if (G.shieldT > 0) { G.shieldT -= dt; if (G.shieldT <= 0) G.shield = 0; }
   if (G.slowImmT > 0) G.slowImmT = Math.max(0, G.slowImmT - dt);
+  if (typeof updateCraters === 'function') updateCraters(dt);
   for (const d of DUMMIES) d.update(dt);
   for (const s of SCORCH) { s.age += dt; if (s.age > 20) s.m.material.opacity = Math.max(0, .75 * (1 - (s.age - 20) / 6)); }
   for (const b of BRAZIERS) {

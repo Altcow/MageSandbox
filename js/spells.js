@@ -39,7 +39,7 @@ const SPELLS = {
   earth: [
     { name: '岩彈術', icon: '🪨', img: 'assets/icons/sp_earth_bolt.png', chant: '沉眠之岩,醒於我手,化為重擊之石——', shout: '岩彈術!', preview: q => '擊飛 ' + _m(1.2, q) + ' m' },
     { name: '石牆術', icon: '🗿', img: 'assets/icons/sp_earth_wall.png', chant: '大地之骨,拔地而起,築我屏障——', shout: '石牆術!', preview: q => '擊飛 ' + _m(1, q) + ' m' },
-    { name: '地裂石柱', icon: '⛰️', img: 'assets/icons/sp_earth_sky.png', chant: '撼地之力,裂土而出,石柱貫天——', shout: '地裂石柱!', unit: 'count', cntN: 10, unitName: '柱', preview: q => '擊飛 ' + _m(1.8, q) + ' m' },
+    { name: '土龍術', icon: '🐉', img: 'assets/icons/sp_earth_sky.png', chant: '大地之龍,破土而出,裂地千里——', shout: '土龍術!', aim: 'line', line: (q, rs, m) => ({ off: 1.5, len: 21.6 + 14.4 * q, hw: Math.max(1, rs * .5), maxLen: 36, maxHw: 6 }), unit: 'count', cntN: 3, unitName: '道', preview: q => '緩速 65% ・ 3 s' },
     { name: '石頭人', icon: '🗿', img: null, chant: '大地之骨,化為巨像,為我而戰——', shout: '石頭人!', preview: q => '暈眩 ' + _m(.4, q) + ' s' }
   ],
   light: [
@@ -751,7 +751,7 @@ const SHAPE_FN_NAME = {
   fire:  { bolt: 'castFireBolt',   wall: 'castFirewall',      sky: 'castCraterMeteor', summon: 'castSummon' },
   water: { bolt: 'castWaterBolt',  wall: 'castWaterWall',     sky: 'castWaterDragon',  summon: 'castSummon' },
   wind:  { bolt: 'castWindBolt',   wall: 'castWindWall',      sky: 'castWindCut',      summon: 'castSummon' },
-  earth: { bolt: 'castEarthBolt',  wall: 'castStoneWall',     sky: 'castEarthSpikes',  summon: 'castSummon' },
+  earth: { bolt: 'castEarthBolt',  wall: 'castStoneWall',     sky: 'castEarthDragon',  summon: 'castSummon' },
   light: { bolt: 'castHolyBolt',   wall: 'castSanctuary',     sky: 'castHolyPillar',   summon: 'castSummon' },
   dark:  { bolt: 'castShadowBolt', wall: 'castShadowCurtain', sky: 'castBlackHole',    summon: 'castSummon' }
 };

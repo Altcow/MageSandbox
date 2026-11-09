@@ -52,6 +52,11 @@ groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping; groundTex.repeat.set(4
 // ---------- 地形(高度場)----------
 const FLAT = /[?&]flat=1/.test(location.search);
 const TER = { N: 121, X0: -60, CELL: 1, H: new Float32Array(121 * 121), hMin: 0, hMax: 0, flat: true };
+TER.H0 = new Float32Array(TER.N * TER.N);              // 原地形高度(setTerrain 寫入),坑洞疊加的基準
+TER.C0 = new Float32Array(TER.N * TER.N * 3).fill(1);  // 原頂點色(setTerrain 寫入)
+TER.flat0 = true; TER.hMin0 = 0; TER.hMax0 = 0;        // 原地形旗標
+TER.dirtyJ0 = 1e9; TER.dirtyJ1 = -1;                   // 本幀待上傳的列範圍(flushTer 清空)
+const CRATERS = [];   // 暫時坑洞列表;由 sp_fire_crater.js 的 addCrater / updateCraters 維護,clearCraters 以 length = 0 清空(不可換成新陣列)
 const TER_MAX_TAN = 0.9, TER_SLIDE_NY = 0.743, TER_SLIDE_V = 6, PLAYER_H = 1.8;
 const terGeo = new THREE.BufferGeometry();
 {
@@ -82,6 +87,63 @@ function terrainH(x, z) {
   return u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
 }
 // 地面法線(span 為取樣半距;站在平台上 → 朝上)
+// 單一坑洞在 (x,z) 的高度偏移(已乘 k):碗狀 −D·(1−u²)²(u<1)+ 坑緣隆起
+function craterOff(c, x, z) {
+  const d = Math.hypot(x - c.x, z - c.z), u = d / c.R;
+  const bowl = u < 1 ? -c.D * Math.pow(1 - u * u, 2) : 0;
+  const rim = 0.2 * c.D * Math.exp(-Math.pow((d - 1.05 * c.R) / (0.18 * c.R), 2));
+  return (bowl + rim) * c.k;
+}
+// 旗標:無坑 → 還原原地形旗標;有坑 → 非平地,hMin / hMax 併入坑底與坑緣
+function refreshTerFlags() {
+  if (!CRATERS.length) { TER.flat = TER.flat0; TER.hMin = TER.hMin0; TER.hMax = TER.hMax0; return; }
+  let lo = TER.hMin0, hi = TER.hMax0;
+  for (const c of CRATERS) { lo = Math.min(lo, -c.D * c.k); hi = Math.max(hi, 0.2 * c.D * c.k); }
+  TER.hMin = lo; TER.hMax = hi; TER.flat = false;
+}
+// 只重算格點範圍 [i0..i1] × [j0..j1]:高度 = H0 + 所有坑洞偏移;法線與頂點色重算範圍外擴一格
+// 不呼叫 computeVertexNormals(整張太慢)。結果先標記為待上傳,由 flushTer 每幀上傳一次
+function rebuildTer(i0, j0, i1, j1) {
+  const N = TER.N, H = TER.H, H0 = TER.H0, C0 = TER.C0, geo = ground.geometry;
+  const pos = geo.attributes.position, nrm = geo.attributes.normal, col = geo.attributes.color;
+  i0 = Math.max(0, i0); j0 = Math.max(0, j0); i1 = Math.min(N - 1, i1); j1 = Math.min(N - 1, j1);
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const k = j * N + i, x = TER.X0 + i * TER.CELL, z = TER.X0 + j * TER.CELL;
+    let off = 0; for (const c of CRATERS) off += craterOff(c, x, z);
+    H[k] = H0[k] + off; pos.setY(k, H[k]);
+  }
+  const a0 = Math.max(0, i0 - 1), a1 = Math.min(N - 1, i1 + 1), b0 = Math.max(0, j0 - 1), b1 = Math.min(N - 1, j1 + 1);
+  for (let j = b0; j <= b1; j++) for (let i = a0; i <= a1; i++) {
+    const k = j * N + i, x = TER.X0 + i * TER.CELL, z = TER.X0 + j * TER.CELL;
+    const hl = H[j * N + Math.max(0, i - 1)], hr = H[j * N + Math.min(N - 1, i + 1)];
+    const hd = H[Math.max(0, j - 1) * N + i], hu = H[Math.min(N - 1, j + 1) * N + i];
+    const nx = hl - hr, nz = hd - hu, L = Math.sqrt(nx * nx + 4 + nz * nz);
+    nrm.setXYZ(k, nx / L, 2 / L, nz / L);                      // 與 groundNormal 同一約定(span = 1)
+    let sc = 0;                                                 // 焦黑:坑內與坑緣附近
+    for (const c of CRATERS) sc = Math.max(sc, c.k * clamp((1.2 * c.R - Math.hypot(x - c.x, z - c.z)) / (0.5 * c.R), 0, 1));
+    const f = 1 - 0.6 * sc;
+    col.setXYZ(k, C0[k * 3] * f, C0[k * 3 + 1] * f, C0[k * 3 + 2] * f);
+  }
+  TER.dirtyJ0 = Math.min(TER.dirtyJ0, b0); TER.dirtyJ1 = Math.max(TER.dirtyJ1, b1);
+  refreshTerFlags();
+}
+// 上傳本幀變動的列(position / normal / color 三個屬性,整列連續,offset 與 count 以陣列元素計)
+function flushTer() {
+  if (TER.dirtyJ1 < TER.dirtyJ0) return;
+  const N = TER.N, j0 = TER.dirtyJ0, j1 = TER.dirtyJ1, geo = ground.geometry;
+  for (const name of ['position', 'normal', 'color']) {
+    const a = geo.attributes[name];
+    a.updateRange = { offset: j0 * N * a.itemSize, count: (j1 - j0 + 1) * N * a.itemSize };
+    a.needsUpdate = true;
+  }
+  TER.dirtyJ0 = 1e9; TER.dirtyJ1 = -1;
+}
+// 清空所有坑洞(setTerrain 換場景時呼叫):拿掉減速區與外觀,列表清空
+function clearCraters() {
+  CRATERS.forEach(c => { if (c.zone && typeof removeSlowZone === 'function') removeSlowZone(c.zone); if (c.onClear) c.onClear(c); });
+  CRATERS.length = 0;
+}
+
 function groundNormal(x, z, y, span, out) {
   const h = terrainH(x, z);
   if (TER.flat || (y != null && y > h + .05)) return out.set(0, 1, 0);
@@ -112,8 +174,9 @@ function evalTerrain(feats, x, z) {
   }
   return h;
 }
-// 套用場景地形;look = { cliff: 崖壁色 hex, dark: 谷底變暗比例 }。feats 空 → 完全平地
+// 套用場景地形;look = { cliff: 崖壁色 hex, dark: 谷底變暗比例 }。feats 空 → 完全平地(含隕石坑還原快照)
 function setTerrain(feats, look) {
+  clearCraters();                                   // 換場景:坑立即消失(減速區、外觀一併移除)
   feats = feats || []; look = look || {};
   const N = TER.N, H = TER.H, geo = ground.geometry, pos = geo.attributes.position, col = geo.attributes.color;
   let lo = 0, hi = 0;
@@ -122,6 +185,7 @@ function setTerrain(feats, look) {
     H[k] = h; pos.setY(k, h); if (h < lo) lo = h; if (h > hi) hi = h;
   }
   TER.hMin = lo; TER.hMax = hi; TER.flat = hi - lo < 1e-6;
+  TER.H0.set(H); TER.hMin0 = lo; TER.hMax0 = hi; TER.flat0 = TER.flat;
   pos.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere();
   const nrm = geo.attributes.normal, cc = new THREE.Color(look.cliff == null ? 0xffffff : look.cliff), dk = look.dark || 0;
   for (let k = 0; k < N * N; k++) {
@@ -129,7 +193,8 @@ function setTerrain(feats, look) {
     col.setXYZ(k, lerp(1, cc.r, st) * sh, lerp(1, cc.g, st) * sh, lerp(1, cc.b, st) * sh);
   }
   col.needsUpdate = true;
-  TER.H0 = Float32Array.from(H); TER.C0 = Float32Array.from(col.array); TER.flat0 = TER.flat; TER.hMin0 = lo; TER.hMax0 = hi;   // 原地形快照(階段 1-C 坑洞還原用)
+  TER.C0.set(col.array);
+  for (const a of [pos, nrm, col]) a.updateRange = { offset: 0, count: -1 };   // 全量上傳(-1 = 整個陣列)
 }
 // 回傳射線 o + d·t 第一次碰到地形的 t(0~tMax),沒碰到回傳 Infinity
 function rayTerrain(o, d, tMax) {
@@ -164,9 +229,10 @@ function checkTerrain() {
 const SLOW_ZONES = [];
 function addSlowZone(o) { SLOW_ZONES.push(o); return o; }
 function removeSlowZone(o) { const i = SLOW_ZONES.indexOf(o); if (i >= 0) SLOW_ZONES.splice(i, 1); }
-function zoneSlowAt(x, z) {
+function zoneSlowAt(x, z, y) {
   let best = null;
   for (const Z of SLOW_ZONES) {
+    if (Z.ground === true && y != null && y - terrainH(x, z) > 2.5) continue;   // 地面走廊區:站在高台/土牆頂的單位不受影響
     let inside;
     if (Z.kind === 'circle') inside = Math.hypot(x - Z.x, z - Z.z) <= Z.r;
     else { const L = platLocal(Z, x, z); inside = Math.abs(L.lx) <= Z.hx && Math.abs(L.lz) <= Z.hz; }
@@ -315,7 +381,7 @@ class Dummy {
   stunFx(t) { this.stun(t); }   // 舊掛點,統一走 stun()
   update(dt) {
     if (this.dead) { this.respawn -= dt; if (this.respawn <= 0) this.reset(); return; }
-    const zz = zoneSlowAt(this.x, this.z); this.zSlow = zz.pct; this.zHex = zz.hex;
+    const zz = zoneSlowAt(this.x, this.z, this.y); this.zSlow = zz.pct; this.zHex = zz.hex;
     const kSl = Math.max(this.slowT > 0 ? this.slowPct : 0, this.zSlow);   // 有效減速 = 計時減速與區域減速取大者
     if (this.popping) { const s = Math.min(1, this.g.scale.x + dt * 3); this.g.scale.setScalar(s); if (s >= 1) this.popping = false; }
     this.vx += (-60 * this.ax - 5 * this.vx) * dt; this.vz += (-60 * this.az - 5 * this.vz) * dt;
