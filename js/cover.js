@@ -1,13 +1,6 @@
 'use strict';
-// 封面 / 創建房間 / 進入房間 / 等待大廳 UI,以及假網路 Net(stub)
-// 依賴:game.js 的 G、resetCam、setScene(scenes.js)、setClass、setElement(classes.js / game.js)、QR(qr.js)
-// window.Net 介面(真實網路實作可整個覆寫,方法回傳 Promise,事件用 Net.on 註冊):
-//   createRoom({name, scene, maxPlayers, password|null, cls, el}) → {code, link, host, me:{id,name}, scene, maxPlayers, hasPassword}
-//   joinRoom(code, {name, password, cls, el}) → {code, me:{id,name}, scene, maxPlayers, hasPassword}
-//     失敗 reject {reason:'notfound'|'password'|'full'|'closed', needPassword?, wrong?}
-//   leave(), setProfile({cls, el, ready}), startGame()(僅房主;人數不足 reject)
-//   事件:'players'([{id,name,cls,el,ready,host}])、'start'({scene, players, seed})、
-//         'closed'({reason:'idle'|'hostleft'|'kicked'})、'idleCountdown'({secondsLeft}|null 表示不顯示)
+// 封面 / 創建房間 / 進入房間 / 等待大廳 UI。網路層是 net.js 提供的 window.Net(介面說明見 net.js 檔首)
+// 依賴:game.js 的 G、resetCam、setScene(scenes.js)、setClass、setElement(classes.js / game.js)、QR(qr.js)、Net(net.js,須先載入)
 (function () {
   const $ = id => document.getElementById(id);
   const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -22,158 +15,22 @@
     { name: '月夜訓練場', cls: 'sc-night' }, { name: '羅馬競技場', cls: 'sc-rome' },
     { name: '宮廷訓練場', cls: 'sc-hall' }, { name: '非洲叢林', cls: 'sc-jungle' }
   ];
-  const ROOM_ERR = { notfound: '找不到這個房號', full: '房間已滿', closed: '房間已關閉或已開始遊戲' };
-  const CLOSE_MSG = { idle: '超過 5 分鐘都沒有人加入,房間已自動關閉', hostleft: '房主已離開,房間已關閉', kicked: '你已被移出房間' };
+  const ROOM_ERR = {
+    notfound: (e, code) => '找不到房間 ' + code + ',請確認房號,或房間已關閉',
+    full: e => '房間已滿' + (e && e.max ? '(' + e.max + '/' + e.max + ')' : ''),
+    closed: () => '房間已關閉', version: () => '版本不同,請重新整理頁面後再試',
+    inMatch: () => '對戰進行中,請等這一局結束', network: () => '無法連線到伺服器,請檢查網路後再試',
+    noconfig: () => '尚未設定連線伺服器,目前只能使用同一台電腦測試(網址加 ?net=stub)',
+    nopwcrypto: () => '此網址無法使用密碼房,請用 https 網址開啟'
+  };
+  const errText = (e, code) => { const f = ROOM_ERR[e && e.reason] || ROOM_ERR.network; return f(e || {}, code); };
+  const CLOSE_MSG = { idle: '超過 5 分鐘都沒有人加入,房間已自動關閉', hostleft: '房主已離開,房間已關閉', kicked: '你已被移出房間', network: '與伺服器的連線中斷,房間已關閉' };
   const RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
-  const clean = s => String(s == null ? '' : s).trim().slice(0, 8) || '玩家';
   const chars = s => [...String(s || '')].length;
 
-  /* ================= 假網路 Net(localStorage 共享,同一台電腦開兩個分頁即可互見) ================= */
-  const NET_KEY = 'mageSandbox.net.rooms';
-  const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // 避開 0 O 1 I
-  const listeners = {};
-  const myId = Math.random().toString(36).slice(2, 10);
-  let myRoom = null;          // 本分頁所在房號
-  let lastPlayersKey = '', lastStartedAt = 0, lastCountdown = undefined;
-  const now = () => Date.now();
-
-  function readRooms() { try { return JSON.parse(localStorage.getItem(NET_KEY) || '{}') || {}; } catch (e) { return {}; } }
-  function writeRooms(r) { try { localStorage.setItem(NET_KEY, JSON.stringify(r)); } catch (e) { } }
-  function emit(ev, data) { (listeners[ev] || []).forEach(fn => { try { fn(data); } catch (e) { console.error(e); } }); }
-  const linkOf = code => location.origin + location.pathname + '?room=' + code;
-  const playersOf = r => r.players.map(p => Object.assign({}, p, { host: p.id === r.hostId }));
-  const mkPlayer = (name, cls, el) => ({
-    id: myId, name, cls: CLS_NAME[cls] ? cls : 'mage', el: EL_NAME[el] ? el : 'fire', ready: false
-  });
-  // 只有房主一人時開始計時;有人加入即清除;reset 為 true 時(有人離開)重新計時
-  function syncIdle(r, t, reset) {
-    if (r.status !== 'open' || r.closed) return;
-    if (r.players.length > 1) r.idleSince = 0;
-    else if (reset || !r.idleSince) r.idleSince = t;
-  }
-  function commit(rooms) { writeRooms(rooms); refresh(); }
-  // 離開或房間關閉時清除本分頁的去重狀態,下次進房才會正確發出事件
-  function resetLocal() { myRoom = null; lastPlayersKey = ''; lastStartedAt = 0; lastCountdown = undefined; }
-
-  // 讀取本分頁所在房間,依變化發出 players / start / closed / idleCountdown
-  function refresh() {
-    if (!myRoom) return;
-    const rooms = readRooms(), r = rooms[myRoom];
-    if (!r || r.closed) {
-      const reason = r ? r.closed : 'hostleft';
-      resetLocal();
-      emit('closed', { reason });
-      return;
-    }
-    if (r.status === 'playing' && r.startedAt && r.startedAt !== lastStartedAt) {
-      lastStartedAt = r.startedAt;
-      emit('start', { scene: r.scene, players: playersOf(r), seed: r.seed });
-    }
-    const pl = playersOf(r), key = JSON.stringify(pl);
-    if (key !== lastPlayersKey) { lastPlayersKey = key; emit('players', pl); }
-    const left = (r.status === 'open' && r.idleSince && pl.length === 1)
-      ? Math.max(0, Math.ceil((r.idleSince + Net.idleMs - now()) / 1000)) : null;
-    if (left !== lastCountdown) { lastCountdown = left; emit('idleCountdown', { secondsLeft: left }); }
-  }
-  // 掃描所有房間:房主獨自超過 idleMs 即關閉;已關閉的房間保留 10 秒後刪除
-  function sweep() {
-    const rooms = readRooms(), t = now();
-    let changed = false;
-    Object.keys(rooms).forEach(code => {
-      const r = rooms[code];
-      if (r.closed) { if (t - r.closedAt > 10000) { delete rooms[code]; changed = true; } return; }
-      if (r.status === 'open' && r.idleSince && r.players.length <= 1 && t - r.idleSince >= Net.idleMs) {
-        r.closed = 'idle'; r.closedAt = t; changed = true;
-      }
-    });
-    if (changed) writeRooms(rooms);
-  }
-  function leaveNow() {
-    const code = myRoom;
-    resetLocal();
-    if (!code) return;
-    const rooms = readRooms(), r = rooms[code];
-    if (!r) return;
-    if (r.hostId === myId) { if (!r.closed) { r.closed = 'hostleft'; r.closedAt = now(); } }
-    else { r.players = r.players.filter(p => p.id !== myId); syncIdle(r, now(), true); }
-    writeRooms(rooms);
-  }
-
-  const Net = {
-    stub: true,
-    idleMs: 5 * 60 * 1000,
-    on(ev, fn) { (listeners[ev] = listeners[ev] || []).push(fn); },
-    createRoom(opt) {
-      return new Promise(resolve => {
-        leaveNow();
-        const rooms = readRooms();
-        let code;
-        do { code = ''; for (let i = 0; i < 4; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; } while (rooms[code]);
-        const max = (+opt.maxPlayers >= 2 && +opt.maxPlayers <= 12) ? Math.round(+opt.maxPlayers) : 6;
-        const name = clean(opt.name), t = now();
-        rooms[code] = {
-          code, scene: (opt.scene | 0), max, password: opt.password || null, hostId: myId,
-          status: 'open', closed: null, closedAt: 0, startedAt: 0, seed: 0, idleSince: t,
-          players: [mkPlayer(name, opt.cls || (window.G && G.cls), opt.el || (window.G && G.el))]
-        };
-        myRoom = code;
-        commit(rooms);
-        resolve({ code, link: linkOf(code), host: true, me: { id: myId, name }, scene: rooms[code].scene, maxPlayers: max, hasPassword: !!opt.password });
-      });
-    },
-    joinRoom(code, opt) {
-      return new Promise((resolve, reject) => {
-        code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-        const r0 = readRooms()[code];
-        if (!r0) return reject({ reason: 'notfound' });
-        if (r0.closed || r0.status !== 'open') return reject({ reason: 'closed' });
-        if (r0.password) {
-          if (!opt || !opt.password) return reject({ reason: 'password', needPassword: true });
-          if (opt.password !== r0.password) return reject({ reason: 'password', needPassword: true, wrong: true });
-        }
-        if (r0.players.length >= r0.max) return reject({ reason: 'full' });
-        if (myRoom && myRoom !== code) leaveNow();   // 先離開舊房間,再重新讀取以免覆寫
-        const rooms = readRooms(), r = rooms[code];
-        if (!r || r.closed || r.status !== 'open') return reject({ reason: r ? 'closed' : 'notfound' });
-        const name = clean(opt && opt.name), t = now();
-        r.players.push(mkPlayer(name, opt && opt.cls, opt && opt.el));
-        syncIdle(r, t, false);
-        myRoom = code;
-        commit(rooms);
-        resolve({ code, me: { id: myId, name }, scene: r.scene, maxPlayers: r.max, hasPassword: !!r.password });
-      });
-    },
-    leave() { return new Promise(resolve => { leaveNow(); refresh(); resolve(); }); },
-    setProfile(p) {
-      return new Promise(resolve => {
-        const rooms = readRooms(), r = myRoom && rooms[myRoom];
-        const me = r && r.players.find(x => x.id === myId);
-        if (me) {
-          if (p && CLS_NAME[p.cls]) me.cls = p.cls;
-          if (p && EL_NAME[p.el]) me.el = p.el;
-          if (p && typeof p.ready === 'boolean') me.ready = p.ready;
-          commit(rooms);
-        }
-        resolve();
-      });
-    },
-    startGame() {
-      return new Promise((resolve, reject) => {
-        const rooms = readRooms(), r = myRoom && rooms[myRoom];
-        if (!r || r.hostId !== myId) return reject({ reason: 'notHost' });
-        if (r.players.length < 2) return reject({ reason: 'notEnough' });
-        r.status = 'playing'; r.startedAt = now(); r.seed = Math.floor(Math.random() * 2147483647); r.idleSince = 0;
-        commit(rooms);
-        resolve();
-      });
-    }
-  };
-  window.Net = Net;
-  window.addEventListener('storage', e => { if (e.key === NET_KEY) refresh(); });
-  window.addEventListener('pagehide', () => leaveNow());
-  setInterval(() => { sweep(); refresh(); }, 1000);
+  const Net = window.Net;   // 網路層在 net.js
 
   /* ================= 封面 UI ================= */
   const SOLO = /[?&]solo=1/.test(location.search);
@@ -306,7 +163,7 @@
     Net.createRoom({
       name: $('cvCName').value, scene: st.createScene, maxPlayers: st.createMax,
       password: st.createPw ? pw : null, cls: st.cls, el: st.el
-    }).then(res => enterLobby(res)).catch(() => showErr($('cvCErr'), '建立房間失敗,請再試一次'));
+    }).then(res => enterLobby(res)).catch(e => showErr($('cvCErr'), errText(e)));
   }
   $('cvCreateGo').onclick = doCreate;
   $('cvCName').addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
@@ -340,7 +197,7 @@
           focusSoon('cvJPw');
           return;
         }
-        showErr($('cvJErr'), ROOM_ERR[reason] || '加入失敗,請再試一次');
+        showErr($('cvJErr'), errText(e, code));
       });
   }
   $('cvJoinGo').onclick = doJoin;
@@ -369,7 +226,7 @@
   function enterLobby(res) {
     st.room = res.code; st.isHost = !!res.host; st.myId = res.me.id;
     st.max = res.maxPlayers || 4; st.hasPassword = !!res.hasPassword; st.sceneIdx = res.scene | 0;
-    st.ready = false; st.link = linkOf(res.code);
+    st.ready = false; st.link = res.link || '';
     $('cvRoomCode').textContent = res.code;
     $('cvLock').hidden = !st.hasPassword;
     $('cvSceneName').textContent = SCENE_INFO[st.sceneIdx] ? '場地:' + SCENE_INFO[st.sceneIdx].name : '';
@@ -460,7 +317,12 @@
     $('cvNoticeP').textContent = CLOSE_MSG[ev && ev.reason] || '房間已關閉';
     setView('closed');
   });
-  Net.on('start', ev => enterGame(ev.scene));
+  Net.on('start', ev => {
+    // 以房間裡登記的自己的職業/屬性為準(避免介面狀態與網路狀態不同步)
+    const mine = (ev.players || []).find(p => Net.me && String(p.id) === String(Net.me));
+    if (mine) { if (mine.cls) st.cls = mine.cls; if (mine.el) st.el = mine.el; }
+    enterGame(ev.scene);
+  });
   $('cvNoticeOk').onclick = () => setView('menu');
 
   /* 進入遊戲:套用場地、職業、屬性,收起封面 */
