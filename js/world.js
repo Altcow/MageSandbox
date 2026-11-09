@@ -241,6 +241,18 @@ function zoneSlowAt(x, z, y, ignoreOwner) {   // ignoreOwner:多人時傳 NET_ME
   }
   return best ? { pct: best.pct, hex: best.hex } : { pct: 0, hex: 0 };
 }
+function zoneFxAt(x, z, y, ignoreOwner) {   // 狀態區域(Z2):區內他人區域的 fx(burn / blind),回傳 {burn, blind, owner}
+  const r = { burn: 0, blind: 0, owner: 0 };
+  for (const Z of SLOW_ZONES) {
+    if (!Z.fx) continue;
+    if (ignoreOwner != null && Z.owner === ignoreOwner) continue;
+    let inside;
+    if (Z.kind === 'circle') inside = Math.hypot(x - Z.x, z - Z.z) <= Z.r;
+    else { const L = platLocal(Z, x, z); inside = Math.abs(L.lx) <= Z.hx && Math.abs(L.lz) <= Z.hz; }
+    if (inside) { if (Z.fx.burn) { r.burn = 1; r.owner = Z.owner; } if (Z.fx.blind) r.blind = 1; }
+  }
+  return r;
+}
 const COLLIDERS = [];
 // 可站立平台(高台);deco:true = 場景裝飾(換場景時清掉);tmp:true = 法術產生的暫時平台(由法術自己移除)
 const PLAYER_R = 0.4, STEP_UP = 0.25;
@@ -302,7 +314,7 @@ class Dummy {
   constructor(x, z) {
     this.home = new V3(x, 0, z); this.g = new THREE.Group(); this.g.position.copy(this.home); scene.add(this.g);
     this.g.rotation.y = Math.PI; this.pivot = new THREE.Group(); this.g.add(this.pivot);   // pivot:跌倒用,整個模型掛在腳底原點
-    this.yaw = Math.PI; this.downK = 0; this.downT = 0; this.downAxis = new V3(1, 0, 0); this.stars = null;
+    this.yaw = Math.PI; this.downK = 0; this.downT = 0; this.downAxis = new V3(1, 0, 0);
     const wood = new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 1 });
     this.bodyMat = new THREE.MeshStandardMaterial({ color: 0xc9b17a, roughness: 1, emissive: 0xff3300, emissiveIntensity: 0 });
     const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; this.pivot.add(m); return m; };
@@ -332,9 +344,7 @@ class Dummy {
   clearStatus() {
     this.ox = this.oz = this.ovx = this.ovz = 0; this.y = terrainH(this.home.x, this.home.z); this.vy = 0;   // y 為絕對高度(地形上)
     this.slowT = this.slowPct = this.stunT = this.erodeT = this.erodeAcc = this.litT = this.pushT = this.windT = 0;
-    this.rootT = this.paraT = this.paraJolt = this.paraNext = this.silT = this.chillN = this.chillT = this.poisonT = this.poisonN = this.poisonAcc = this.blindT = 0;   // 狀態效果(status.js 同名 API,單人數值)
-    if (this.stars) this.stars.forEach(s => s.visible = false);
-    if (this.litSpr) this.litSpr.visible = false;
+    this.rootT = this.paraT = this.paraJolt = this.paraNext = this.silT = this.chillN = this.chillT = this.poisonT = this.poisonN = this.poisonAcc = this.blindT = this.frzT = 0;   // 狀態效果(status.js 同名 API,單人數值)
   }
   // 受擊:el 決定閃光與傷害數字顏色(火系維持原本顏色);照亮中傷害 ×1.25
   hit(dmg, dx, dz, burn, el, src) {   // src === 'dot' 為持續傷害(不觸發 onPlayerHit)
@@ -372,7 +382,7 @@ class Dummy {
   root(t) { this.rootT = Math.max(this.rootT, t); }
   paralyze(t) { if (this.paraT <= 0) this.paraNext = 0; this.paraT = Math.max(this.paraT, Math.min(t, 3)); }
   silence(t) { this.silT = Math.max(this.silT, t); }
-  chill(n) { if (!n) return; this.burn = 0; this.chillN = Math.min(3, this.chillN + 1); this.chillT = 4; if (this.chillN >= 3) { this.chillN = 0; this.chillT = 0; this.stun(1.2); } }
+  chill(n) { if (!n) return; this.burn = 0; this.chillN = Math.min(3, this.chillN + Math.max(1, Math.min(2, n | 0))); this.chillT = 4; if (this.chillN >= 3) { this.chillN = 0; this.chillT = 0; this.frzT = 1.2; this.stun(1.2); } }
   poison(t, n) { this.poisonT = Math.max(this.poisonT, Math.min(t, 6)); this.poisonN = Math.min(3, this.poisonN + (n == null ? 1 : n)); }
   blind(t) { this.blindT = Math.max(this.blindT, t); }
   die() {
@@ -380,6 +390,7 @@ class Dummy {
     for (let i = 0; i < 50; i++) fire.emit(this.x, 1.2 + this.y, this.z, rnd(-4, 4), rnd(1, 7), rnd(-4, 4), rnd(.5, 1), rnd(.2, .5), EL.fire.c0, EL.fire.c1, 1, .4, 8, .5);
     for (let i = 0; i < 8; i++) smoke.emit(this.x + rnd(-.3, .3), 1.2 + this.y, this.z + rnd(-.3, .3), rnd(-.5, .5), rnd(.5, 2), rnd(-.5, .5), rnd(1, 2), rnd(1, 2), [.25, .2, .18], [.08, .08, .09], .5, 2, -.3, .8);
     this.clearStatus();
+    stVisHide(this);
   }
   reset() { this.hp = this.max; this.dead = false; this.g.visible = true; this.burn = 0; this.ax = this.az = this.vx = this.vz = 0; this.clearStatus(); this.g.scale.setScalar(.01); this.popping = true; this.downK = this.downT = 0; this.yaw = Math.PI; this.pivot.rotation.set(0, 0, 0); }
   // 跌倒:沿推力方向倒下(pivot 繞與推力垂直的水平軸轉 85°),躺 t 秒後爬起
@@ -437,7 +448,7 @@ class Dummy {
     this.walkT += dt * (1 - kSl) * (this.stunT > 0 || this.rootT > 0 || this.paraJolt > 0 ? 0 : 1);
     this.walkX = CFG.dummyMove ? Math.sin(this.walkT * .8) * 1.5 : 0;
     // 4b) 狀態效果計時(status.js 同名 API):定身 / 麻痺抽搐 / 沉默 / 致盲 / 寒意 / 中毒
-    this.rootT = Math.max(0, this.rootT - dt); this.silT = Math.max(0, this.silT - dt); this.blindT = Math.max(0, this.blindT - dt);
+    this.rootT = Math.max(0, this.rootT - dt); this.silT = Math.max(0, this.silT - dt); this.blindT = Math.max(0, this.blindT - dt); this.frzT = Math.max(0, this.frzT - dt);
     this.paraJolt = Math.max(0, this.paraJolt - dt);
     if (this.paraT > 0) { this.paraT = Math.max(0, this.paraT - dt); this.paraNext -= dt; if (this.paraNext <= 0 && this.paraT > 0) { this.paraNext = .6; this.paraJolt = .2; } }
     if (this.chillT > 0) { this.chillT -= dt; if (this.chillT <= 0) this.chillN = 0; }
@@ -455,18 +466,11 @@ class Dummy {
       this.pAcc2 += dt * 6;
       while (this.pAcc2 >= 1) { this.pAcc2 -= 1; smoke.emit(this.x + rnd(-.3, .3), this.y + rnd(.4, 1.8), this.z + rnd(-.3, .3), 0, rnd(.4, .8), 0, .9, rnd(.2, .35), EL.dark.s0, EL.dark.s1, .9, 1, -.3, 0); }
     } else this.pAcc2 = 0;
-    // 6) 暈眩星星(頭上 3 顆繞圈,延遲建立)與照亮光點(延遲建立)
-    if (this.stunT > 0) {
-      if (!this.stars) { this.stars = []; for (let i = 0; i < 3; i++) { const s = glowSprite(0xffe066, .32, .95); scene.add(s); this.stars.push(s); } }
-      this.spin += dt * 4;
-      this.stars.forEach((s, i) => { const a = this.spin + i * 2.094; s.visible = true; s.position.set(this.x + Math.cos(a) * .45, this.y + 2.25, this.z + Math.sin(a) * .45); });
-    } else if (this.stars) this.stars.forEach(s => s.visible = false);
-    if (this.litT > 0) {
-      if (!this.litSpr) { this.litSpr = glowSprite(0xfff0a0, 1.1, .85); scene.add(this.litSpr); }
-      this.litSpr.visible = true; this.litSpr.position.set(this.x, this.y + 2.6, this.z);
-    } else if (this.litSpr) this.litSpr.visible = false;
-    // 7) 位置與碰撞圈
+    // 6) 位置與碰撞圈
     this.g.position.set(this.x, this.y, this.z); this.col.x = this.x; this.col.z = this.z;
+    // 6b) 狀態視覺(status.js stVis,與玩家同一套外觀:頭上圖示、金星、冰殼、定身環、照亮與粒子)
+    stVis(this, this.frzT > 0 ? 1 : this.stunT > 0 ? 2 : this.downT > 0 ? 3 : this.paraT > 0 ? 4 : this.silT > 0 ? 5 : this.rootT > 0 ? 6 : 0,
+      (this.burn > 0 ? 8 : 0) | (this.poisonT > 0 && this.poisonN > 0 ? 16 : 0) | (this.chillN >= 1 ? 32 : 0) | (this.blindT > 0 ? 64 : 0) | (kSl > 0 ? 128 : 0) | (this.litT > 0 ? 256 : 0), dt);
     // 8) 發光優先序:受擊閃光 > 燃燒 > 照亮 > 侵蝕 > 減速
     const bm = this.bodyMat;
     if (this.flash > .01) { bm.emissive.setHex(this.flashHex); bm.emissiveIntensity = this.flash * .9; }

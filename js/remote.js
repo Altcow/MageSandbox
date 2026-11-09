@@ -193,27 +193,29 @@ class RemotePlayer {
       else if (rt <= B[0].t) p = B[0];
       else { let j = 1; while (B[j].t < rt) j++; const a = B[j - 1], b = B[j]; p = mixPose(a, b, (rt - a.t) / ((b.t - a.t) || 1)); }
     }
-    if (stale || !p) { this.gf = 0; this.dead = true; this.g.visible = false; this.shadow.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false; return; }
+    if (stale || !p) { this.gf = 0; this.dead = true; this.g.visible = false; this.shadow.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false; stVisHide(this); return; }
     const g = p.g, stealth = !!(g & 2), away = !!(g & 256), down = !!(g & 64), inv = !!(g & 32);
     this.dead = down || away;
     this.gf = g; this.stE = p.e | 0; this.guard = !!(g & 512); this.lit = !!(g & 1024); this.unyield = !!(g & 2048); this.stanceB = !!(g & 4096);   // 新旗標欄位(S 批只記值,呈現留給寫手)                                                   // 快照旗標(netcombat.js 的位移招式特效用)
     this.px = p.x; this.py = p.y; this.pz = p.z; this.yaw = p.r;
     this.col.x = p.x; this.col.z = p.z;
     this.hp = p.hp; this.sh = p.sh;
-    const op = stealth ? .08 : (away ? .4 : 1);
+    const inSm = typeof smokeAt === 'function' && smokeAt(p.x, p.z) && !smokeAt(mage.root.position.x, mage.root.position.z);   // 煙霧彈(skills_assassin.js):圈內的人對圈外觀看者半隱形
+    const op = stealth ? .08 : (inSm ? .35 : (away ? .4 : 1));
     if (op !== this._op) { this._op = op; this.mage.setOpacity(op); this._noShadow(); }
     this.mage.root.position.set(p.x, p.y, p.z); this.mage.yaw = p.r;
     if (this.cls === 'mage') { const w = p.w ? 'book' : 'staff'; if (this.mage.weapon !== w) this.mage.setWeapon(w, false); }
-    this.mage.shieldUp = (g & 4) ? 1 : 0;
+    this.mage.shieldUp = ((g & 4) || (g & 512)) ? 1 : 0;   // 衝鋒盾(4)或格擋窗(512 GUARD)舉盾
     this.mage.update(dt, { move: p.m, cast: p.c, kick: p.k, charge: p.q, t: G.time, hover: 0, roll: p.o, rollPhi: p.p, flip: p.f, sit: p.s, down: p.d });
     // 顯示:無敵閃爍、潛行隱藏名牌 / 血條 / 假影
     const blink = inv && Math.floor(now / 120) % 2 === 0;
     this.g.visible = !blink;
-    const vis = !blink && !stealth;
+    const vis = !blink && !stealth && !inSm;
     this.nameSpr.position.set(p.x, p.y + 2.6, p.z);
     if (away !== this._away) { this._away = away; this.nameSpr.material.map = away ? this._awayTex() : this.nameTex; this.nameSpr.material.needsUpdate = true; }
-    this.nameSpr.visible = vis && camera.position.distanceTo(this.nameSpr.position) < 45;
-    this.bar.visible = vis;
+    const blindFar = G.blindT > 0 && mage.root.position.distanceTo(this.nameSpr.position) > 8;   // 致盲:8 m 外隱藏名牌與血條(§3-3)
+    this.nameSpr.visible = vis && !blindFar && camera.position.distanceTo(this.nameSpr.position) < 45;
+    this.bar.visible = vis && !blindFar;
     this.bar.position.set(p.x, p.y + 2.2, p.z); this.bar.quaternion.copy(camera.quaternion);
     const r = clamp(this.hp / this.max, 0, 1);
     this.fg.scale.x = Math.max(.001, r); this.fg.position.x = -.47 * (1 - r);
@@ -229,6 +231,9 @@ class RemotePlayer {
     // 集氣光球在武器尖端(§2-3)
     this.glow.visible = vis && p.q > .01;
     if (this.glow.visible) { this.mage.tipWorld(this._tmp); this.glow.position.copy(this._tmp); this.glow.scale.setScalar(.15 + .6 * p.q); }
+    // 狀態視覺(§3-3):潛行(照亮例外)與倒下時不畫,避免燃燒粒子暴露潛行者位置;照亮 flag 由快照 g & 1024 來
+    if ((stealth && !this.lit) || down) stVisHide(this);
+    else stVis(this, this.stE & 7, (this.stE & 248) | (this.lit ? 256 : 0), dt);
   }
   // 命中(§2-3、§2-7):只有本機的攻擊(NET_CTX === null)才記入待送命中,由 netCombatTick 合併送出;
   // 不在本機扣血、不顯示數字(等受害者回報 dmg)。重現他人法術時(NET_CTX 為座位號)一律忽略。
@@ -278,6 +283,7 @@ class RemotePlayer {
     scene.remove(this.nameSpr); this.nameSpr.material.dispose(); this.nameTex.dispose(); if (this._awayT) this._awayT.dispose();
     scene.remove(this.bar); disposeTree(this.bar);
     scene.remove(this.glow); this.glow.material.dispose();
+    stVisDispose(this);
   }
 }
 

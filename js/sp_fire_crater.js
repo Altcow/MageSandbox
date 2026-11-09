@@ -54,7 +54,7 @@ function addCrater(x, z, r, depth, life) {
   const c = { x, z, R: r, D: depth, hold: life, k: 0, t: 0, age: 0, phase: 'form', zone: null, bb: cr_bbox(x, z, r), glow: null, emT: 0, smT: 0, onClear: null };
   c.glow = glowSprite(cr_SLOW_HEX, r * 1.2, .6); c.glow.position.set(x, terrainH(x, z) + .3, z); scene.add(c.glow);
   c.onClear = cc => { if (cc.glow) { scene.remove(cc.glow); cc.glow.material.dispose(); cc.glow = null; } };
-  if (typeof addSlowZone === 'function') c.zone = addSlowZone({ kind: 'circle', x, z, r: 1.1 * r, pct: cr_SLOW, hex: cr_SLOW_HEX });
+  if (typeof addSlowZone === 'function') c.zone = addSlowZone({ kind: 'circle', x, z, r: 1.1 * r, pct: cr_SLOW, hex: cr_SLOW_HEX, fx: { burn: 1 } });   // 坑內站著每 0.5 s 刷新燃燒 1 s(§3-4 狀態區域)
   cr_list.push(c);
   return c;
 }
@@ -138,7 +138,12 @@ function cr_meteor(Pi, size, D, hold, E) {
       hit = true; impactT = t;
       scene.remove(mesh); mesh.remove(gs); gs.material.dispose();
       explode(endP, 1.1 * Rc, 1, { dmg: 150, gy, el: 'fire', mul: Pi.dmgK, fxK: Pi.fxK, burn: 3 * (Pi.fxK || 1) });
-      for (const d of DUMMIES) if (!d.dead && Math.hypot(d.x - tx, d.z - tz) < 1.1 * Rc) d.lift(1.0 * (Pi.fxK || 1));
+      for (const d of DUMMIES) {
+        if (d.dead) continue;
+        const dx = d.x - tx, dz = d.z - tz, dd = Math.hypot(dx, dz), l = dd || 1;
+        if (dd < 1.1 * Rc) d.lift(1.0 * (Pi.fxK || 1));
+        if (dd < .5 * Rc) d.knockDown(1.0 * (Pi.fxK || 1), dx / l, dz / l);   // 爆心 0.5R 內跌倒 0.5 → 1.0 s
+      }
       flashLight(new V3(tx, gy + 2, tz), E.hex, 9, .6, 30);
       G.shake = Math.max(G.shake, .5 * CFG.shake);
       addCrater(tx, tz, Rc, D, hold);

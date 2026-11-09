@@ -84,7 +84,7 @@ function stApplyPoison(t, n, by) {
 function stApplyChill(n) {
   G.burnT = 0;
   if (!n || G.chillImmT > 0 || G.time - G.chillAddT < ST.chillGap) return;
-  G.chillAddT = G.time; G.chill += 1; G.chillT = ST.chillT;
+  G.chillAddT = G.time; G.chill += Math.max(1, Math.min(2, n | 0)); G.chillT = ST.chillT;
   if (G.chill >= ST.chillMax) {
     G.chill = 0; G.chillT = 0; G.chillImmT = ST.chillImm;
     const k = stCcGate(true);
@@ -169,6 +169,8 @@ function stTick(dt) {
     G.paraT = Math.max(0, G.paraT - dt); G.paraNext -= dt;
     if (G.paraNext <= 0 && G.paraT > 0) { G.paraNext = ST.paraGap; G.paraJolt = ST.paraJolt; G.stun = Math.max(G.stun, ST.paraJolt); }
   } else G.paraNext = 0;
+  // 狀態區域(隕石坑等):多人時站在他人的 fx.burn 區內,每 0.5 s 刷新燃燒 1 s
+  if (on && typeof zoneFxAt === 'function') { const pp = mage.root.position, zf = zoneFxAt(pp.x, pp.z, pp.y, NET_ME); G.zoneBurnAcc = (G.zoneBurnAcc || 0) + dt; if (zf.burn && G.zoneBurnAcc >= .5) { G.zoneBurnAcc = 0; stApplyBurn(1, zf.owner); } }
   // 灼燒 / 中毒:每 0.5 s 一跳
   if (G.burnT > 0) {
     G.burnT = Math.max(0, G.burnT - dt); G.burnAcc += dt;
@@ -179,6 +181,8 @@ function stTick(dt) {
     if (G.poisonAcc >= ST.dotTick) { G.poisonAcc -= ST.dotTick; stDot((on ? NET_RULES.poisonDmg : ST.poisonSolo) * G.poisonN, G.poisonBy, '中毒'); }
     if (G.poisonT <= 0) G.poisonN = 0;
   } else { G.poisonN = 0; G.poisonAcc = 0; }
+  // 視覺(§3-3):本機角色每幀呼叫一次(頭上圖示、身上粒子、#stFx、快捷列 .sil)
+  stVis(ST_SELF, stCode(), stFlags() | (G.litT > 0 ? 256 : 0), dt);
 }
 
 // 撞牆跌倒(§1-5):netPlayerTick 在每幀開頭呼叫。上一幀擊退速度 ≥ 6 m/s,但實際位移 < 預期的 40% → 跌倒 0.6 s,並清掉剩餘擊退
@@ -215,6 +219,150 @@ function stFlags() {
   const zone = CFG.slowSelf && typeof zoneSlowAt === 'function' && zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0;
   if ((G.slowT > 0 && G.slowPct > 0) || zone) f |= 128;
   return f;
+}
+
+/* ---------- 視覺呈現(§3-3,Z1):stVis(host, code, flags, dt) ----------
+   host 需提供 x / y / z(腳底世界座標)、yaw;選用 chillN(寒意層數,缺值視為 1)、jolt(抽搐中)、sil(沉默中)。
+   self = true 為本機:另切 #stFx 的 class 與快捷列 .sil。code = 0~7 控制碼(stCode);flags = 8~128 旗標(stFlags)+ 256 照亮(JS 專用)。
+   每個 host 的物件 lazy 建立並記在 host.stV;stVisHide 只隱藏(死亡、潛行、離線暫停),stVisDispose 才移出場景(RemotePlayer.destroy 用)。 */
+const STV = { tex: {}, emo: {}, fxc: {}, silOn: null, fxEl: null, loader: null, shared: null };
+const ST_HEAD = { 1: 'st_freeze', 2: 'st_stun', 3: 'st_down', 4: 'st_paralysis', 5: 'st_silence', 6: 'st_root' };   // 頭上圖示;圖缺時退回 ST_HEAD_EMO
+const ST_HEAD_EMO = { 1: '🧊', 2: '💫', 3: '💤', 4: '⚡', 5: '🤐', 6: '⛓' };
+// 本機角色的 host 介面(mage / G 為全域,即時讀取)
+const ST_SELF = {
+  self: true, stV: null,
+  get x() { return mage.root.position.x; }, get y() { return mage.root.position.y; }, get z() { return mage.root.position.z; },
+  get yaw() { return mage.yaw; }, get chillN() { return G.chill; }, get jolt() { return G.paraJolt > 0; }, get sil() { return G.silT > 0; }
+};
+// 共用幾何與材質(只建一次;標 shared 的材質在 stVisDispose 時不釋放)
+function stShared() {
+  if (STV.shared) return STV.shared;
+  const ice = new THREE.MeshLambertMaterial({ color: 0x8fe0ff, transparent: true, opacity: .45, flatShading: true, depthWrite: false });
+  const root = new THREE.MeshBasicMaterial({ color: 0x8a7a5a, transparent: true, opacity: .8, depthWrite: false });
+  ice.userData.shared = root.userData.shared = true;
+  return (STV.shared = { ice: ice, root: root, geoIce: new THREE.IcosahedronGeometry(.75, 1), geoRing: new THREE.RingGeometry(.3, .55, 24) });
+}
+// 頭上圖示貼圖:第一次要求時載入一次;載入失敗標 bad,之後一律用 emoji 貼圖(不重複發 404)
+function stIcon(name, code) {
+  let e = STV.tex[name];
+  if (!e) {
+    e = STV.tex[name] = { tex: null, bad: false };
+    try {
+      STV.loader = STV.loader || new THREE.TextureLoader();
+      e.tex = STV.loader.load('assets/icons/' + name + '.png', undefined, undefined, () => { e.bad = true; });
+    } catch (err) { e.bad = true; }
+  }
+  return e.bad || !e.tex ? stEmoTex(code) : e.tex;
+}
+function stEmoTex(code) {
+  if (STV.emo[code]) return STV.emo[code];
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'); g.font = '44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ST_HEAD_EMO[code] || '?', 32, 34);
+  return (STV.emo[code] = new THREE.CanvasTexture(c));
+}
+function stHost(host) {
+  return host.stV || (host.stV = { code: 0, spin: 0, ringT: 0, acc: {}, objs: [], spr: null, stars: null, ice: null, root: null, imm: null, immMat: null, lit: null, blind: null });
+}
+function stAdd(s, o) { s.objs.push(o); scene.add(o); return o; }
+// 每秒 rate 次(小數累積);單幀最多 4 次,避免切分頁後 dt 很大時一次噴出太多
+function stRate(s, key, rate, dt, emit) {
+  if (!(rate > 0) || !(dt > 0)) { s.acc[key] = 0; return; }
+  const a = (s.acc[key] || 0) + dt * rate, n = Math.floor(a);
+  for (let i = 0; i < Math.min(n, 4); i++) emit();
+  s.acc[key] = a - n;
+}
+// 碎冰 / 冰屑粒子
+function stBurst(x, y, z, n, c0, c1) {
+  for (let i = 0; i < n; i++) smoke.emit(x + rnd(-.4, .4), y + rnd(-.3, .3), z + rnd(-.4, .4), rnd(-2, 2), rnd(1, 3), rnd(-2, 2), .6, rnd(.08, .16), c0, c1, 1, 1, .8, .2);
+}
+function stFxClass(name, on) {
+  if (STV.fxc[name] === on) return;
+  STV.fxc[name] = on;
+  if (!STV.fxEl) STV.fxEl = document.getElementById('stFx');
+  if (STV.fxEl) STV.fxEl.classList.toggle(name, on);
+}
+// 本機專屬:#stFx 畫面效果、快捷列沉默鎖(只在狀態改變時寫 DOM)
+function stSelfFx(code, flags, host) {
+  stFxClass('frost', code === 1); stFxClass('burn', !!(flags & 8)); stFxClass('poison', !!(flags & 16));
+  stFxClass('blind', !!(flags & 64)); stFxClass('jolt', !!host.jolt);
+  const sil = !!host.sil;
+  if (STV.silOn !== sil) { STV.silOn = sil; if (typeof slots !== 'undefined') slots.forEach(el => el.classList.toggle('sil', sil)); }
+}
+function stVis(host, code, flags, dt) {
+  const s = stHost(host), px = host.x, py = host.y, pz = host.z, mob = IS_TOUCH, t = dt > 0 ? dt : 0, sh = stShared(), yaw = host.yaw || 0;
+  // 頭上圖示(1 個 Sprite,y + 3.0)
+  if (ST_HEAD[code]) {
+    const sp = s.spr || (s.spr = stAdd(s, new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }))));
+    const map = stIcon(ST_HEAD[code], code);
+    if (sp.material.map !== map) { sp.material.map = map; sp.material.needsUpdate = true; }
+    sp.scale.set(.55, .55, 1); sp.visible = true; sp.position.set(px, py + 3, pz);
+  } else if (s.spr) s.spr.visible = false;
+  // 暈眩:頭上 3 顆金星繞圈(沿用稻草人原做法)
+  if (code === 2) {
+    if (!s.stars) { s.stars = []; for (let i = 0; i < 3; i++) s.stars.push(stAdd(s, glowSprite(0xffe066, .32, .95))); }
+    s.spin += t * 4;
+    s.stars.forEach((o, i) => { const a = s.spin + i * 2.094; o.visible = true; o.position.set(px + Math.cos(a) * .45, py + 2.25, pz + Math.sin(a) * .45); });
+  } else if (s.stars) s.stars.forEach(o => o.visible = false);
+  // 凍結:半透明冰殼;解除時噴 8 顆冰屑
+  if (code === 1) {
+    if (!s.ice) s.ice = stAdd(s, new THREE.Mesh(sh.geoIce, sh.ice));
+    s.ice.visible = true; s.ice.position.set(px, py + .9, pz); s.ice.rotation.y += t * .4;
+  } else if (s.ice) {
+    if (s.ice.visible) stBurst(px, py + .9, pz, 8, [.8, .95, 1], [.3, .6, 1]);
+    s.ice.visible = false;
+  }
+  // 定身:腳下灰褐環
+  if (code === 6) {
+    if (!s.root) { s.root = stAdd(s, new THREE.Mesh(sh.geoRing, sh.root)); s.root.rotation.x = -Math.PI / 2; }
+    s.root.visible = true; s.root.position.set(px, py + .05, pz);
+  } else if (s.root) s.root.visible = false;
+  // 韌性 / 控制免疫:腳下白環 0.5 s 淡出(進入免疫的瞬間起算)
+  if (code === 7 && s.code !== 7) s.ringT = .5;
+  s.ringT = Math.max(0, s.ringT - t);
+  if (s.ringT > 0) {
+    if (!s.imm) { s.immMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false }); s.imm = stAdd(s, new THREE.Mesh(sh.geoRing, s.immMat)); s.imm.rotation.x = -Math.PI / 2; }
+    s.imm.visible = true; s.imm.position.set(px, py + .06, pz); s.immMat.opacity = s.ringT / .5 * .9;
+  } else if (s.imm) s.imm.visible = false;
+  // 照亮:頭上金色標記(depthTest 關閉,永遠看得到)
+  if (flags & 256) {
+    if (!s.lit) { s.lit = stAdd(s, glowSprite(0xffd76a, .45, .9)); s.lit.material.depthTest = false; s.lit.renderOrder = 30; }
+    s.lit.visible = true; s.lit.position.set(px, py + 3.45, pz);
+  } else if (s.lit) s.lit.visible = false;
+  // 致盲:頭部一圈白色光帶
+  if (flags & 64) {
+    if (!s.blind) s.blind = stAdd(s, glowSprite(0xffffff, 1.1, .45));
+    s.blind.visible = true; s.blind.position.set(px, py + 1.9, pz);
+  } else if (s.blind) s.blind.visible = false;
+  // 身上粒子(每角色每幀 ≤ 2;手機減量)
+  if (flags & 8) for (let i = 0, n = mob ? 1 : 2; i < n; i++)   // 灼燒:火焰(沿用稻草人燃燒粒子)
+    fire.emit(px + rnd(-.25, .25), py + rnd(.6, 1.8), pz + rnd(-.25, .25), rnd(-.3, .3), rnd(1, 2.5), rnd(-.3, .3), rnd(.4, .7), rnd(.4, .7), EL.fire.c0, EL.fire.c1, .9, .3, -.5, .5);
+  stRate(s, 'po', flags & 16 ? (mob ? 5 : 10) : 0, t, () =>   // 中毒:綠色氣泡往上
+    smoke.emit(px + rnd(-.3, .3), py + rnd(.4, 1.8), pz + rnd(-.3, .3), 0, rnd(.4, .8), 0, .9, rnd(.12, .2), [.5, .9, .3], [.3, .6, .15], .9, 1, -.3, 0));
+  const layers = host.chillN != null ? host.chillN : 1;   // 寒意:雪花,層數越多越密(遠端只有「≥ 1 層」旗標,視為 1)
+  stRate(s, 'ch', flags & 32 ? (mob ? 2 : 4) * Math.max(1, layers) : 0, t, () =>
+    smoke.emit(px + rnd(-.4, .4), py + rnd(.5, 2.2), pz + rnd(-.4, .4), rnd(-.1, .1), -.4, rnd(-.1, .1), 1, rnd(.08, .14), [.92, .97, 1], [.6, .85, 1], .9, 1, .3, 0));
+  stRate(s, 'sl', flags & 128 ? (mob ? 2 : 4) : 0, t, () =>   // 減速:腳邊藍色速度線(上飄小粒子)
+    smoke.emit(px + rnd(-.35, .35), py + rnd(.05, .3), pz + rnd(-.35, .35), 0, rnd(.6, 1), 0, .6, rnd(.1, .16), EL.water.s0, EL.water.s1, .8, 1, 0, 0));
+  stRate(s, 'si', code === 5 ? 5 : 0, t, () => {   // 沉默:雙手位置紫煙(約每 0.2 s 1 顆)
+    const sd = Math.random() < .5 ? -1 : 1, hx = px + Math.cos(yaw) * .35 * sd, hz = pz - Math.sin(yaw) * .35 * sd;
+    smoke.emit(hx, py + 1.1, hz, 0, .3, 0, .7, rnd(.12, .18), [.6, .4, 1], [.35, .2, .7], .8, 1, -.1, 0);
+  });
+  stRate(s, 'pa', code === 4 ? (mob ? 5 : 10) : 0, t, () =>   // 麻痺:金白電火花
+    fire.emit(px + rnd(-.5, .5), py + rnd(1.2, 2.2), pz + rnd(-.5, .5), rnd(-1, 1), rnd(-1, 1), rnd(-1, 1), .3, rnd(.08, .14), [1, 1, .7], [1, .85, .2], 1, 1, 0, 0));
+  s.code = code;
+  if (host.self) stSelfFx(code, flags, host);
+}
+// 只隱藏(死亡、倒下、潛行、離線暫停):保留物件池,之後再出現不重建
+function stVisHide(host) {
+  const s = host.stV; if (!s) return;
+  s.objs.forEach(o => { o.visible = false; });
+  s.ringT = 0; s.acc = {}; s.code = 0;
+}
+// 移出場景並釋放獨有材質(RemotePlayer.destroy 用);共用幾何 / 材質不釋放
+function stVisDispose(host) {
+  const s = host.stV; if (!s) return;
+  s.objs.forEach(o => { scene.remove(o); const m = o.material; if (m && !m.userData.shared) m.dispose(); });
+  host.stV = null;
 }
 
 /* ---------- P 面板「狀態測試」(單人對自己套用;對戰中不可用) ---------- */

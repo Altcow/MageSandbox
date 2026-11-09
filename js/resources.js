@@ -208,6 +208,7 @@ const ST_NAME = { slow: '緩速', stun: '暈眩', weak: '虛弱', stealth: '潛�
   freeze: '凍結', knock: '跌倒', para: '麻痺', silence: '沉默', burn: '灼燒', poison: '中毒', chill: '寒意', blind: '致盲', ccimm: '控制免疫' };
 const ST_ICON = { slow: 'st_slow', stun: 'st_stun', weak: 'st_weak', stealth: 'st_stealth', down: 'st_down', shield: 'buff_shield', heal: 'buff_heal', root: 'st_root', lit: 'st_lit', unyield: 'buff_unyield',
   freeze: 'st_freeze', knock: 'st_down', para: 'st_paralysis', silence: 'st_silence', burn: 'st_burn', poison: 'st_poison', chill: 'st_slow', blind: 'st_blind', ccimm: 'st_cleanse' };   // 缺圖時 onerror 退回文字,不報錯
+const ST_ICON_BAD = {};   // 已確認缺圖的 ST_ICON 名稱(onerror 寫入)之後直接畫文字,不再重複發請求
 function updateStatusBar() {
   const sb = rhEl('stBar'); if (!sb) return;
   // 排序(狀態效果文件 §3-6):控制 → DOT → 減益 → 增益;寒意 / 中毒的層數併入鍵(層數變動時重建)
@@ -222,18 +223,24 @@ function updateStatusBar() {
   if (G.burnT > 0) ks.push('burn');
   if (G.poisonT > 0 && G.poisonN > 0) ks.push('poison' + G.poisonN);
   if (G.blindT > 0) ks.push('blind');
-  if (G.weak > 0) ks.push('weak');
   if (G.slowT > 0 || (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0)) ks.push('slow');
   if (G.chill >= 1) ks.push('chill' + G.chill);
   if (G.litT > 0) ks.push('lit');
+  if (G.weak > 0) ks.push('weak');
   if (G.shield > 0) ks.push('shield');
   if (G.time < (G.healUntil || 0)) ks.push('heal');
-  if (G.stealth) ks.push('stealth');
   if (G.unyT > 0) ks.push('unyield');
+  if (G.stealth) ks.push('stealth');
   if (G.ccImmT > 0 || G.hardImmT > 0) ks.push('ccimm');
   const k = ks.join(',');
   if (sb._k === k) return; sb._k = k;
-  sb.innerHTML = ks.map(x => { const b = x.replace(/\d$/, ''); return '<img src="assets/icons/' + ST_ICON[b] + '.png" alt="' + ST_NAME[b] + '" title="' + ST_NAME[b] + '" onerror="this.replaceWith(document.createTextNode(this.alt))">'; }).join('');
+  // 每格一個 span:寒意 / 中毒的層數放 data-n(右下角角標由 index.html 的 CSS 畫);缺圖(ST_ICON_BAD)直接畫文字
+  sb.innerHTML = ks.map(x => {
+    const b = x.replace(/\d$/, ''), n = x.slice(b.length), nm = ST_NAME[b], ic = ST_ICON[b];
+    const attr = 'class="sti s-' + b + '"' + (n ? ' data-n="' + n + '"' : '');
+    if (ST_ICON_BAD[ic]) return '<span ' + attr + '>' + nm + '</span>';
+    return '<span ' + attr + '><img src="assets/icons/' + ic + '.png" alt="' + nm + '" title="' + nm + '" data-ic="' + ic + '" onerror="ST_ICON_BAD[this.dataset.ic]=1;this.replaceWith(document.createTextNode(this.alt))"></span>';
+  }).join('');
 }
 
 function updateResHUD() {

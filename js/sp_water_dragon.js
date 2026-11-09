@@ -104,6 +104,7 @@ function wd_hitAll(D, ax, az, bx, bz) {
     d.hit(D.dmg, nx, nz, 0, 'water');
     d.slow(3, .5 * D.fxK);          // 第二參數 pct 為階段 0 的 Dummy.slow(t, pct)
     d.lift(.8 * D.fxK);
+    if (d.chill) d.chill(2);        // 寒意 +2(狀態效果文件 §2-1)
     for (let k = 0; k < fq(8); k++) fire.emit(d.x + rnd(-.3, .3), 1 + d.y, d.z + rnd(-.3, .3), rnd(-1, 1), rnd(1, 3), rnd(-1, 1), rnd(.35, .6), rnd(.12, .2), E.c0, E.c1, 1, .3, 9, .3);
   }
 }

@@ -37,6 +37,19 @@ body.touch #clsBar img.ci{width:14px;height:14px;vertical-align:-3px}
 #stBar img{width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 3px #000)}
 body.touch #stBar{left:calc(12px + env(safe-area-inset-left));top:62px;bottom:auto}
 body.touch #stBar img{width:22px;height:22px}
+#stBar .sti{position:relative;display:inline-block;font-size:12px;color:#fff;text-shadow:0 0 3px #000}
+#stBar .sti[data-n]::after{content:attr(data-n);position:absolute;right:-4px;bottom:-5px;font:bold 11px/1 sans-serif;color:#fff;background:#3a3f6a;border-radius:6px;padding:2px 3px;box-shadow:0 0 2px #000}
+#stBar .s-chill[data-n]::after{background:#2a6fd0}
+#stBar .s-poison[data-n]::after{background:#3e8a1e}
+#stFx{position:fixed;inset:0;pointer-events:none;z-index:2}
+#stFx.frost{box-shadow:inset 0 0 90px 10px rgba(190,235,255,.55)}
+#stFx.burn{box-shadow:inset 0 0 70px 8px rgba(255,120,30,.5)}
+#stFx.poison{box-shadow:inset 0 0 70px 8px rgba(120,220,60,.45)}
+#stFx.burn.poison{box-shadow:inset 0 0 70px 8px rgba(200,170,40,.5)}
+#stFx.jolt{box-shadow:inset 0 0 80px 10px rgba(255,230,80,.85)}
+#stFx.blind::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,transparent 35%,rgba(0,0,0,.92) 80%)}
+#stFx.blind::after{content:"";position:absolute;inset:0;background:#fff;opacity:0;animation:stFlash .25s ease-out}
+@keyframes stFlash{0%{opacity:.9}100%{opacity:0}}
 #pRes{position:fixed;left:16px;bottom:16px;width:230px;z-index:3;pointer-events:none;--sit:#ffffff}
 #pRes.down{opacity:.5}
 #pDownTx{font-size:12px;color:#ff6a6a;text-shadow:0 0 4px #000;margin:0 0 2px}
@@ -62,6 +75,7 @@ body.touch .ri{width:14px;height:14px;flex:0 0 14px}
 #chargeBar.hide{display:none}
 .slot.poor .ic{filter:grayscale(.8) brightness(.7)}
 .slot.ex{border-color:#ffd24a;box-shadow:0 0 14px #ffd24a}
+.slot.sil::after{content:"🔒";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(90,40,160,.55);font-size:26px;pointer-events:none}
 #pMP.seg5::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(90deg,transparent calc(100% - 2px),rgba(0,0,0,.85) 0);background-size:20% 100%}
 body.touch #pRes{left:calc(12px + env(safe-area-inset-left));top:6px;bottom:auto;width:150px}
 body.touch .rb{height:5px}
@@ -138,7 +152,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 #panel .row span{flex:0 0 38px;text-align:right;color:#aaa}
 #panel button{margin-top:8px;padding:4px 10px}
 /* ===== 封面 / 房間 / 大廳(cv-) ===== */
-body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.cover #sceneBar,body.cover #clsBar,body.cover #elBar,body.cover #modeTag,body.cover #btnMode,body.cover #pRes,body.cover #stBar,body.cover #touchUI,body.cover #gear,body.cover #panel,body.cover #chargeBox,body.cover #chant,body.cover #banner,body.cover #dmgLayer{display:none !important}
+body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.cover #sceneBar,body.cover #clsBar,body.cover #elBar,body.cover #modeTag,body.cover #btnMode,body.cover #pRes,body.cover #stBar,body.cover #stFx,body.cover #touchUI,body.cover #gear,body.cover #panel,body.cover #chargeBox,body.cover #chant,body.cover #banner,body.cover #dmgLayer{display:none !important}
 .cv-root{position:fixed;inset:0;z-index:60;overflow:hidden;font-family:"Microsoft JhengHei","PingFang TC",system-ui,sans-serif;color:#e8ecf6;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .cv-root.gone{display:none}
 .cv-root [hidden]{display:none !important}
@@ -281,6 +295,7 @@ body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.co
 <div id="elBar"></div>
 <div id="modeTag" title="集氣模式(G)"></div>
 <div id="stBar"></div>
+<div id="stFx"></div>
 <div id="pRes">
   <div id="pDownTx"></div>
   <div class="rr"><img class="ri" src="assets/icons/ui_hp.png" alt=""><div class="rb hp" id="pHP"><i class="fg" id="pHPfg"></i><i id="pShield"></i></div><span class="rn" id="pHPn"></span></div>

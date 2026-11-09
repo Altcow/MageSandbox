@@ -89,13 +89,21 @@ function flyProjectile(from, to, speed, o) {
 
 /* ---------- 弓箭手(D2) ---------- */
 // 瞄準射擊:一支箭直線飛向落點,速度 45 → 70 m/s;命中第一個碰到的標靶,沒碰到就落地
+// 穿雲箭(P.ex = 1,集氣 MAX 且專注 ≥ 40):速度 90 m/s、穿透、傷害 ×1.5(52.5)、命中照亮 2 s。命中專注 +6(skills_archer.js)
 function castQuickShot(P, orb) {
-  const E = casterAura(P), from = casterTip(P, new V3());
+  const E = casterAura(P), from = casterTip(P, new V3()), ex = P.ex | 0, rmt = archRemote(P), seen = new Set();
   if (orb) dissolveOrb(orb, E);
-  const to = new V3(P.target.x, P.target.y + .4, P.target.z);
-  flyProjectile(from, to, lerp(45, 70, P.q), {
-    mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.5, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1,
-    onHit: (d, b) => { d.hit(35 * P.dmgK, d.x - from.x, d.z - from.z, 0, null); hitFx(b, 14); }
+  const L = Math.hypot(P.target.x - from.x, P.target.z - from.z) || 1, reach = P.range || 30;
+  const to = ex ? new V3(from.x + (P.target.x - from.x) / L * reach, P.target.y + .4, from.z + (P.target.z - from.z) / L * reach) : new V3(P.target.x, P.target.y + .4, P.target.z);
+  flyProjectile(from, to, ex ? 90 : lerp(45, 70, P.q), {
+    mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.5, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1, pierce: !!ex,
+    onHit: (d, b) => {
+      hitFx(b, 14);
+      if (rmt) return;
+      d.hit((ex ? 52.5 : 35) * P.dmgK, d.x - from.x, d.z - from.z, 0, null);
+      if (ex) { d.light(2); archMark(d, '_archLit', 2); }
+      archHitGain(P, d, seen);
+    }
   });
 }
 
@@ -105,27 +113,42 @@ function castShockArrow(P, orb) {
   if (orb) dissolveOrb(orb, E);
   const w = lerp(cfg.width0, cfg.width1, P.q), from = new V3(p.x + dx * .8, y0, p.z + dz * .8), to = new V3(from.x + dx * P.r, y0, from.z + dz * P.r);
   const mesh = giantArrowMesh(w, E.hex, lerp(.7, 1.2, P.q)), dir = new V3(dx, 0, dz);
-  let flashed = false;
+  let flashed = false; const seen = new Set();
   flyProjectile(from, to, 40, {
     mesh, hitR: w / 2 + .3, pierce: true, fade: true, stuck: .15, trail: IS_TOUCH ? 5 : 8, c0: E.c0, c1: E.c1,
     blocked: b => PLATFORMS.some(H => platTop(H, b.x, b.z) > y0 - 1 && (H.bottom == null || H.bottom < y0 + .3) && platContains(H, b.x, b.z, .1)),
     onEnd: b => { hitFx(b, 20); burstRing(new V3(b.x, p.y, b.z), E.hex, 1.2); },
     onHit: (d, b) => {
-      d.hit(70 * P.dmgK, dir.x, dir.z, 0, null); d.knock(dir.x, dir.z, 2.5 * P.fxK); d.knockDown(1.8 * P.fxK, dir.x, dir.z);
+      d.hit(70 * P.dmgK, dir.x, dir.z, 0, null); d.knock(dir.x, dir.z, 2.5 * P.fxK); d.knockDown(1.8 * P.fxK * (archLit(d) ? 1.5 : 1), dir.x, dir.z);   // 照亮中的目標跌倒 +50%(進階技能文件 §2-1)
+      archHitGain(P, d, seen);
       hitFx(b, 20); burstRing(new V3(d.x, d.y, d.z), E.hex, 1.2);
       if (!flashed) { flashed = true; flashLight(b, E.hex, 5, .4, 12); G.shake = Math.max(G.shake, .1 * CFG.shake); }
     }
   });
 }
 
+// 箭雨每跳(本機判定):範圍傷害 9 × dmgK;每跳讓圈內目標減速 25% 1 s。暴雨(ex)箭數已在 castArrowRain 乘 1.5,
+// 每跳傷害 ×1.25,定身 / 減速中的目標再 ×1.3(判斷在減速施加前做)。遠端重現不做任何目標判定。
+function archRainTick(P, cx, gy, cz, R, ex, seen) {
+  if (archRemote(P)) return;
+  for (const d of DUMMIES) {
+    if (d.dead || Math.abs(gy - d.y) > R + 1.5) continue;
+    const dx = d.x - cx, dz = d.z - cz, dist = Math.hypot(dx, dz);
+    if (dist >= R + .4) continue;
+    const v = 9 * P.dmgK * (ex ? 1.25 : 1) * (ex && archSlowed(d) ? 1.3 : 1) * (1 - clamp(dist / (R + .4), 0, 1) * .5) * rnd(.9, 1.1);
+    d.hit(v, dx, dz, 0, null);
+    d.slow(1, .25); archMark(d, '_archSl', 1);
+    archHitGain(P, d, seen);
+  }
+}
 // 箭雨:落點上空 14 m 出現光圈陣(0~0.4 s);箭數 = CHG.count(40, q) 在 0.4~2.0 s 落下;每 0.2 s 範圍傷害一次(共 8 跳,每跳 9 × dmgK)
 function castArrowRain(P, orb) {
-  const E = casterAura(P), cx = P.target.x, cz = P.target.z, gy = P.target.y, R = P.r;
+  const E = casterAura(P), cx = P.target.x, cz = P.target.z, gy = P.target.y, R = P.r, ex = P.ex | 0, seen = new Set();
   if (orb) dissolveOrb(orb, E);
   const sig = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: RUNE_TEX, color: E.hex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   sig.rotation.x = -Math.PI / 2; sig.position.set(cx, gy + 14, cz); sig.scale.setScalar(R * 2.6); scene.add(sig);
   const gi = new Indicator(scene);
-  const n = Math.max(4, Math.round(CHG.count(40, P.q) * CFG.fxq));
+  const n = Math.max(4, Math.round(CHG.count(40, P.q) * CFG.fxq * (ex ? 1.5 : 1)));
   const sched = []; for (let i = 0; i < n; i++) sched.push(.4 + i / n * 1.6 + prnd(P, 0, .08));
   sched.sort((a, b) => a - b);
   let age = 0, k = 0;
@@ -135,7 +158,7 @@ function castArrowRain(P, orb) {
     sig.material.opacity = a0 * .9 * fin; sig.rotation.z += dt * .6;
     gi.set(cx, cz, 0, R, 0, 0, 0, .45 * a0 * fin, E.hex, gy); gi.tick(age);
     while (sched.length && age >= sched[0]) { sched.shift(); rainArrow(cx, cz, gy, R, E, P); }
-    while (k < 8 && age >= .4 + .2 * k) { k++; areaHit(cx, gy, cz, R, 9 * P.dmgK); }
+    while (k < 8 && age >= .4 + .2 * k) { k++; archRainTick(P, cx, gy, cz, R, ex, seen); }
     if (age > 3) {
       scene.remove(sig); sig.geometry.dispose(); sig.material.dispose(); gi.root.parent.remove(gi.root);
       return false;
@@ -184,6 +207,13 @@ function castPowerSlash(P, orb) {
   const cx = p.x + Math.sin(P.dir) * cfg.range, cz = p.z + Math.cos(P.dir) * cfg.range, cy = surfaceY(cx, cz, p.y + 2);
   areaHit(cx, cy, cz, P.r, 90 * P.dmgK, 1.5 * P.fxK, p.x, p.z);
   arcSlash(new V3(cx, cy, cz), P.r, P.dir, E.hex, .2);
+  if (P.ex) {   // 破空斬(強化,P.ex 由 swordExFn 在施放時判定):沿方向射出劍氣,直線 9 m、穿透
+    const dx = Math.sin(P.dir), dz = Math.cos(P.dir), from = new V3(p.x + dx * .8, p.y + 1, p.z + dz * .8), to = new V3(from.x + dx * SW.waveLen, from.y, from.z + dz * SW.waveLen);
+    flyProjectile(from, to, 30, {
+      mesh: arrowMesh(1.6, .05, E.hex, 1.6), hitR: .9, pierce: true, fade: true, stuck: .15, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1,
+      onHit: (d, b) => { d.hit(SW.waveDmg * P.dmgK, dx, dz, 0, null); hitFx(b, 10); }
+    });
+  }
 }
 
 // 旋風斬:自身圓(半徑 P.r);角色原地旋轉 0.6~1.8 s(4 圈/秒),每 0.3 s 對圈內打一次;旋轉中可移動(速度 ×0.5)
@@ -238,6 +268,7 @@ function shieldBash(t, p, D) {
   hitFx(new V3(t.x, t.y + 1, t.z), 30); burstRing(new V3(t.x, t.y, t.z), E.hex, 1.2);
   flashLight(new V3(t.x, t.y + 1.5, t.z), E.hex, 5, .3, 10);
   G.shake = Math.max(G.shake, .2 * CFG.shake);
+  G.comboT = SW.comboT;   // 盾擊連段窗(§2-2):1 s 內下一招集氣 ×0.4(swChargeK)
 }
 
 /* ---------- 位移(衝鋒盾 / 背刺閃身)每幀 ---------- */
@@ -295,11 +326,18 @@ function backstabLand(P) {
     if (dist < bd) { bd = dist; best = d; }
   }
   if (!best) return;   // 落點沒有標靶:只閃身
-  const ax = p.x - best.x, az = p.z - best.z, l = Math.hypot(ax, az) || 1;
-  const behind = Math.sin(best.yaw) * ax / l + Math.cos(best.yaw) * az / l <= -.5;   // 標靶正面向量 · 指向攻擊者 ≤ -0.5
+  const mp = typeof RemotePlayer !== 'undefined' && best instanceof RemotePlayer;   // 多人對他人:背後 ×2.0~2.8、潛行 ×1.3(NET_RULES.bsBack / bsStealth,狀態效果文件之前的 §3-4)
+  const sb = G.shadowT > 0; if (sb) G.shadowT = 0;   // 暗影步後 1.5 s 內的下一刀視為背後
+  const behind = behindOf(best, p) || sb;   // 標靶正面向量 · 指向攻擊者 ≤ -0.5(behindOf 在 skills_assassin.js)
   let dmg = 40 * P.dmgK;
-  if (behind) { dmg *= lerp(2.5, 3.5, P.q); if (G.stealth) dmg *= 1.5; }
+  if (behind) {
+    dmg *= mp ? lerp(NET_RULES.bsBack[0], NET_RULES.bsBack[1], P.q) : lerp(2.5, 3.5, P.q);
+    if (G.stealth) dmg *= mp ? NET_RULES.bsStealth : 1.5; else if (inOwnSmoke()) dmg *= 1.3;   // 自己的煙中視同潛行加成
+  }
+  if (G.danceT > 0) { dmg *= 1.2; G.danceT = 0; }   // 影舞翻滾後的下一刀
   best.hit(dmg, best.x - p.x, best.z - p.z, 0, null);   // 會觸發 onPlayerHit → 潛行顯形
+  gainEnergy(behind ? 2 : 1);   // 連擊點:命中 +1(背後 +2)
+  if (behind) { best.poison(3, 1); }   // 淬毒(狀態效果文件 §2-4)
   if (behind) {
     banner('背刺!', '#ff4a4a');
     arcSlash(new V3(best.x, best.y, best.z), 1.6, Math.atan2(best.x - p.x, best.z - p.z), 0xff4a4a, .2);
@@ -312,12 +350,17 @@ function backstabLand(P) {
 function castKnives(P, orb) {
   const E = casterAura(P), cfg = CFG.skills.knives, n = CHG.count(7, P.q), A = P.r * Math.PI / 180, from = casterTip(P, new V3());
   if (orb) dissolveOrb(orb, E);
+  let hits = 0; const poisoned = new Set();
   for (let i = 0; i < n; i++) {
     const a = P.dir + (n === 1 ? 0 : lerp(-A / 2, A / 2, i / (n - 1)));
     const dx = Math.sin(a), dz = Math.cos(a), to = new V3(from.x + dx * cfg.range, from.y, from.z + dz * cfg.range);
     flyProjectile(from, to, 40, {
       mesh: arrowMesh(.5, .025, 0xc08aff, 1), hitR: .5, stuck: .05, fade: false, trail: IS_TOUCH ? 1 : 2, c0: E.c0, c1: E.c1,
-      onHit: d => { d.hit(18 * P.dmgK, d.x - from.x, d.z - from.z, 0, null); hitFx(new V3(d.x, d.y + 1, d.z), 6); }
+      onHit: d => {
+        d.hit(18 * P.dmgK, d.x - from.x, d.z - from.z, 0, null); hitFx(new V3(d.x, d.y + 1, d.z), 6);
+        if (!poisoned.has(d)) { poisoned.add(d); d.poison(2, 1); }   // 中毒 1 層 2 s(同一標靶只 +1)
+        hits++; if (!P.net && (hits === 1 || hits === 3)) gainEnergy(1);   // 連擊點:命中 ≥1 把 +1、≥3 把再 +1
+      }
     });
   }
 }
@@ -335,15 +378,16 @@ function castStealth(P, orb) {
 // 顯形:kind = 'time' | 'manual' | 'hit' | 'class'。除 'class' 外都進入虛弱 1.5 s;冷卻 6 s 從顯形開始計
 function revealStealth(kind) {
   if (!G.stealth) return;
+  const shadow = !!G.stealth.shadow;   // 影舞影遁(影分身):結束不虛弱、不進潛行冷卻
   G.stealth = null;
   const p = mage.root.position, n = IS_TOUCH ? 12 : 20;
   for (let i = 0; i < n; i++) {
     const a = rnd(0, 6.283), sp = rnd(1, 2.5);
     smoke.emit(p.x, p.y + 1, p.z, Math.cos(a) * sp, rnd(-.2, .8), Math.sin(a) * sp, rnd(.8, 1.2), rnd(.6, 1.2), [.35, .3, .4], [.1, .08, .12], .9, 2, 0, 1.2);
   }
-  banner('顯形', '#c08aff');
-  G.cd.stealth = 6;
-  if (kind !== 'class') G.weak = 1.5;
+  banner(shadow ? '影遁結束' : '顯形', '#c08aff');
+  if (!shadow) G.cd.stealth = 6;
+  if (kind !== 'class' && !shadow) G.weak = 1.5;
 }
-// 任何技能(非持續傷害)打中標靶 → 潛行中的玩家顯形(Dummy.hit 呼叫;持續傷害傳 'dot' 不呼叫)
-window.onPlayerHit = () => { if (G.stealth) revealStealth('hit'); };
+// 任何技能(非持續傷害)打中標靶 → 潛行中的玩家顯形(Dummy.hit 呼叫;持續傷害傳 'dot' 不呼叫);自己的煙中不顯形(skills_assassin.js)
+window.onPlayerHit = () => { if (G.stealth && !inOwnSmoke()) revealStealth('hit'); };

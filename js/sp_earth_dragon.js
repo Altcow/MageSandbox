@@ -72,7 +72,7 @@ function ed_start(P, E, dir, ox, oz) {
   const R = ed_init(), n = Math.min(3, Math.max(1, P.copies || 1)), offs = ED_SPREAD[n - 1];
   const thickK = P.thickK || 1, aK = 1 + (thickK - 1) * .25;
   const dK = n > 1 ? (typeof CHG.perK === 'function' ? CHG.perK(n, 'sky') : .5) : 1;
-  const S = { ox, oz, E, t: 0, nc: n, token: {}, lit: false, thick: thickK, sizeK: P.sizeK || 1, dmg: ED_DMG * (P.dmgK || 1) * aK * dK };
+  const S = { ox, oz, E, t: 0, nc: n, token: {}, lit: false, thick: thickK, sizeK: P.sizeK || 1, fxK: P.fxK || 1, dmg: ED_DMG * (P.dmgK || 1) * aK * dK };
   const hw = (P.r || 4) / 2, cps = [];
   for (let i = 0; i < n; i++) {
     const ang = dir + offs[i] * Math.PI / 180, fwx = Math.sin(ang), fwz = Math.cos(ang);
@@ -138,7 +138,7 @@ function ed_sweep(cp, S) {
     if (Math.abs(dx * cp.pxq + dz * cp.pzq) > cp.hw + ED_HW_EXTRA) continue;
     if (Math.abs(d.y - terrainH(d.x, d.z)) >= 2.5) continue;
     cp.hit.add(d);
-    hitEl(d, S.dmg, 'earth', 0, 0, null);
+    hitEl(d, S.dmg, 'earth', 0, 0, { root: 1 * S.fxK });   // 首次接觸定身 0.5 → 1.0 s(每目標一次,沿用 cp.hit)
     if (typeof d.slow === 'function') d.slow(ED_SLOW_T, ED_SLOW);
   }
 }

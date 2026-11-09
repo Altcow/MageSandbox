@@ -80,6 +80,7 @@ function swAttack(u, t, dt) {
   if (!d) return;
   d.hit(u.atkBase, dx, dz, 0, 'water');
   d.slow(2, .3 * u.fxK);                               // 減速 2 s、0.3 × fxK
+  if (d.chill) d.chill(1);                             // 寒意 +1
   const hx = ox + dx * L, hz = oz + dz * L;
   for (let i = 0; i < fq(12); i++) {                   // 命中處濺水
     fire.emit(hx + rnd(-.3, .3), oy + rnd(0, .4), hz + rnd(-.3, .3), rnd(-2.5, 2.5), rnd(1, 3.5), rnd(-2.5, 2.5), .6, rnd(.12, .2), E.c0, E.c1, 1, .3, 9, .3);

@@ -303,6 +303,7 @@ function smSlam(u) {
   const hK = 1 + (sc - 1) * .55, Rs = u.multi ? S.radius * .8 : S.radius * Math.sqrt(sc);
   const gx = u.x + Math.sin(u.yaw) * 1.5 * sc, gz = u.z + Math.cos(u.yaw) * 1.5 * sc, gy = surfaceY(gx, gz, u.y + 1);
   if (typeof areaEl === 'function') areaEl(new V3(gx, gy, gz), Rs, u.def.atk, 'earth', { dmgK: u.dmgK, fxK: u.fxK }, {});
+  for (const d of DUMMIES) if (!d.dead && Math.hypot(d.x - gx, d.z - gz) < 2.5) d.stun(.8 * u.fxK);   // 中心 2.5 m 暈眩 0.4 → 0.8 s(原 preview 有寫、實際沒套用)
   burstRing(new V3(gx, gy, gz), 0xe0b070, Rs);
   for (let i = 0; i < fq(24); i++) {
     const a = rnd(0, 6.283);

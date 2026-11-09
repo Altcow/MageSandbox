@@ -112,6 +112,10 @@ function netFxTick(dt) {
   for (const k in REMOTES) {
     const rp = REMOTES[k], f = rp.gf | 0, mg = rp.mage;
     if (!mg) continue;
+    // 格擋窗開始(GUARD 512):盾光圈一次;不屈中(UNYIELD 2048):紅色氣場脈衝每 0.4 s
+    if ((f & 512) && !rp._gB) burstRing(new V3(rp.px, rp.py + 1, rp.pz), 0xffd27a, 1.4);
+    rp._gB = f & 512;
+    if (f & 2048) { rp._uT = (rp._uT || 0) - dt; if (rp._uT <= 0) { rp._uT = .4; burstRing(new V3(rp.px, rp.py + 1, rp.pz), 0xff3a3a, 1.2); } }
     if (f & 8) {   // 旋風斬(g & 8):模型自轉,腳下每 0.3 s 一圈弧光
       mg.spinY = (mg.spinY + Math.PI * 8 * dt) % (Math.PI * 2);
       rp._nfT = (rp._nfT || 0) - dt;
@@ -172,7 +176,7 @@ function netApplyHit(from, m) {
     if (blk === 'parry' && typeof onParry === 'function') onParry(from);   // 擋下後的反擊(skills_sword.js)
     return;
   }
-  const raw = (m.h || []).reduce((s, x) => s + (+x[0] || 0), 0);
+  const raw = (m.h || []).reduce((s, x) => s + (+x[0] || 0) * swHitK(+x[2] || 0, +x[3] || 0), 0);   // 盾勢正面 ×0.7(skills_sword.js)
   const sum = raw * NET_RULES.dmgK * (G.litT > 0 ? 1.25 : 1);
   G.lastHitBy = from; G.lastHitK = typeof m.k === 'string' ? m.k : ''; G.lastHitT = G.time;   // 先記下,倒下時 netOnDown 才算得出擊倒者
   if (window.onPlayerHit) window.onPlayerHit();   // 潛行中被打 → 顯形(skills.js)
@@ -180,7 +184,7 @@ function netApplyHit(from, m) {
   const res = sum > 0 ? playerHurt(sum, { by: from, net: true }) : { blocked: false, dmg: 0 };
   const dealt = sum > 0 ? res.dmg : 0, absorbed = Math.min(sh0, sum), full = sum > 0 && res.blocked;
   const fx = m.fx || {};
-  if (!full) netApplyFx(fx, m.h || [], from);   // 護盾全吸收時不套 debuff
+  if (!full) netApplyFx(swFxAdjust(fx), m.h || [], from);   // 護盾全吸收時不套 debuff;旋風斬免擊退、盾勢擊退 ×0.5(skills_sword.js)
   if (!full && G.state === 'charging' && (sum >= NET_RULES.cancelDmg || fx.st || fx.dn)) cancelCharge();   // §8 #5
   if (dealt > 0) { const f = document.getElementById('flash'); if (f) { f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); } }
   if (!full) hitFx(new V3(p.x, p.y + 1, p.z), 10);

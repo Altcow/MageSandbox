@@ -67,18 +67,22 @@ const EL_BURST = {
   dark:  { bright: 0.6, spark: 0.3, smoke: 1.5, ring: 0xb070ff, flash: 0x8a3aff, light: 0x9a4dff, lightK: 0.5 }
 };
 
-// 元素狀態效果(滿集氣值;除 FX_FIXED 外乘 P.fxK):水減速、風擊退、土擊飛與暈眩、光照亮、暗吸引與侵蝕
+// 元素狀態效果(滿集氣值;除 FX_FIXED 外乘 P.fxK):水減速 + 寒意、風擊退、土擊飛與暈眩、光照亮、暗吸引與中毒(狀態效果文件 §2-1)
 const EL_FX = {
-  water: { slow: 3 },
+  water: { slow: 3, chill: 1 },
   wind: { knock: 5 },
   earth: { lift: 1.2, stun: 0.8 },
   light: { lit: 4 },
-  dark: { pull: 1.5, erode: 3 }
+  dark: { pull: 1.5, poison: 3 }
 };
 const FX_FIXED = { slow: 1, lit: 1 };   // 持續秒數固定,不隨集氣縮放
 function elFx(el, fxK) {
   const o = {}, base = EL_FX[el] || {};
-  for (const k in base) o[k] = FX_FIXED[k] ? base[k] : base[k] * fxK;
+  for (const k in base) {
+    if (k === 'poison') o.poison = [base[k] * fxK, 1];   // 中毒 = [秒 × fxK, 1 層]
+    else if (k === 'chill') o.chill = base[k];           // 寒意層數不隨集氣縮放
+    else o[k] = FX_FIXED[k] ? base[k] : base[k] * fxK;
+  }
   if (el === 'water') o.slowPct = .5 * fxK;   // 水系減速幅度 25% → 50%(設計 §5-2)
   return o;
 }
@@ -92,7 +96,6 @@ function hitEl(d, dmg, el, sx, sz, fx) {
   if (fx.stun) d.stun(fx.stun);
   if (fx.slow) d.slow(fx.slow, fx.slowPct);
   if (fx.lit) d.light(fx.lit);
-  if (fx.erode) d.erode(fx.erode);
   ctlFx(d, fx, sx, sz);
 }
 // 狀態效果鍵(狀態效果文件 §4 Z0-8):root 定身秒、para 麻痺秒、silence 沉默秒、chill 寒意層、poison [秒, 層]、blind 致盲秒、down 跌倒秒(方向 sx, sz)
@@ -403,7 +406,7 @@ function castWaterWall(P, orb) {
           if (Math.random() < .15) smoke.emit(x, s.gy + 1.2, z, rnd(-.2, .2), rnd(.3, .8), rnd(-.2, .2), 1.2, rnd(.8, 1.2), E.s0, E.s1, .25, 1.5, -.1, .5);
         }
       },
-      onTick: c => zoneTick(c, 6, 'water', { slow: 3 })
+      onTick: c => zoneTick(c, 6, 'water', { slow: 3, chill: 1 })
     })
   });
 }
@@ -586,11 +589,11 @@ function castHolyBolt(P, orb) {
   castShot(P, orb, {
     speed: BOLT_SPEED * ELMOD.light.speedMul, trail: TRAIL.light,
     impact(end, Q) {
-      const R = Q.r * .8;
+      const R = Q.r * .8, PARA = { para: 2.4 * Q.fxK };   // 首個目標與每個連鎖目標麻痺 1.2 → 2.4 s
       explode(end, R, Q.power, { dmg: 0, el: 'light', gy: Q.target.y, fxK: Q.fxK });
       areaEl(end, R, 55, 'light', Q, {});
       const first = nearestDummy(end.x, end.z, R + .4);
-      if (first) chainFrom(first, Math.max(1, Math.round(2 * Q.fxK)), 55 * Q.dmgK * .5, 'light');
+      if (first) { ctlFx(first, PARA, 0, 0); chainFrom(first, Math.max(1, Math.round(2 * Q.fxK)), 55 * Q.dmgK * .5, 'light', PARA); }
     }
   });
 }
@@ -640,7 +643,7 @@ function castHolyPillar(P, orb) {
   const big = () => {
     const rr = R * .7, x = P.target.x, z = P.target.z;
     pillar(x, z, .8, true);
-    areaEl(new V3(x, gy, z), rr, 110, 'light', P, {});
+    areaEl(new V3(x, gy, z), rr, 110, 'light', P, { blind: 2.5 * P.fxK });   // 大光柱致盲 1.25 → 2.5 s
     const first = nearestDummy(x, z, rr + .4);
     if (first) chainFrom(first, Math.round(1 + 2 * P.q), 110 * P.dmgK * .5, 'light');
     G.shake = Math.max(G.shake, .3 * CFG.shake);
@@ -696,7 +699,7 @@ function castShadowCurtain(P, orb) {
           d.pull(c.P.target.x + c.ax * al, c.P.target.z + c.az * al, 3 * c.P.fxK, c.dt);
         }
       },
-      onTick: c => zoneTick(c, 6, 'dark', { erode: 3 })
+      onTick: c => zoneTick(c, 6, 'dark', { poison: [3, 1] })
     })
   });
 }
@@ -726,7 +729,8 @@ function blackHoleOne(P, orb) {
     ring.position.copy(C); ring.rotation.x = Math.PI / 2 - .4; ring.scale.setScalar(tk); scene.add(ring);
     if (!P.copy) claimLight(token, 0x9a4dff, C, 14);
     const endAt = .4 + attr, boom = endAt + .15;
-    let t = 0, tick = 0, boomed = false;
+    let t = 0, tick = 0, ptick = 0, boomed = false;
+    const poisoned = new Map();   // 每個標靶被本黑洞加的中毒層數(上限 2)
     addFx(dt => {
       t += dt;
       const grow = Math.min(1, t / .4), shrink = t > endAt ? Math.max(0, 1 - (t - endAt) / .15) : 1;
@@ -738,7 +742,14 @@ function blackHoleOne(P, orb) {
           const dist = Math.hypot(d.x - C.x, d.z - C.z);
           if (dist > pullR) continue;
           d.pull(C.x, C.z, 6 * P.fxK, dt);
-          if (dist < R) d.erode(3 * P.fxK);
+        }
+        if ((ptick += dt) >= 1) {   // 圈內每 1 s 中毒 +1 層(本黑洞上限 2 層,黑洞的吸引已很強,不再另外加傷害)
+          ptick = 0;
+          for (const d of DUMMIES) {
+            if (d.dead || Math.hypot(d.x - C.x, d.z - C.z) >= R) continue;
+            const n = poisoned.get(d) || 0;
+            if (n < 2) { poisoned.set(d, n + 1); d.poison(3 * P.fxK, 1); }
+          }
         }
         if ((tick += dt) >= .25) { tick = 0; for (const d of DUMMIES) if (!d.dead && Math.hypot(d.x - C.x, d.z - C.z) < R) d.hit(6 * P.dmgK, 0, 0, 0, 'dark'); }
         for (let i = 0; i < fq(8); i++) {
@@ -751,7 +762,7 @@ function blackHoleOne(P, orb) {
         boomed = true; endLight(token);
         scene.remove(sph, halo, ring); sph.material.dispose(); halo.material.dispose(); ring.material.dispose();
         explode(ground0, R * .8, P.power, { dmg: 0, el: 'dark', gy, fxK: P.fxK });
-        areaEl(ground0, R * .8, 100, 'dark', P, {});
+        areaEl(ground0, R * .8, 100, 'dark', P, { silence: 1.5 * P.fxK });   // 坍縮沉默 0.75 → 1.5 s
         G.shake = Math.max(G.shake, .35 * CFG.shake);
         return false;
       }

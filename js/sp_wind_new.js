@@ -216,7 +216,7 @@ function castWindCut(P, orb) {
   flashLight(new V3(ox, y0, oz), E.hex, 6, .4, 22);
   G.shake = Math.max(G.shake, .15 * CFG.shake);
   for (let i = 0; i < n; i++) {
-    const w = { ox, oz, sa, ca, y0, hw: P.r || 4, dmg, lead: i === 0, E };
+    const w = { ox, oz, sa, ca, y0, hw: P.r || 4, dmg, lead: i === 0, E, fxK: P.fxK || 1 };
     if (i === 0) ww_wave(w); else after(i * .22, () => ww_wave(w));
   }
 }
@@ -240,6 +240,7 @@ function ww_wave(w) {
       if (al > sPrev && al <= s && Math.abs(ac) < hw + .4 && Math.abs(d.y - terrainH(d.x, d.z)) < 3.5) {
         hitSet.add(d);
         d.hit(w.dmg, 0, 0, 0, 'wind');
+        d.knockDown(1.0 * w.fxK, sa, ca);   // 命中跌倒 0.5 → 1.0 s(狀態效果文件 §2-1)
         ww_slash(d, E, sa, ca);
       }
     }

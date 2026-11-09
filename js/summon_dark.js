@@ -2,7 +2,7 @@
 // 暗影(設計_魔法調整.md 第 14 節 S-2、S-4「暗影」列、S-8)。覆寫 SUMMON_KINDS.dark 整筆。
 //   · build:斗篷 + 兜帽 + 碎尖 + 兩點亮紫眼合併成 1 mesh(MeshBasic、不加亮、深藍紫);腳下影池 1 mesh;頭部紫光暈 1 sprite。
 //   · attack:第一發 2 s 後;之後每 interval(7.5 s)一發。發射前最後 0.6 s 為蓄力(視覺在 animate)。發射瞬間加一支暗影長矛。
-//   · animate:蓄力視覺、煙池、影池貼地、長矛逐幀直線飛行,命中第一個活標靶 → hit(atkBase, 'dark') + erode(4 × fxK);撞到高台或飛過 40 m / 2.5 s 消失。
+//   · animate:蓄力視覺、煙池、影池貼地、長矛逐幀直線飛行,命中第一個活標靶 → hit(atkBase, 'dark') + poison(4 × fxK, 2 層);撞到高台或飛過 40 m / 2.5 s 消失。
 //   · onDeath:長矛收回,身體沉回影池 0.8 s(框架 fade 同時進行)。
 // 依賴:summons_core.js(SUMMON_KINDS、SUMMON_DEF、mergeParts)、fx.js(EL、glowSprite、rnd、damp、V3)、spells.js(fq、addFx)、game.js(burstRing)、world.js(DUMMIES、PLATFORMS、surfaceY、platContains、platTop)。
 
@@ -116,7 +116,7 @@ function dkAnimate(u, dt) {
     }
     if (hit) {
       hit.hit(u.atkBase, s.dx, s.dz, 0, 'dark');
-      hit.erode(4 * fx);
+      hit.poison(4 * fx, 2);   // 中毒 2 層 4 × fxK s
       burstRing(new V3(p.x, p.y, p.z), E.hex, 1.1);
       for (let j = 0; j < fq(8); j++) smoke.emit(p.x + rnd(-.3, .3), p.y + rnd(-.3, .3), p.z + rnd(-.3, .3), rnd(-.8, .8), rnd(-.3, .6), rnd(-.8, .8), rnd(.8, 1.2), rnd(.8, 1.3), E.s0, E.s1, .5, 2, -.1, .6);
     } else if (gone) {

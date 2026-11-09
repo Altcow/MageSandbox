@@ -96,7 +96,7 @@ function wFire(u, t, S) {
   burstRing(from, E.hex, .9);
   flyProjectile(from, to, W_SPEED, {
     mesh, hitR: 1.0, pierce: true,
-    onHit: d => hitEl(d, dmg, 'wind', sx, sz, null),
+    onHit: d => hitEl(d, dmg, 'wind', sx, sz, { knock: 1.5 * u.fxK }),   // 真空刃擊退 1.5 m
     trail: fq(2), c0: E.c0, c1: E.c1, stuck: .05,
     onEnd: p => burstRing(p, E.hex, .7)
   });

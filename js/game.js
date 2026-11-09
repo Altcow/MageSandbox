@@ -106,7 +106,7 @@ const NEUTRAL_EL = { chargeMul: 1, rangeMul: 1, speedMul: 1 };
 const W = () => G.cls === 'mage' ? WEAPONS[G.weapon] : NEUTRAL_W;
 const elm = () => G.cls === 'mage' ? ELMOD[G.el] : NEUTRAL_EL;   // ELMOD 在 spells.js(執行期才讀)
 const skillRange = () => (G.skill >= 0 && curSkill(G.skill).aim === 'line' ? Math.max(sc(G.skill).range, skillRad()) : sc(G.skill).range) * W().rangeMul * elm().rangeMul;
-const chargeTimeEff = () => sc(G.skill).chargeTime * W().chargeMul * elm().chargeMul * (G.stanceBoostT > 0 ? 1 / 1.5 : 1);
+const chargeTimeEff = () => sc(G.skill).chargeTime * W().chargeMul * elm().chargeMul * (G.stanceBoostT > 0 ? 1 / 1.5 : 1) * (typeof swChargeK === 'function' ? swChargeK() : 1);   // 劍士:格擋成功瞬間滿 / 盾擊連段 ×0.4(skills_sword.js)
 function weaponDesc() {
   const w = W(), parts = [];
   if (w.chargeMul !== 1) parts.push('集氣×' + w.chargeMul);
@@ -314,7 +314,7 @@ function tryRoll() {
   const air = !G.ground;
   if (air && G.airRolls <= 0) return;
   if (G.down > 0) return;
-  if (!resUse('sp', air ? CFG.res.airRoll : CFG.res.roll)) return;
+  if (!resUse('sp', air ? CFG.res.airRoll : (danceOn() ? 12 : CFG.res.roll))) return;   // 影舞架勢翻滾 SP 12(刺客被動)
   if (G.burnT > 0) G.burnT = Math.max(0, G.burnT - ST.rollBurnCut);   // 翻滾甩掉火焰:灼燒剩餘 -1 s(§1-2 #7)
   if (G.sitting) sitBreak('roll');
   if (G.state === 'charging') cancelCharge();
@@ -325,7 +325,8 @@ function tryRoll() {
     dx = -Math.sin(G.camYaw) * iz + Math.cos(G.camYaw) * ix; dz = -Math.cos(G.camYaw) * iz - Math.sin(G.camYaw) * ix;
   } else { dx = -Math.cos(mage.yaw); dz = Math.sin(mage.yaw); }  // 沒按方向:往角色右側翻
   if (air) { G.airRolls = 0; G.vy = 0; }
-  G.roll = { t: 0, dx, dz, phi: angDiff(mage.yaw, Math.atan2(dx, dz)), dist: air ? CFG.airRollDist : CFG.rollDist, time: air ? CFG.airRollTime : CFG.rollTime, air };
+  G.roll = { t: 0, dx, dz, phi: angDiff(mage.yaw, Math.atan2(dx, dz)), dist: air ? CFG.airRollDist : CFG.rollDist, time: air ? CFG.airRollTime : CFG.rollTime, air, dance: !air && danceOn() };
+  if (G.roll.dance) G.danceT = .8;   // 影舞翻滾:0.8 s 內的下一刀(背刺 / 割喉)×1.2(skills.js / skills_assassin.js)
   if (!G.stealth) for (let i = 0; i < 6; i++) smoke.emit(p.x + rnd(-.3, .3), p.y + .15, p.z + rnd(-.3, .3), rnd(-1, 1), rnd(.3, 1), rnd(-1, 1), rnd(.5, .9), rnd(.8, 1.4), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5);
 }
 function banner(txt, color) {
@@ -344,12 +345,13 @@ function strike() {
     if (inside && q.y - pos.y >= 1.2) { G.dodged++; banner('跳躍閃避!', '#8fe8ff'); }
     else if (inside && G.invuln) { G.dodged++; banner('翻滾閃避!', '#8fe8ff'); }
     else if (inside && (G.invulnT > 0 || G.down > 0)) { G.dodged++; if (G.invulnT > 0) banner('復活無敵!', '#8fe8ff'); }
+    else if (inside && typeof swParryStrike === 'function' && swParryStrike(pos.x, pos.z)) { G.dodged++; banner('格擋!', '#ffd27a'); }   // 劍士格擋窗(skills_sword.js)
     else if (inside && shieldOn()) { G.dodged++; banner('盾擋!', '#ffd27a'); }
     else if (!inside) { G.dodged++; if (S) banner('目標遺失', '#c08aff'); else banner('走位躲開', '#bff0a0'); }
     else {
       if (G.stealth) revealStealth('hit');   // 潛行中被紅圈炸到:顯形
       G.hits++;
-      if (!playerHurt(30, 'strike').blocked) { const f = document.getElementById('flash'); f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); }
+      if (!playerHurt(30 * swHitK(q.x - pos.x, q.z - pos.z), 'strike').blocked) { /* 盾勢正面 ×0.7(swHitK) */ const f = document.getElementById('flash'); f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); }
       if (G.state === 'charging') cancelCharge();
     }
     return false;
@@ -450,6 +452,7 @@ function dissolveOrb(orb, E) {
 function release() {
   const cs = skillCost(G.skill);
   if (!resUse(cs.kind, costAt(cs.base, G.charge))) { cancelCharge(); return; }   // 花費在施放當下扣(chargeCap 已保證夠)
+  if (G.stealth && G.stealth.shadow) revealStealth('cast');   // 影遁中出招即解除(skills_assassin.js 影分身)
   const sk = curSkill(G.skill), sp = spellOf(G.skill), p = mage.root.position, q = G.charge, mode = curMode();
   const dir = Math.atan2(G.target.x - p.x, G.target.z - p.z), sizeK = CHG.size(q, mode);
   G.pending = {
@@ -522,7 +525,7 @@ function updatePlayer(dt) {
     const R = G.roll; R.t += dt; const q = Math.min(1, R.t / R.time), v = 2 * R.dist / R.time * (1 - q);
     p.x += R.dx * v * dt; p.z += R.dz * v * dt; G.invuln = q > .05 && q < .8;
     for (let i = 0; i < 3; i++) fire.emit(p.x + rnd(-.2, .2), p.y + rnd(.3, 1.4), p.z + rnd(-.2, .2), -R.dx * 1.5, rnd(0, .8), -R.dz * 1.5, .35, rnd(.5, .9), [.6, .9, 1], [.2, .4, 1], .45, .3, 0, 2);
-    if (q >= 1) { G.roll = null; G.rollCD = CFG.rollCD; G.invuln = false; }
+    if (q >= 1) { G.roll = null; G.rollCD = R.dance ? .4 : CFG.rollCD; G.invuln = false; }   // 影舞翻滾冷卻 0.4 s
   }
   if (free && (ix || iz)) {
     const l = Math.hypot(ix, iz); ix /= l; iz /= l;
