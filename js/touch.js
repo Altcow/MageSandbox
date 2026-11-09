@@ -32,6 +32,7 @@
   function initDrag(e) { drag = true; ay0 = e.clientY; ax0 = e.clientX; rad0 = getRad(G.skill); wo0 = G.wallOff; }
   atk.addEventListener('pointerdown', e => {
     e.preventDefault(); touchNow();
+    if (netInputLocked()) return;   // 多人開戰倒數中不能集氣 / 施放
     aid = e.pointerId; atk.setPointerCapture(aid); G.atkHeld = true;   // 僵直中按住,結束後接續集氣
     if (G.state !== 'ready') return;
     if (G.skill < 0) G.skill = G.lastSkill;
@@ -46,7 +47,7 @@
   ['pointerup', 'pointercancel'].forEach(t => atk.addEventListener(t, e => { if (e.pointerId === aid) endAtk(); }));
 
   // ---- 其他按鈕 ----
-  const press = (id, fn) => $(id).addEventListener('pointerdown', e => { e.preventDefault(); touchNow(); fn(); });
+  const press = (id, fn) => $(id).addEventListener('pointerdown', e => { e.preventDefault(); touchNow(); if (netInputLocked()) return; fn(); });   // 多人開戰倒數中鎖定(netcombat.js)
   press('btnJump', doJump);
   press('btnRoll', tryRoll);
   press('btnSit', toggleSit);   // 手機:打坐 / 起身

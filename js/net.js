@@ -411,7 +411,7 @@
       n: n, scene: r.meta.scene, seed: Math.floor(Math.random() * 2147483647),
       t0: t + 5000, tEnd: t + 5000 + ROUND_LEN_MS
     };
-    await bus.patchRoot({ 'meta/state': 'match', 'meta/round': round });
+    await bus.patchRoot({ 'meta/state': 'match', 'meta/round': round, 'score': null });   // 新局清空計分(score 只由房主寫)
   }
 
   async function leave() { leaveNow(); }
@@ -435,7 +435,11 @@
     emitEv(obj) { return bus && myRoom && mySeat ? bus.emit(obj) : null; },   // 施放等遊戲事件(netcombat.js)
     setSnap(s) { return bus && mySeat ? bus.setState('snap/' + mySeat, s) : Promise.resolve(); },
     snapOf(seat) { const r = root(); return r && r.snap ? r.snap[seat] : undefined; },
-    roundOf() { const r = root(); return r && r.meta && r.meta.round ? r.meta.round : null; }
+    roundOf() { const r = root(); return r && r.meta && r.meta.round ? r.meta.round : null; },
+    // 計分(netcombat.js,§2-8 / §4-2):score/<座位> = "擊倒,死亡",只有房主寫;nameOf 供擊殺訊息用
+    scores() { const r = root(); return (r && r.score) || {}; },
+    setScore(seat, val) { return bus && myRoom && mySeat ? bus.setState('score/' + seat, val) : Promise.resolve(); },
+    nameOf(seat) { const r = root(), p = r && r.players && r.players[seat]; return p && p.name ? p.name : '玩家' + seat; }
   };
 
   window.Net = Net;

@@ -74,11 +74,13 @@ function playerDown() {
   if (G.roll) { G.roll = null; G.invuln = false; }
   if (G.state === 'charging') cancelCharge();
   banner('倒下', '#ff5050');
+  if (window.NETON && typeof netOnDown === 'function') netOnDown();   // 多人:送 down 事件、計分、擊殺訊息(netcombat.js)
 }
 // 復活:原地以 reviveHP 復活;MP / SP 不變;2 s 無敵
 function playerRevive() {
   G.down = 0; G.hp = Math.min(G.hpMax, CFG.res.reviveHP); G.invulnT = 2;
   banner('復活', '#bff0a0');
+  if (window.NETON && typeof netRespawn === 'function') netRespawn();   // 多人:改在出生點復活、清 debuff(netcombat.js,§5-4)
 }
 // 治癒:倒地中不能治癒;綠字顯示實際回復量(滿血不顯示)
 function playerHeal(n, src) {
@@ -187,7 +189,7 @@ function updateStatusBar() {
   if (G.stun > 0) ks.push('stun');
   if (G.weak > 0) ks.push('weak');
   if (G.stealth) ks.push('stealth');
-  if (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y).pct > 0) ks.push('slow');
+  if (G.slowT > 0 || (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0)) ks.push('slow');
   const k = ks.join(',');
   if (sb._k === k) return; sb._k = k;
   sb.innerHTML = ks.map(x => '<img src="assets/icons/' + ST_ICON[x] + '.png" alt="' + ST_NAME[x] + '" title="' + ST_NAME[x] + '">').join('');

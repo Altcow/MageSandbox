@@ -229,9 +229,10 @@ function checkTerrain() {
 const SLOW_ZONES = [];
 function addSlowZone(o) { o.owner = NET_CTX === null ? (typeof NET_ME === 'number' ? NET_ME : 0) : NET_CTX; SLOW_ZONES.push(o); return o; }
 function removeSlowZone(o) { const i = SLOW_ZONES.indexOf(o); if (i >= 0) SLOW_ZONES.splice(i, 1); }
-function zoneSlowAt(x, z, y) {
+function zoneSlowAt(x, z, y, ignoreOwner) {   // ignoreOwner:多人時傳 NET_ME,自己的區域不減速自己(§8 #8);單人不傳
   let best = null;
   for (const Z of SLOW_ZONES) {
+    if (ignoreOwner != null && Z.owner === ignoreOwner) continue;
     if (Z.ground === true && y != null && y - terrainH(x, z) > 2.5) continue;   // 地面走廊區:站在高台/土牆頂的單位不受影響
     let inside;
     if (Z.kind === 'circle') inside = Math.hypot(x - Z.x, z - Z.z) <= Z.r;

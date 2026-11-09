@@ -239,7 +239,9 @@ function selectSkill(i) {
 function setSkill(i) { if (G.state !== 'ready') return; G.skill = i; G.lastSkill = i; G.wallOff = 0; }
 // 手把 L / R:未選法術時選回上次那一招;已選則前後換一招
 function cycleSkill(d) { if (G.skill < 0) setSkill(G.lastSkill); else setSkill((G.skill + d + skillCount()) % skillCount()); }
-function toggleAuto() { G.autoStrike = !G.autoStrike; G.strikeT = 1; banner('自動來襲 ' + (G.autoStrike ? 'ON' : 'OFF'), '#ffe3b0'); }
+function toggleAuto() {
+  if (window.NETON) return;   // 多人對戰中停用自動來襲(見 strike)
+  G.autoStrike = !G.autoStrike; G.strikeT = 1; banner('自動來襲 ' + (G.autoStrike ? 'ON' : 'OFF'), '#ffe3b0'); }
 // 集氣模式(設計 §2-5):G 鍵 / 手機 #btnMode / 手把十字上;只套法師;全域一個,存 localStorage
 function toggleChgMode() {
   if (G.cls !== 'mage') { banner('此職業無集氣模式', '#ffc46b'); return; }
@@ -278,6 +280,7 @@ function setRad(i, v) { if (G.cls === 'mage') CFG.rad[i] = v; else CFG.radById[c
 function skillRad() { const c = sc(G.skill); return clamp(getRad(G.skill), c.rMin, c.rMax); }
 // 屬性切換(C-8):只在 ready 生效;保留目前形狀
 function setElement(el) {
+  if (window.NETON && !window.NET_PROFILE_CHANGE) return;   // 多人對戰中鎖定屬性(設計 §5-6、§6-2)
   if (G.cls !== 'mage' || G.state !== 'ready' || G.el === el || !EL[el]) return;
   G.el = el; try { localStorage.setItem('mageSandbox.el', el); } catch (e) { }
   applyElColors(); refreshHotbar(); burstRing(mage.root.position, EL[el].hex, 1.6);
@@ -315,6 +318,7 @@ function banner(txt, color) {
   const b = document.getElementById('banner'); b.textContent = txt; b.style.color = color; b.style.opacity = 1; b._t = 1.2;
 }
 function strike() {
+  if (window.NETON) return;   // 多人:來襲是本機測試用,會直接扣自己血、不經過攻擊者判定,對戰中停用(T / Y / 來襲鈕 / 手把 Y)
   const p = mage.root.position, S = G.stealth, pos = S ? new V3(S.x, surfaceY(S.x, S.z, p.y + .5), S.z) : new V3(p.x, surfaceY(p.x, p.z, p.y + .5), p.z), R = 2.4, W = 1.2, wi = new Indicator(scene); let t = 0;
   addFx(dt => {
     t += dt;
@@ -868,6 +872,7 @@ function updateWorld(dt) {
   }
 }
 function resetWorld() {
+  if (window.NETON) return;   // 多人對戰中不能 R 重置(會把自己的 HP 等狀態補滿)
   G.dodged = G.hits = 0; resInit(); G.slowImmT = 0;
   DUMMIES.forEach(d => { d.hp = d.max; d.burn = 0; if (d.dead) d.reset(); else d.clearStatus(); });
   SCORCH.forEach(s => { scene.remove(s.m); s.m.material.dispose(); }); SCORCH.length = 0;
@@ -960,7 +965,7 @@ function updateHUD() {
   t += '<br>' + (G.ground ? '跳躍 ● ●' : (G.airJumps > 0 ? '空中步 ●' : '空中步 ○')) + ' ・ 高度 ' + mage.root.position.y.toFixed(1) + 'm';
   t += '<br>閃避 ' + G.dodged + ' ・ 被擊中 ' + G.hits + (G.autoStrike ? ' ・ 自動來襲 ON' : '');
   t += '<br>HP ' + Math.ceil(G.hp) + '/' + G.hpMax + (G.shield > 0 ? ' ・ 護盾 ' + Math.ceil(G.shield) : '') + (G.downs ? ' ・ 倒下 ' + G.downs : '');
-  { const zs = CFG.slowSelf && !(G.slowImmT > 0) ? zoneSlowAt(mage.root.position.x, mage.root.position.z).pct : 0; if (zs > 0) t += '<br>減速 ' + Math.round(zs * 100) + '%'; }
+  { const zs = CFG.slowSelf && !(G.slowImmT > 0) ? zoneSlowAt(mage.root.position.x, mage.root.position.z, undefined, window.NETON ? NET_ME : undefined).pct : 0; if (zs > 0) t += '<br>減速 ' + Math.round(zs * 100) + '%'; }
   t += classInfo();
   if (infoEl._t !== t) { infoEl.innerHTML = t; infoEl._t = t; }
   const air = !G.ground;
@@ -1016,6 +1021,7 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, .05) * (window.TS || 1); last = now; G.time += dt;
   if (window.inputTick && !(window.NETON && window.NET_LOCK)) inputTick(dt);   // 多人開戰倒數中鎖定輸入(remote.js)
   G.px0 = mage.root.position.x; G.pz0 = mage.root.position.z;
+  if (window.NETON) netPlayerTick(dt);   // 多人:擊退、debuff 計時、無敵紀錄(netcombat.js,在 updatePlayer 之前)
   classTick(dt); resTick(dt); updatePlayer(dt); updateAim(dt); updateCasting(dt);
   mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK });
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);

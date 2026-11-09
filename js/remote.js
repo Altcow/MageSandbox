@@ -152,6 +152,7 @@ class RemotePlayer {
     this.col = { x: pos.x, z: pos.z, r: .4, ref: this };
     this.hp = 100; this.max = 100; this.sh = 0;
     this.dead = true; this.buf = []; this.lastStr = ''; this.lastN = -1; this.lastRecv = 0; this._op = undefined; this._tmp = new V3();
+    this.pend = null; this.pendPull = null; this._pullT = 0;   // 待送命中(只記本機攻擊,netcombat.js 每幀送出)
     // 以下欄位給 DUMMIES 的既有程式讀寫(N3 不處理命中)
     this.burn = 0; this.windT = 0; this.hpShow = 0; this.flash = 0; this.slowT = 0; this.slowPct = 0; this.zSlow = 0; this.zHex = 0;
     this.litT = 0; this.stunT = 0; this.erodeT = 0; this.downT = 0; this.downK = 0; this.ox = this.oz = 0;
@@ -227,17 +228,38 @@ class RemotePlayer {
     this.glow.visible = vis && p.q > .01;
     if (this.glow.visible) { this.mage.tipWorld(this._tmp); this.glow.position.copy(this._tmp); this.glow.scale.setScalar(.15 + .6 * p.q); }
   }
-  // 命中與狀態:N3 不處理(之後由攻擊者端記錄、受害者端套用);這裡什麼都不做,避免本機法術碰到遠端時出錯
-  hit() {}
-  knock() {}
-  lift() {}
-  stun() {}
-  stunFx() {}
-  slow() {}
-  erode() {}
-  light() {}
-  pull() {}
-  knockDown() {}
+  // 命中(§2-3、§2-7):只有本機的攻擊(NET_CTX === null)才記入待送命中,由 netCombatTick 合併送出;
+  // 不在本機扣血、不顯示數字(等受害者回報 dmg)。重現他人法術時(NET_CTX 為座位號)一律忽略。
+  _pend() { if (NET_CTX !== null) return null; return this.pend || (this.pend = { h: [], fx: {} }); }
+  hit(dmg, dx, dz, burn, el) {
+    const p = this._pend(); if (!p) return;
+    p.h.push([Math.round(dmg * 10) / 10, el || 0, Math.round(dx * 100) / 100, Math.round(dz * 100) / 100, Math.round((burn || 0) * 10) / 10]);
+  }
+  knock(dirx, dirz, dist) {
+    const p = this._pend(); if (!p) return;
+    const l = Math.hypot(dirx, dirz) || 1, k = p.fx.kb || (p.fx.kb = [0, 0]); k[0] += dirx / l * dist; k[1] += dirz / l * dist;
+  }
+  lift(h) { const p = this._pend(); if (p) p.fx.lf = Math.max(p.fx.lf || 0, h); }
+  stun(t) { const p = this._pend(); if (p) p.fx.st = Math.max(p.fx.st || 0, t); }
+  stunFx(t) { this.stun(t); }
+  slow(t, pct) {
+    const p = this._pend(); if (!p) return;
+    const s = p.fx.sl || (p.fx.sl = [0, 0]); s[0] = Math.max(s[0], t); s[1] = Math.max(s[1], pct == null ? .5 : pct);
+  }
+  erode(t) { const p = this._pend(); if (p) p.fx.er = Math.max(p.fx.er || 0, t); }
+  light(t) { const p = this._pend(); if (p) p.fx.li = Math.max(p.fx.li || 0, t); }
+  knockDown(t, dirx, dirz) {
+    const p = this._pend(); if (!p) return;
+    const d = p.fx.dn || (p.fx.dn = [0, 0, 0]); d[0] = Math.max(d[0], t); d[1] = dirx; d[2] = dirz;
+  }
+  // 吸引:累加位移向量,netCombatTick 每 100 ms 送一次 fx.pl(§2-7)
+  pull(tx, tz, speed, dt) {
+    if (NET_CTX !== null) return;
+    const dx = tx - this.x, dz = tz - this.z, d = Math.hypot(dx, dz);
+    if (d < .5) return;
+    const s = Math.min(speed * dt, d - .5) / d, v = this.pendPull || (this.pendPull = [0, 0]);
+    v[0] += dx * s; v[1] += dz * s;
+  }
   clearStatus() {}
   reset() {}
   die() {}
@@ -321,8 +343,10 @@ function destroyRemote(k) {
   rp.destroy();
 }
 function clearRemotes() {
+  const wasOn = window.NETON;
   Object.keys(REMOTES).forEach(destroyRemote);
   window.NETON = false; window.NET_LOCK = false; sendAcc = 0;
+  if (wasOn && typeof netOnClear === 'function') netOnClear();   // 離開對戰(原本在對戰中才處理):清 debuff、關小計分板與擊殺訊息(netcombat.js)
   if (cdEl) { cdEl.style.display = 'none'; cdLast = ''; }
   restoreDummies();
 }
@@ -345,8 +369,10 @@ function enterMatch(ev) {
   roundT0 = rd && rd.t0 ? rd.t0 : Net.now();
   stashDummies();
   window.NETON = true;
+  if (typeof netOnClear === 'function') netOnClear();   // 新局開始:HP 回滿、清 debuff(單人時的傷勢不帶進對戰)
   players.forEach(p => { if (p.id !== Net.me) addRemote(p, sp[p.id]); });
   placeLocal(sp[Net.me]);
+  if (typeof netApplyProfile === 'function') netApplyProfile(players);   // 對戰中的職業 / 屬性以房間登記為準(§6-2)
   window.NET_LOCK = Net.now() < roundT0;
   sendAcc = 0;
 }
@@ -404,6 +430,7 @@ function netTick(dt) {
   sendAcc += dt;
   if (sendAcc >= iv) { sendAcc = sendAcc >= 2 * iv ? 0 : sendAcc - iv; sendSnap(now); }
   if (typeof netFxTick === 'function') netFxTick(dt);   // 遠端位移招式特效(netcombat.js,§2-9)
+  if (typeof netCombatTick === 'function') netCombatTick(dt);   // 待送命中、吸引位移、小計分板(netcombat.js,N5)
 }
 window.netTick = netTick;
 
