@@ -252,7 +252,7 @@ function netOnRemoteDown(seat, d) {
 function netScoreDown(by, victim) {
   if (!Net.isHost) return;
   const S = Net.scores(), cur = s => { const a = String(S[s] || '0,0').split(','); return [+a[0] || 0, +a[1] || 0]; };
-  if (by && by !== victim) { const c = cur(by); Net.setScore(by, (c[0] + 1) + ',' + c[1]); }
+  if (by && by !== victim) { const c = cur(by); Net.setScore(by, (c[0] + 1) + ',' + c[1]); netKillAt[by] = Net.now(); }
   const v = cur(victim); Net.setScore(victim, v[0] + ',' + (v[1] + 1));
 }
 // 復活(§5-4):在離活著對手最遠的出生點復活(最近對手 < 3 m 時改取次佳),清 debuff,tp+1 讓遠端直接跳過去。
@@ -278,6 +278,8 @@ function netOnClear() {
   NET_INV_LOG.length = 0;
   if (netKillBox) netKillBox.replaceChildren();
   if (netBoard) netBoard.style.display = 'none';
+  if (typeof resInit === 'function') resInit();   // 新局 / 離開:HP、MP、SP 回滿(單人時的傷勢不帶進對戰)
+  netRoundReset();                                 // N6:結算畫面、回合計時、同分排名記錄
 }
 // 對戰開始(remote.js enterMatch):房間登記的自己的職業 / 屬性生效(對戰中 setClass / setElement 鎖定,這裡暫開)
 function netApplyProfile(players) {
@@ -314,7 +316,7 @@ function netKillMsg(by, victim, k) {
 }
 // 6 人以內全部列出;7 人以上列前 5 名加自己(§5-2)。內容只在變動時重建
 function netBoardTick(now) {
-  if (!netBoard) netBoard = netUiBox('netBoard', 'position:fixed;left:50%;top:8px;transform:translateX(-50%);min-width:180px;background:rgba(10,12,30,.6);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;font:13px sans-serif;color:#ffe3b0;text-shadow:0 0 3px #000;pointer-events:none;z-index:14;display:none');
+  if (!netBoard) netBoard = netUiBox('netBoard', 'position:fixed;left:50%;top:40px;transform:translateX(-50%);min-width:180px;background:rgba(10,12,30,.6);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;font:13px sans-serif;color:#ffe3b0;text-shadow:0 0 3px #000;pointer-events:none;z-index:14;display:none');
   if (!window.NETON || !Net.me) { netBoard.style.display = 'none'; return; }
   if (now - netBoardT < 200) return;
   netBoardT = now;
@@ -340,3 +342,136 @@ function netBoardTick(now) {
 }
 
 Net.on('ev', netOnEv);
+
+/* ================= N6:回合計時、結算畫面與計分板、再來一局、離開房間(設計 §5-1、§5-2、§5-5、§6-2) =================
+   計時:round.t0 / tEnd 由房主在 startGame 寫入;HUD 上方顯示剩餘時間,最後 10 s 變紅。
+   結束:房主的 setInterval(背景分頁也會跑)在 tEnd 後依 擊倒多 → 死亡少 → 先達到該分數者 排序,寫 meta/result 並把 state 改為 result;
+   所有人依 result 顯示結算計分板;tEnd 後即 NET_LOCK(remote.js netTick 呼叫 netRoundOver)。非房主等待時顯示「等待房主…」。 */
+const NET_CLS_NAME = { mage: '法師', archer: '弓箭手', swordsman: '劍士', assassin: '刺客' };
+let netKillAt = {};        // 房主本機:座位 → 最後一次取得擊倒的時間(同分排名用,先達到者在前)
+let netEndT = 0, netSceneOn = false, netTimerEl = null, netTimerTxt = '', netResEl = null, netResKey = '', netResHint = null;
+
+// 回合已結束(時間到或房主已寫 result):遊戲層鎖定操作
+function netRoundOver() {
+  if (!Net.me) return false;
+  const rd = Net.roundOf();
+  return !!rd && (Net.now() >= rd.tEnd || Net.metaState() === 'result');
+}
+function netRoundReset() { netKillAt = {}; netEndT = 0; netResult(null); netTimer(null); }
+
+// 結算資料(房主):[座位, 暱稱, 職業, 擊倒, 死亡] 的陣列 JSON,≤ 600 字元(§6-1 result 欄位上限)
+function netBuildResult() {
+  const S = Net.scores(), rows = [];
+  const add = (seat, name, cls) => {
+    const a = String(S[seat] || '0,0').split(',');
+    rows.push({ seat: seat, name: name, cls: cls, k: +a[0] || 0, d: +a[1] || 0, at: netKillAt[seat] || 1e15 });
+  };
+  add(Net.me, Net.nameOf(Net.me), G.cls);
+  Object.keys(REMOTES).forEach(k => add(+k, REMOTES[k].name, REMOTES[k].cls));
+  rows.sort((a, b) => (b.k - a.k) || (a.d - b.d) || (a.at - b.at) || (a.seat - b.seat));
+  let list = rows.map(r => [r.seat, String(r.name).slice(0, 8), r.cls, r.k, r.d]);
+  let json = JSON.stringify(list);
+  while (json.length > 600 && list.length) { list = list.slice(0, -1); json = JSON.stringify(list); }
+  return json;
+}
+function netFinishRound() {
+  netEndT = Net.now();
+  Net.setResult(netBuildResult());
+}
+
+// 每 250 ms(setInterval,不依賴 rAF):HUD 計時、房主結算、結算畫面切換、單人時場景按鈕還原
+function netRoundTick() {
+  const on = !!(window.NETON && Net.me);
+  if (on !== netSceneOn) {   // 對戰中隱藏場景按鈕(§5-6;畫質鈕保留)
+    netSceneOn = on;
+    document.querySelectorAll('#sceneBar > button').forEach(b => { if (b.id !== 'qBtn') b.style.display = on ? 'none' : ''; });
+  }
+  if (!on) { netTimer(null); netResult(null); return; }
+  const rd = Net.roundOf(), st = Net.metaState(), now = Net.now();
+  if (!rd) return;
+  if (st === 'match' && now < rd.tEnd) { netTimer(rd.tEnd - now); netResult(null); return; }
+  netTimer(null);
+  if (st === 'match' && Net.isHost && now - netEndT > 2000) netFinishRound();   // 時間到:房主寫結算(寫失敗 2 s 後重試)
+  netResult(st === 'result' ? Net.metaResult() : '');
+}
+
+function netTimer(ms) {
+  if (ms == null) { if (netTimerEl) netTimerEl.style.display = 'none'; return; }
+  if (!netTimerEl) netTimerEl = netUiBox('netTimer', 'position:fixed;left:50%;top:8px;transform:translateX(-50%);font:700 22px sans-serif;text-shadow:0 0 4px #000;pointer-events:none;z-index:14;display:none');
+  const s = Math.max(0, Math.ceil(ms / 1000)), txt = '剩餘 ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  if (txt !== netTimerTxt) { netTimerTxt = txt; netTimerEl.textContent = txt; }
+  netTimerEl.style.color = s <= 10 ? '#ff5050' : '#ffe3b0';
+  netTimerEl.style.display = '';
+}
+
+// mode:null 隱藏;'' 等待結算;JSON 字串 顯示計分板
+function netResult(mode) {
+  if (mode == null) { if (netResEl && netResEl.style.display !== 'none') { netResEl.style.display = 'none'; netResKey = ''; } return; }
+  if (!netResEl) netResEl = netUiBox('netResult', 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,10,24,.82);z-index:40;font:15px sans-serif;color:#ffe3b0');
+  const key = (Net.isHost ? 'h' : 'g') + mode;
+  if (key !== netResKey) { netResKey = key; netFillResult(mode); }
+  netResEl.style.display = 'flex';
+}
+function netCell(t, head, me) {
+  const s = document.createElement('span');
+  s.textContent = t;
+  s.style.cssText = 'padding:2px 8px;white-space:nowrap' + (head ? ';color:#9aa3c7' : '') + (me ? ';color:#fff;font-weight:700;background:rgba(255,255,255,.1);border-radius:4px' : '');
+  return s;
+}
+function netBtn(text, fn, primary) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = text;
+  b.style.cssText = 'font:600 15px sans-serif;padding:8px 14px;border-radius:8px;cursor:pointer;color:#fff;border:1px solid rgba(255,255,255,.25);background:' + (primary ? '#3d5fbf' : 'rgba(255,255,255,.08)');
+  b.onclick = e => { e.stopPropagation(); fn(); };
+  return b;
+}
+function netFillResult(mode) {
+  netResEl.replaceChildren();
+  const box = document.createElement('div');
+  box.style.cssText = 'background:rgba(20,24,50,.96);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:18px 22px;max-width:92vw;text-align:center';
+  const title = document.createElement('div');
+  title.style.cssText = 'font:700 22px sans-serif;margin-bottom:12px';
+  box.appendChild(title);
+  const isHost = Net.isHost;
+  if (!mode) title.textContent = '時間到,等待結算…';
+  else {
+    title.textContent = '本局結算';
+    let rows = [];
+    try { rows = JSON.parse(mode); } catch (e) { rows = []; }
+    if (!Array.isArray(rows)) rows = [];
+    const tb = document.createElement('div');
+    tb.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto auto auto;gap:4px 6px;align-items:center;text-align:left;font:15px sans-serif';
+    ['名次', '暱稱', '職業', '擊倒', '死亡'].forEach(h => tb.appendChild(netCell(h, true, false)));
+    rows.forEach((r, i) => {
+      const me = +r[0] === Net.me;
+      [i + 1, r[1], NET_CLS_NAME[r[2]] || r[2], r[3], r[4]].forEach(v => tb.appendChild(netCell(String(v), false, me)));
+    });
+    box.appendChild(tb);
+  }
+  const btns = document.createElement('div');
+  btns.style.cssText = 'margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center';
+  if (mode && isHost) {
+    btns.appendChild(netBtn('再來一局(同場地)', () => netRematch(false), true));
+    btns.appendChild(netBtn('換場地再來', () => netRematch(true), false));
+  }
+  btns.appendChild(netBtn('離開房間', netLeave, false));
+  box.appendChild(btns);
+  netResHint = document.createElement('div');
+  netResHint.style.cssText = 'margin-top:8px;font-size:13px;min-height:16px;color:#ff8a8a';
+  if (mode && !isHost) netResHint.textContent = '等待房主再來一局或離開…';
+  box.appendChild(netResHint);
+  netResEl.appendChild(box);
+}
+// 房主:新一局(同場地或隨機換另一個場地),新 seed、HP / MP / SP 重置與重新倒數都由 startGame + enterMatch 處理
+function netRematch(rotate) {
+  const cur = typeof window.getSceneIndex === 'function' ? window.getSceneIndex() : 0;
+  let scene = cur;
+  if (rotate) { const c = [0, 1, 2, 3].filter(i => i !== cur); scene = c[Math.floor(Math.random() * c.length)]; }
+  Net.startGame({ scene: scene }).catch(e => { if (netResHint) netResHint.textContent = e && e.reason === 'notEnough' ? '至少需要 2 人才能再來一局' : '再來一局失敗,請再試一次'; });
+}
+// 離開房間回封面(cover.js 會呼叫 Net.leave,remote.js 清掉 REMOTES / 稻草人 / NETON,netOnClear 還原 HUD)
+function netLeave() {
+  if (window.COVER_API && typeof COVER_API.leaveRoom === 'function') COVER_API.leaveRoom();
+  else Net.leave();
+}
+setInterval(netRoundTick, 250);

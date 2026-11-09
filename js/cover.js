@@ -318,6 +318,7 @@
     setView('closed');
   });
   Net.on('start', ev => {
+    if (window.NETON) return;   // 對戰中的再來一局:已在遊戲內,不再進入封面流程(remote.js 會處理換場與重生)
     // 以房間裡登記的自己的職業/屬性為準(避免介面狀態與網路狀態不同步)
     const mine = (ev.players || []).find(p => Net.me && String(p.id) === String(Net.me));
     if (mine) { if (mine.cls) st.cls = mine.cls; if (mine.el) st.el = mine.el; }
@@ -356,5 +357,14 @@
   setScene(1, true);
   startCover();
   if (roomQ) { setView('join'); openJoin(roomQ); } else setView('title');
-  window.COVER_API = { enterGame, enterSolo };
+  // 離開房間回封面(N6):Net.leave 會清掉 REMOTES / 稻草人 / NETON(remote.js),這裡再回到封面畫面
+  function leaveToCover() {
+    Net.leave().catch(() => { }).then(() => {
+      st.room = null; st.players = []; st.isHost = false;
+      document.body.classList.add('cover');
+      startCover();
+      setView('menu');
+    });
+  }
+  window.COVER_API = { enterGame, enterSolo, leaveRoom: leaveToCover };
 })();

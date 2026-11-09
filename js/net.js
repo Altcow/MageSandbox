@@ -18,7 +18,6 @@
   const STALE_MS = 25000;       // 心跳逾時:超過即視為離開
   const CREATE_WAIT_MS = 1000;  // 建房前等待是否有人已佔用該房號
   const JOIN_WAIT_MS = 800;     // 加入時等待房主回應
-  const ROUND_LEN_MS = 300000;  // 回合長度(§8 #11 預設 5 分鐘)
   const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // 去掉 0 O 1 I L,31^4 種
   const CLS_OK = ['mage', 'archer', 'swordsman', 'assassin'];
   const EL_OK = ['water', 'fire', 'wind', 'earth', 'light', 'dark'];
@@ -401,17 +400,24 @@
     return bus.patchRoot(map);
   }
 
-  async function startGame() {
+  // opt.scene:再來一局時指定場地(省略則沿用房間場地)
+  async function startGame(opt) {
     const r = root();
     if (!bus || !r || !isHost()) throw { reason: 'notHost' };
     if (listPlayers().length < 2) throw { reason: 'notEnough' };
     const t = bus.now();
     const n = ((r.meta.round && r.meta.round.n) || 0) + 1;
+    const sc = opt && opt.scene != null ? (opt.scene | 0) : r.meta.scene;
     const round = {
-      n: n, scene: r.meta.scene, seed: Math.floor(Math.random() * 2147483647),
-      t0: t + 5000, tEnd: t + 5000 + ROUND_LEN_MS
+      n: n, scene: sc, seed: Math.floor(Math.random() * 2147483647),
+      t0: t + 5000, tEnd: t + 5000 + Net.roundLenMs
     };
-    await bus.patchRoot({ 'meta/state': 'match', 'meta/round': round, 'score': null });   // 新局清空計分(score 只由房主寫)
+    await bus.patchRoot({ 'meta/state': 'match', 'meta/round': round, 'meta/result': null, 'score': null });   // 新局清空計分與結算(score / result 只由房主寫)
+  }
+  // 房主寫入結算(§5-1):state = result、result = JSON 字串
+  function setResult(json) {
+    if (!bus || !myRoom || !mySeat || !isHost()) return Promise.resolve();
+    return bus.patchRoot({ 'meta/state': 'result', 'meta/result': json });
   }
 
   async function leave() { leaveNow(); }
@@ -420,6 +426,7 @@
     stub: STUB,
     online: !!CFG.dbUrl,
     idleMs: 5 * 60 * 1000,
+    roundLenMs: 300000,   // 回合長度(§8 #11 預設 5 分鐘);測試時可在 console 改短
     get me() { return mySeat || null; },
     get isHost() { return isHost(); },
     get code() { return myRoom; },
@@ -436,6 +443,9 @@
     setSnap(s) { return bus && mySeat ? bus.setState('snap/' + mySeat, s) : Promise.resolve(); },
     snapOf(seat) { const r = root(); return r && r.snap ? r.snap[seat] : undefined; },
     roundOf() { const r = root(); return r && r.meta && r.meta.round ? r.meta.round : null; },
+    metaState() { const r = root(); return r && r.meta && r.meta.state ? r.meta.state : ''; },
+    metaResult() { const r = root(); return r && r.meta && typeof r.meta.result === 'string' ? r.meta.result : ''; },
+    setResult: setResult,
     // 計分(netcombat.js,§2-8 / §4-2):score/<座位> = "擊倒,死亡",只有房主寫;nameOf 供擊殺訊息用
     scores() { const r = root(); return (r && r.score) || {}; },
     setScore(seat, val) { return bus && myRoom && mySeat ? bus.setState('score/' + seat, val) : Promise.resolve(); },

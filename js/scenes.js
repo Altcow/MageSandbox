@@ -389,13 +389,14 @@
   }
   window.SUNOFF = { x: -20, y: 40, z: 15 };
   window.setScene = setScene;
-  window.nextScene = () => setScene(cur + 1);
+  window.nextScene = () => { if (window.NETON) return; setScene(cur + 1); };   // 多人對戰中停用換場(設計 §5-6)
+  window.getSceneIndex = () => cur;   // 多人:對戰開始時比對場地、再來一局換場用(remote.js / netcombat.js)
 
   // 場景按鈕
   const bar = document.createElement('div'); bar.id = 'sceneBar';
   SCENES.forEach((s, k) => { const b = document.createElement('button'); b.textContent = s.name; b.onclick = () => setScene(k); bar.appendChild(b); });
   document.body.appendChild(bar);
-  addEventListener('keydown', e => { if (window.COVER_ON) return; if (e.code === 'KeyN' && !e.ctrlKey && !e.repeat && e.target.tagName !== 'INPUT') setScene(cur + 1); });
+  addEventListener('keydown', e => { if (window.COVER_ON || window.NETON) return; if (e.code === 'KeyN' && !e.ctrlKey && !e.repeat && e.target.tagName !== 'INPUT') setScene(cur + 1); });
 
   // ---- 畫質:0 低 / 1 中 / 2 高(存 localStorage mageSandbox.q)----
   const QN = ['低', '中', '高'];

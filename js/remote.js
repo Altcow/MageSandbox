@@ -363,6 +363,7 @@ function enterMatch(ev) {
   clearRemotes();
   const players = ev.players || [];
   const seats = players.map(p => p.id).sort((a, b) => a - b);
+  if (typeof window.getSceneIndex === 'function' && ev.scene != null && window.getSceneIndex() !== ev.scene) setScene(ev.scene, true);   // 換場地再來(N6):先切場景,出生點驗證才用新場地
   spawnPts = validSpawnPts(players.length);
   const sp = assignSpawns(seats, spawnPts);
   const rd = Net.roundOf ? Net.roundOf() : null;
@@ -420,7 +421,7 @@ function netTick(dt) {
   if (!window.NETON || !Net.me) return;
   const now = Net.now();
   const left = roundT0 - now;
-  window.NET_LOCK = left > 0;
+  window.NET_LOCK = left > 0 || (typeof netRoundOver === 'function' && netRoundOver());   // 開戰前與回合結束後鎖定(netcombat.js,N6)
   if (window.NET_LOCK) {   // 開戰前鎖定:清掉按住的鍵 / 搖桿 / 攻擊,集氣中的取消
     G.keys = {}; G.atkHeld = false; G.stick.x = 0; G.stick.y = 0; G.stick.mag = 0;
     if (G.state === 'charging') cancelCharge();
