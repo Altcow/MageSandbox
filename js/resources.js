@@ -172,6 +172,21 @@ function resBar(id, cur, max, off, txt) {
   tog(el, 'off', off);
   setTxt(rhEl(id + 'n'), txt);
 }
+// 目前狀態圖示列(緩速、暈眩、虛弱、潛行、倒地):只在組合改變時才寫 DOM
+const ST_NAME = { slow: '緩速', stun: '暈眩', weak: '虛弱', stealth: '潛行', down: '倒地' };
+function updateStatusBar() {
+  const sb = rhEl('stBar'); if (!sb) return;
+  const ks = [], p = mage.root.position;
+  if (G.down > 0) ks.push('down');
+  if (G.stun > 0) ks.push('stun');
+  if (G.weak > 0) ks.push('weak');
+  if (G.stealth) ks.push('stealth');
+  if (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y).pct > 0) ks.push('slow');
+  const k = ks.join(',');
+  if (sb._k === k) return; sb._k = k;
+  sb.innerHTML = ks.map(x => '<img src="assets/icons/st_' + x + '.png" alt="' + ST_NAME[x] + '" title="' + ST_NAME[x] + '">').join('');
+}
+
 function updateResHUD() {
   const isMage = G.cls === 'mage', E = auraEl();
   const hpk = Math.round(G.hp), shk = Math.round(G.shield), sh = rhEl('pShield');
@@ -201,6 +216,7 @@ function updateResHUD() {
   if (showCap && ct._v !== Math.round(cap * 100)) { ct._v = Math.round(cap * 100); ct.style.left = (cap * 100) + '%'; }
   tog(rhEl('chargeBar'), 'hide', resSitTxt() !== '');
   const bs = rhEl('btnSit');
+  updateStatusBar();
   if (bs) { tog(bs, 'on', G.sitting); const bt = G.sitting ? '起身' : '打坐'; if (bs._t !== bt) { bs._t = bt; bs.title = bt; } }   // 按鈕上是打坐圖示,狀態用 .on 亮框表示
 }
 

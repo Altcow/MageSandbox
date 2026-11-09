@@ -31,6 +31,10 @@ canvas{display:block}
 #elBar.busy{opacity:.25;pointer-events:none}
 #modeTag{position:fixed;bottom:18px;right:calc(50% + 175px);width:52px;height:40px;border-radius:10px;background:rgba(14,16,40,.75);border:2px solid rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;line-height:1.1;cursor:pointer;user-select:none;z-index:4}
 #modeTag small{font-size:10px}
+#stBar{position:fixed;left:16px;bottom:96px;display:flex;gap:4px;z-index:3;pointer-events:none}
+#stBar img{width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 3px #000)}
+body.touch #stBar{left:calc(12px + env(safe-area-inset-left));top:62px;bottom:auto}
+body.touch #stBar img{width:22px;height:22px}
 #pRes{position:fixed;left:16px;bottom:16px;width:230px;z-index:3;pointer-events:none;--sit:#ffffff}
 #pRes.down{opacity:.5}
 #pDownTx{font-size:12px;color:#ff6a6a;text-shadow:0 0 4px #000;margin:0 0 2px}
@@ -151,6 +155,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <div id="hotbar"></div>
 <div id="elBar"></div>
 <div id="modeTag" title="集氣模式(G)"></div>
+<div id="stBar"></div>
 <div id="pRes">
   <div id="pDownTx"></div>
   <div class="rr"><img class="ri" src="assets/icons/ui_hp.png" alt=""><div class="rb hp" id="pHP"><i class="fg" id="pHPfg"></i><i id="pShield"></i></div><span class="rn" id="pHPn"></span></div>
