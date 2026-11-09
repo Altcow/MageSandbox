@@ -63,16 +63,25 @@ function forCopies(P, shape, delay, place, fn) {
     if (i === 0) fn(Pi, i, n); else after(i * delay, () => fn(Pi, i, n));
   }
 }
+// 施法者抽象(設計 §2-4):遠端重現時 P 帶施法者資訊;單人 P 沒有這些欄位,退回本機角色(行為不變)
+const casterPos = P => P.casterPos || mage.root.position;
+const casterAura = P => P.aura || auraEl();
+const casterTip = (P, out) => P.tip ? out.copy(P.tip) : mage.tipWorld(out);
+const casterYaw = P => P.casterYaw ? P.casterYaw() : mage.yaw;
+const pcfg = P => CFG.skills[P.base];
+// 決定位置 / 時間的亂數(設計 §2-4):有 P.rng(多人種子)用它,否則 Math.random
+const prnd = (P, a, b) => a + (P && P.rng ? P.rng() : Math.random()) * (b - a);
+function seedRng(a) { return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 // 牆的第 i 道中心(B 模式並排):法線 (−az, ax) 朝遠離施法者的一側,間距 = 牆厚 × thickK + 1 m;第 0 道 = 選定點
-function wallCopyPos(T, yaw, i, thick) {
-  const p = mage.root.position, ax = Math.cos(yaw), az = -Math.sin(yaw), nx = -az, nz = ax;
+function wallCopyPos(T, yaw, i, thick, from) {
+  const p = from || mage.root.position, ax = Math.cos(yaw), az = -Math.sin(yaw), nx = -az, nz = ax;
   const sg = Math.sign(nx * (T.x - p.x) + nz * (T.z - p.z)) || 1, o = i * (thick + 1) * sg;
   const x = T.x + nx * o, z = T.z + nz * o;
   return new V3(x, surfaceY(x, z, T.y + 1), z);
 }
 function wallPlace(Pi, i) {
   if (!i) return;
-  Pi.target = wallCopyPos(Pi.target, Pi.wallYaw, i, sc(Pi.idx).thick * Pi.thickK);
+  Pi.target = wallCopyPos(Pi.target, Pi.wallYaw, i, pcfg(Pi).thick * Pi.thickK, casterPos(Pi));
 }
 
 // 換裝差異(法杖=重擊、魔法書=速唱);集氣時間與僵直只受 chargeMul / recoverMul 影響
@@ -104,7 +113,7 @@ const G = {
   roll: null, rollCD: 0, invuln: false, stun: 0, dodged: 0, hits: 0, autoStrike: false, strikeT: 2,
   time: 0, cb: 0, kick: 0, vy: 0, frameT: 0, hover: 0, auraAmt: 0, maxFlash: false, halfFlash: false, shoutT: 0, atkHeld: false,
   cls: 'mage', cd: {}, stealth: null, weak: 0, dash: null, spin: null, px0: 0, pz0: 0, camK: 1,
-  el: 'fire', chgMode: 'A', hp: 100, hpMax: 100, shield: 0, shieldT: 0, downs: 0, slowImmT: 0, mp: 100, mpMax: 100, sp: 100, spMax: 100, mpIdle: 0, spIdle: 0, runLock: false, sitK: 0, sitting: false, down: 0, downK: 0, invulnT: 0   // 目前屬性(C-8,只有法師使用),存 localStorage mageSandbox.el;chgMode = 集氣模式 A/B;hp / shield / downs = S-6 玩家狀態
+  el: 'fire', chgMode: 'A', hp: 100, hpMax: 100, shield: 0, shieldT: 0, downs: 0, slowImmT: 0, mp: 100, mpMax: 100, sp: 100, spMax: 100, mpIdle: 0, spIdle: 0, runLock: false, sitK: 0, sitting: false, down: 0, downK: 0, invulnT: 0, kvx: 0, kvz: 0, slowT: 0, slowPct: 0, burnT: 0, erodeT: 0, litT: 0, lastHitBy: 0, lastHitK: null, lastHitT: 0, tp: 0   // 目前屬性(C-8,只有法師使用),存 localStorage mageSandbox.el;chgMode = 集氣模式 A/B;hp / shield / downs = S-6 玩家狀態
 };
 try { const v = localStorage.getItem('mageSandbox.el'); if (EL_ORDER.includes(v)) G.el = v; } catch (e) { }
 try { const m = localStorage.getItem('mageSandbox.chgMode'); if (m === 'A' || m === 'B') G.chgMode = m; } catch (e) { }
@@ -418,6 +427,7 @@ function release() {
     dmgK: CHG.dmg(q) * W().dmgMul, durK: CHG.dur(q), fxK: CHG.fx(q),
     dir, wallYaw: dir + G.wallOff, dmgMul: W().dmgMul, recover: sc(G.skill).recover * W().recoverMul
   };
+  if (window.NETON) { G.pending.sd = (Math.random() * 2147483648) | 0; G.pending.rng = seedRng(G.pending.sd); }   // 多人:種子與決定位置 / 時間的亂數(§2-4);單人不加
   if (sk.cd) G.cd[sk.id] = sk.cd;   // 冷卻從施放開始計
   auraGather();                     // 氣場收束到武器尖端
   G.state = 'cast'; G.castT = 0; G.launched = false; G.queued = false;
@@ -558,7 +568,7 @@ function updateAim(dt) {
     if (mode === 'B') {   // 集氣 B:牆的多道並排預覽;未達集氣的道數淡色(×.25)
       const n = CHG.copies(COPIES_N.wall, q, mode);
       for (let i = 1; i < 4; i++) {
-        const pos = wallCopyPos(G.target, yaw, i, c.thick);
+        const pos = wallCopyPos(G.target, yaw, i, c.thick, mage.root.position);
         indPool[i - 1].set(pos.x, pos.z, 1, half, th, yaw, prog, i < n ? alpha : alpha * .25, E.hex, pos.y);
       }
     }
@@ -632,7 +642,13 @@ function airStepFx(p) {
 
 /* ================= 特效管理 ================= */
 const RING_GEO = new THREE.RingGeometry(.85, 1, 48), ICO_GEO = new THREE.IcosahedronGeometry(1, 2);
-const FX = []; function addFx(fn) { FX.push(fn); }
+// 擁有者上下文(設計 §2-6):NET_CTX = null 為本機;數字 = 正在重現該座位玩家的法術,延後執行時自動帶回
+let NET_CTX = null;
+const FX = []; function addFx(fn) {
+  const o = NET_CTX;
+  if (o === null) { FX.push(fn); return; }
+  FX.push(dt => { const p = NET_CTX; NET_CTX = o; try { return fn(dt); } finally { NET_CTX = p; } });
+}
 function updateFx(dt) { for (let i = FX.length - 1; i >= 0; i--) if (FX[i](dt) === false) FX.splice(i, 1); }
 let lightRR = 0;
 function flashLight(pos, hex, inten, dur, dist) { const L = LIGHTS[(lightRR++) % 3]; L.userData = { t: 0, dur, peak: inten }; L.color.setHex(hex); L.position.copy(pos); L.distance = dist; L.intensity = inten; }
@@ -714,7 +730,7 @@ function explode(pos, R, power, o) {
 
 /* ================= 三種形狀的施法(火系保留原函式;其他屬性先借用同一形狀) ================= */
 function launchSpell(P, orb) {
-  if (!orb) { orb = makeOrb(auraEl()); scene.add(orb); mage.tipWorld(orb.position); orb.setR(.3); }
+  if (!orb) { orb = makeOrb(casterAura(P)); scene.add(orb); casterTip(P, orb.position); orb.setR(.3); }
   if (P.skill.cast) return P.skill.cast(P, orb);   // D2~D4 專屬招式
   // 元素 + 形狀查名稱表(SHAPE_FN_NAME 在 spells.js),執行期取 window[名稱];找不到 → 警告並退回火球術
   const row = SHAPE_FN_NAME[P.el] || SHAPE_FN_NAME.fire, name = row[P.skill.kind] || SHAPE_FN_NAME.fire[P.skill.kind];
@@ -740,7 +756,7 @@ function castFirewall(P, orb) {
   });
 }
 function spawnWall(P) {
-  const gy = P.target.y, cfg = sc(P.idx), half = P.r / 2, thick = cfg.thick * P.thickK, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw), E = EL[P.el];
+  const gy = P.target.y, cfg = pcfg(P), half = P.r / 2, thick = cfg.thick * P.thickK, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw), E = EL[P.el];
   const n = Math.ceil(P.r / .7) + 1, segs = [], dur = cfg.duration * P.durK, emitK = (P.ncopy > 1 ? 1 / (P.ncopy * .6) : 1) * Math.sqrt(P.thickK);
   for (let i = 0; i < n; i++) { const o = (i / (n - 1) - .5) * P.r, x = P.target.x + ax * o, z = P.target.z + az * o; segs.push({ o, x, z, gy: surfaceY(x, z, gy + 1), on: Math.abs(o) / half * .4, acc: 0 }); }
   const wi = new Indicator(scene); let age = 0, tick = 0;
@@ -796,7 +812,7 @@ function startShower(P) {
   const sig = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: RUNE_TEX, color: E.hex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   sig.rotation.x = -Math.PI / 2; sig.position.set(P.target.x + S.x, skyY, P.target.z + S.z); sig.scale.setScalar(P.r * 2.6); scene.add(sig);
   const gi = new Indicator(scene);
-  const sched = []; for (let i = 0; i < count; i++) sched.push(.5 + (i / count) * 2 + rnd(0, .25));
+  const sched = []; for (let i = 0; i < count; i++) sched.push(.5 + (i / count) * 2 + prnd(P, 0, .25));
   sched.push(2.9);
   let age = 0, done = 0;
   const geo = new THREE.IcosahedronGeometry(1, 0);
@@ -806,16 +822,16 @@ function startShower(P) {
     gi.set(P.target.x, P.target.z, 0, P.r, 0, 0, 1, .45 * Math.min(1, age * 2) * fin, E.hex, gy); gi.tick(age);
     while (sched.length && age >= sched[0]) {
       const idx = sched.shift(), big = sched.length === 0;
-      const ang = rnd(0, 6.283), rr = big ? 0 : Math.sqrt(Math.random()) * P.r * .92;
+      const ang = prnd(P, 0, 6.283), rr = big ? 0 : Math.sqrt(prnd(P, 0, 1)) * P.r * .92;
       const end = new V3(P.target.x + Math.cos(ang) * rr, gy + .3, P.target.z + Math.sin(ang) * rr);
-      const sa = rnd(0, 6.283), sr = Math.sqrt(Math.random()) * P.r * 1.0;
+      const sa = prnd(P, 0, 6.283), sr = Math.sqrt(prnd(P, 0, 1)) * P.r * 1.0;
       const st = new V3(P.target.x + S.x + Math.cos(sa) * sr, skyY, P.target.z + S.z + Math.sin(sa) * sr);
       if (big) { st.set(P.target.x + S.x * .8, skyY + 6, P.target.z + S.z * .8); }
       const s = big ? 1.9 : rnd(.45, .8);
       const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x2a1810, emissive: E.hex, emissiveIntensity: 1.3, flatShading: true, roughness: 1 }));
       mesh.scale.setScalar(s); mesh.castShadow = true; scene.add(mesh);
       const gs = glowSprite(E.hex, 5, .9); mesh.add(gs);
-      rock.push({ mesh, st, end, s, big, t: 0, fall: big ? .9 : rnd(.55, .75), prev: st.clone(), spin: new V3(rnd(-3, 3), rnd(-3, 3), rnd(-3, 3)) });
+      rock.push({ mesh, st, end, s, big, t: 0, fall: big ? .9 : prnd(P, .55, .75), prev: st.clone(), spin: new V3(rnd(-3, 3), rnd(-3, 3), rnd(-3, 3)) });
     }
     for (let i = rock.length - 1; i >= 0; i--) {
       const m = rock[i]; m.t += dt / m.fall; const u = Math.min(1, m.t), e = u * u * .6 + u * .4;

@@ -227,7 +227,7 @@ function checkTerrain() {
 // 共用減速區(設計 §5-1):玩家、標靶、召喚物都讀這裡;pct 0~1,區內取最大者、不疊加
 // { kind:'circle', x, z, r, pct, hex }  或  { kind:'rect', x, z, hx, hz, c, s, pct, hex }(c,s = cos/sin(yaw),同平台本地座標)
 const SLOW_ZONES = [];
-function addSlowZone(o) { SLOW_ZONES.push(o); return o; }
+function addSlowZone(o) { o.owner = NET_CTX === null ? (typeof NET_ME === 'number' ? NET_ME : 0) : NET_CTX; SLOW_ZONES.push(o); return o; }
 function removeSlowZone(o) { const i = SLOW_ZONES.indexOf(o); if (i >= 0) SLOW_ZONES.splice(i, 1); }
 function zoneSlowAt(x, z, y) {
   let best = null;

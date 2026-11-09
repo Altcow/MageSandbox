@@ -56,11 +56,14 @@ function runAllowed(dt, moving) {
 // 無敵或倒地中忽略;先扣護盾(護盾不耗 MP);來襲一律起身;血量歸零 → playerDown()
 function playerHurt(n, src) {
   if (G.down > 0 || G.invulnT > 0) return { blocked: true, dmg: 0, src };
+  const o = src && typeof src === 'object' ? src : {}, net = !!o.net, dot = !!o.dot;   // src 可為 'strike' 之類字串(單人)或 {by, net, dot}(多人,§2-7)
   let rest = n;
   if (G.shield > 0) { const a = Math.min(G.shield, rest); G.shield -= a; rest -= a; if (G.shield <= 0) { G.shield = 0; G.shieldT = 0; } }
   sitBreak('hurt');
   if (rest <= 0) { banner('護盾擋下!', '#ffd27a'); return { blocked: true, dmg: 0, src }; }
-  G.hp = Math.max(0, G.hp - rest); G.stun = .6; G.vy = 5;
+  G.hp = Math.max(0, G.hp - rest);
+  if (!net) { G.stun = .6; G.vy = 5; }   // 單人行為不變
+  else if (!dot) G.stun = typeof NET_RULES !== 'undefined' ? NET_RULES.hitStun : .2;   // 多人:硬直、不往上彈;DOT 不硬直
   if (G.hp <= 0) playerDown(); else banner('致命一擊!', '#ff5050');
   return { blocked: false, dmg: rest, src };
 }
@@ -229,5 +232,6 @@ function resInit() {
   G.hpMax = RES_MAX.hp; G.hp = G.hpMax; G.shield = 0; G.shieldT = 0; G.downs = 0;
   G.mpMax = RES_MAX.mp; G.spMax = RES_MAX.sp; G.mp = G.mpMax; G.sp = G.spMax; G.mpIdle = 9; G.spIdle = 9;
   G.runLock = false; G.sitting = false; G.sitK = 0; G.down = 0; G.downK = 0; G.invulnT = 0;
+  G.kvx = 0; G.kvz = 0; G.slowT = 0; G.slowPct = 0; G.burnT = 0; G.erodeT = 0; G.litT = 0;
 }
 resInit();

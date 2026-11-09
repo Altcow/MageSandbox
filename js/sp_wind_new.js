@@ -20,7 +20,7 @@ function ww_perK(n, shape) {
 }
 function ww_muzzle(P) {
   if (P.muzzle) return new V3(P.muzzle.x, P.muzzle.y, P.muzzle.z);
-  const p = mage.root.position, d = P.dir || 0;
+  const p = casterPos(P), d = P.dir || 0;
   return new V3(p.x + Math.sin(d) * .7, p.y + 1.25, p.z + Math.cos(d) * .7);
 }
 function ww_range(P) { return P.range || 30; }
@@ -122,9 +122,9 @@ function ww_blade(b, mz, o) {
 // 場長 1.5·P.r、深 6·thickK、持續 cfg.duration·durK·1.25;區域減速 30%→60%(SLOW_ZONES),不推出,每 0.5 s 3·dmgK
 function castWindWall(P, orb) {
   ww_init();
-  const E = EL.wind, n = ww_copies('wall', P), cfg = sc(P.idx), dur = cfg.duration * (P.durK || 1) * 1.25;
+  const E = EL.wind, n = ww_copies('wall', P), cfg = pcfg(P), dur = cfg.duration * (P.durK || 1) * 1.25;
   const yaw = P.wallYaw || 0, ax = Math.cos(yaw), az = -Math.sin(yaw), nx = -az, nz = ax;
-  const p = mage.root.position, sg = Math.sign(nx * (P.target.x - p.x) + nz * (P.target.z - p.z)) || 1;   // 遠離施法者的方向
+  const p = casterPos(P), sg = Math.sign(nx * (P.target.x - p.x) + nz * (P.target.z - p.z)) || 1;   // 遠離施法者的方向
   const depth = 6 * (P.thickK || 1), half = .75 * P.r, gy = P.target.y;
   const pct = Math.min(.6, .6 * (P.fxK || 1)), dmgK = (P.dmgK || 1) * ww_perK(n, 'wall');
   const launch = () => {
@@ -210,7 +210,7 @@ function ww_inField(d, o) {
 // 起點角色前方 1 m、固定 26 m/s 掃過 32 m;寬 = P.r(已含 sizeK)的全寬 2·P.r;不擊退、不擊飛、不搖晃
 function castWindCut(P, orb) {
   ww_init();
-  const E = EL.wind, dir = P.dir || 0, sa = Math.sin(dir), ca = Math.cos(dir), p = mage.root.position;
+  const E = EL.wind, dir = P.dir || 0, sa = Math.sin(dir), ca = Math.cos(dir), p = casterPos(P);
   const ox = p.x + sa, oz = p.z + ca, y0 = p.y + 1, n = ww_copies('sky', P), dmg = 130 * (P.dmgK || 1) * ww_perK(n, 'sky');
   if (orb) { orb.position.set(ox, y0 + .4, oz); dissolveOrb(orb, E); }
   flashLight(new V3(ox, y0, oz), E.hex, 6, .4, 22);

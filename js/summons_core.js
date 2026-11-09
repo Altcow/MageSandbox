@@ -471,12 +471,12 @@ function castSummon(P, orb) {
   if (!def || !P.target) return;
   const E = EL[el], n = Math.max(1, Math.min(SM_MAX, P.copies || 1));
   const k = n > 1 ? (typeof CHG !== 'undefined' && typeof CHG.perK === 'function' ? CHG.perK(n, 'summon') : .6) : 1;
-  const dark = el === 'dark', pp = smPP();
+  const dark = el === 'dark', pp = P.net ? casterPos(P) : smPP();
   const cx = dark ? pp.x : P.target.x, cz = dark ? pp.z : P.target.z, cy = dark ? pp.y : P.target.y;
   const gy = surfaceY(cx, cz, cy + 1), dir = typeof P.dir === 'number' ? P.dir : 0;
-  if (G.cd && (G.cd.summon || 0) < SM_CD) G.cd.summon = SM_CD;   // 共用冷卻 8 s,從施放起算
+  if (!P.net && G.cd && (G.cd.summon || 0) < SM_CD) G.cd.summon = SM_CD;   // 共用冷卻 8 s,從施放起算
   const c = { P, def, E, n, k, scale: P.thickK || 1, cx, cz, cy, px: Math.cos(dir), pz: -Math.sin(dir) };
-  const go = () => { for (let i = 0; i < n; i++) smSpawn(c, i); };
+  const go = P.net ? () => burstRing(new V3(cx, gy + .05, cz), E.hex, def.size * c.scale * 1.2) : () => { for (let i = 0; i < n; i++) smSpawn(c, i); };
   if (orb && typeof orbFly === 'function') orbFly(orb, new V3(cx, gy + 1.2, cz), .3, E, () => { dissolveOrb(orb, E); go(); });
   else { if (orb) dissolveOrb(orb, E); go(); }
 }

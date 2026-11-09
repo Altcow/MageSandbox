@@ -52,10 +52,12 @@ const CLASS_ORDER = ['mage', 'archer', 'swordsman', 'assassin'];
 const _aeCache = {};
 // 法師用目前屬性的 EL 表;其他職業用自己的氣場色(欄位形狀與 EL 相同:hex / core / c0 / c1 / css0 / css1 / name)
 const cssOf = h => '#' + h.toString(16).padStart(6, '0');
-function auraEl() {
-  if (G.cls === 'mage') return EL[G.el];
-  return _aeCache[G.cls] || (_aeCache[G.cls] = (() => { const a = CLASSES[G.cls].aura; return { name: CLASSES[G.cls].name, hex: a.hex, core: a.sub, c0: rgbOf(a.main), c1: rgbOf(a.sub), s0: rgbOf(a.main), s1: rgbOf(a.sub), css0: cssOf(a.hex), css1: cssOf(a.sub), dark: a.dark }; })());
+// 指定職業 / 屬性的氣場(不依賴 G;遠端重現用)
+function auraOf(cls, el) {
+  if (cls === 'mage') return EL[el];
+  return _aeCache[cls] || (_aeCache[cls] = (() => { const a = CLASSES[cls].aura; return { name: CLASSES[cls].name, hex: a.hex, core: a.sub, c0: rgbOf(a.main), c1: rgbOf(a.sub), s0: rgbOf(a.main), s1: rgbOf(a.sub), css0: cssOf(a.hex), css1: cssOf(a.sub), dark: a.dark }; })());
 }
+function auraEl() { return auraOf(G.cls, G.el); }
 // 集氣氣場:環繞粒子(集氣中)、放開後收束到武器尖端;同時存在的粒子桌機 ≤150、手機 ≤60
 const AURA = { acc: 0, gather: 0, full: false };
 function auraTick(dt) {

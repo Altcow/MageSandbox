@@ -248,7 +248,7 @@ function wd_launch(Pi, i, n, ox, oz) {
   const Ld = Math.max(1, wd_arena(ox, oz, sn, cs, 2.5 * rs * sizeK));
   const D = {
     Pi, ox, oz, sn, cs, yaw: th - Math.PI / 2, gy: Pi.target.y, Ld, scale, hw,
-    fxK: Pi.fxK || 1, dmg: 100 * (Pi.dmgK || 1), phi: Math.random() * 6.283,
+    fxK: Pi.fxK || 1, dmg: 100 * (Pi.dmgK || 1), phi: prnd(Pi, 0, 6.283),
     main: !i, token: {}, s: 0, sPrev: 0, t: 0, ended: false, tEnd: 0, nextSp: 2.5, hit: new Set(), hist: [],
     px: new Float64Array(wd_N), py: new Float64Array(wd_N), pz: new Float64Array(wd_N),
     tx: new Float64Array(wd_N), tz: new Float64Array(wd_N),
@@ -274,7 +274,7 @@ function wd_launch(Pi, i, n, ox, oz) {
 
 // 施放入口(launchSpell 依名稱查表呼叫):能量球鑽入前方 2 m 地面 → 每份龍竄出
 function castWaterDragon(P, orb) {
-  const E = EL.water, gy = P.target.y, pp = mage.root.position, th = typeof P.dir === 'number' ? P.dir : 0;
+  const E = EL.water, gy = P.target.y, pp = casterPos(P), th = typeof P.dir === 'number' ? P.dir : 0;
   const ox = pp.x + Math.sin(th) * 2, oz = pp.z + Math.cos(th) * 2;
   orbFly(orb, new V3(ox, gy + .3, oz), .25, E, () => {
     dissolveOrb(orb, E);

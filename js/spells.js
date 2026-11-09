@@ -231,7 +231,7 @@ function debris(p, n, col, size) {
 // c:{ P, gy, ax, az, half, thick, dur, segs, age, dt, fade, token, plat };牆軸 = (ax, az),法線 across = (-az, ax)
 function spawnZone(P, st) {
   if (P.ncopy == null) { forCopies(P, 'wall', .12, wallPlace, Qi => spawnZone(Qi, st)); return; }   // 牆的份數(B 模式多道):每道各自 spawnZone,由近到遠依序立起
-  const gy = P.target.y, cfg = sc(P.idx), half = P.r / 2, thick = cfg.thick * P.thickK, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw);
+  const gy = P.target.y, cfg = pcfg(P), half = P.r / 2, thick = cfg.thick * P.thickK, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw);
   const n = Math.ceil(P.r / .7) + 1, segs = [];
   for (let i = 0; i < n; i++) { const o = (i / (n - 1) - .5) * P.r, x = P.target.x + ax * o, z = P.target.z + az * o; segs.push({ o, x, z, gy: surfaceY(x, z, gy + 1), on: Math.abs(o) / half * .4, acc: 0, went: false, mesh: null }); }
   const c = { P, gy, ax, az, half, thick, dur: cfg.duration * P.durK, segs, age: 0, dt: 0, fade: 1, tick: 0, token: {}, plat: null, emitK: (P.ncopy > 1 ? 1 / (P.ncopy * .6) : 1) * Math.sqrt(P.thickK) };
@@ -397,7 +397,7 @@ function castWaterWall(P, orb) {
 // 間歇泉:地面水圈預告 → 多道小水柱(小擊飛)→ 中央大水柱(大擊飛 + 大範圍)
 function castGeyser(P, orb) {
   const E = EL.water, gy = P.target.y, R = P.r, sched = [], n = CHG.count(10, P.q, P.mode);
-  for (let i = 0; i < n; i++) sched.push({ t: .5 + (i / n) * 1.8 + rnd(0, .2), big: false });
+  for (let i = 0; i < n; i++) sched.push({ t: .5 + (i / n) * 1.8 + prnd(P, 0, .2), big: false });
   sched.push({ t: 2.6, big: true });
   const geyser = (x, y, z, big) => {
     const h = big ? 7 : 4, rad = big ? 1.2 : .6, rr = big ? P.r * .8 : Math.max(1.6, P.r * .3), lift = (big ? 1.2 : .6) * P.fxK;
@@ -426,7 +426,7 @@ function castGeyser(P, orb) {
       const fin = t > 3.2 ? Math.max(0, 1 - (t - 3.2) / .5) : 1;
       wi.set(P.target.x, P.target.z, 0, R, 0, 0, Math.min(1, t / .5), .4 * fin, E.hex, gy); wi.tick(t);
       while (sched.length && t >= sched[0].t) {
-        const e = sched.shift(), ang = rnd(0, 6.283), rr = e.big ? 0 : Math.sqrt(Math.random()) * R * .9;
+        const e = sched.shift(), ang = prnd(P, 0, 6.283), rr = e.big ? 0 : Math.sqrt(prnd(P, 0, 1)) * R * .9;
         geyser(P.target.x + Math.cos(ang) * rr, gy, P.target.z + Math.sin(ang) * rr, e.big);
       }
       if (!sched.length && t > 3.8) { disposeInd(wi); return false; }
@@ -540,7 +540,7 @@ function castEarthSpikes(P, orb) {
   const ring = k => {
     const r = RAD[k], n = cnt[k], lo = BAND[k][0], hi = BAND[k][1];
     for (let i = 0; i < n; i++) {
-      const a = i / n * 6.283 + rnd(0, .4), x = P.target.x + Math.cos(a) * r, z = P.target.z + Math.sin(a) * r;
+      const a = i / n * 6.283 + prnd(P, 0, .4), x = P.target.x + Math.cos(a) * r, z = P.target.z + Math.sin(a) * r;
       spike(x, z);
       for (let j = 0; j < fq(3); j++) smoke.emit(x + rnd(-.5, .5), gy + .2, z + rnd(-.5, .5), rnd(-1, 1), rnd(.5, 2), rnd(-1, 1), rnd(1, 1.6), rnd(1, 1.8), E.s0, E.s1, .55, 2, -.2, .6);
       for (let j = 0; j < fq(2); j++) fire.emit(x, gy + .3, z, rnd(-2, 2), rnd(1, 3), rnd(-2, 2), rnd(.3, .5), rnd(.1, .2), E.c0, E.c1, 1, .3, 9, .5);
@@ -602,7 +602,7 @@ function castSanctuary(P, orb) {
 // 聖光柱:能量球往上飛 → 多道小光柱(連鎖 1 跳)→ 中央大光柱(連鎖 1 → 3 跳)
 function castHolyPillar(P, orb) {
   const E = EL.light, gy = P.target.y, R = P.r, n = CHG.count(10, P.q, P.mode), sched = [];
-  for (let i = 0; i < n; i++) sched.push({ t: .4 + (i / n) * 1.6 + rnd(0, .15), big: false });
+  for (let i = 0; i < n; i++) sched.push({ t: .4 + (i / n) * 1.6 + prnd(P, 0, .15), big: false });
   sched.push({ t: 2.3, big: true });
   const pillar = (x, z, rad, big) => {
     const m = new THREE.Mesh(COL_GEO, new THREE.MeshBasicMaterial({ color: 0xfff6c0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
@@ -618,7 +618,7 @@ function castHolyPillar(P, orb) {
     });
   };
   const small = () => {
-    const ang = rnd(0, 6.283), rr = Math.sqrt(Math.random()) * Math.max(1.4, R * .25), x = P.target.x + Math.cos(ang) * rr, z = P.target.z + Math.sin(ang) * rr;
+    const ang = prnd(P, 0, 6.283), rr = Math.sqrt(prnd(P, 0, 1)) * Math.max(1.4, R * .25), x = P.target.x + Math.cos(ang) * rr, z = P.target.z + Math.sin(ang) * rr;
     pillar(x, z, .35 * P.thickK, false);
     areaEl(new V3(x, gy, z), 1.4 * P.thickK, 45, 'light', P, {});
     const first = nearestDummy(x, z, 1.8);

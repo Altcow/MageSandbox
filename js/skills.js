@@ -90,7 +90,7 @@ function flyProjectile(from, to, speed, o) {
 /* ---------- 弓箭手(D2) ---------- */
 // 瞄準射擊:一支箭直線飛向落點,速度 45 → 70 m/s;命中第一個碰到的標靶,沒碰到就落地
 function castQuickShot(P, orb) {
-  const E = auraEl(), from = mage.tipWorld(new V3());
+  const E = casterAura(P), from = casterTip(P, new V3());
   if (orb) dissolveOrb(orb, E);
   const to = new V3(P.target.x, P.target.y + .4, P.target.z);
   flyProjectile(from, to, lerp(45, 70, P.q), {
@@ -101,7 +101,7 @@ function castQuickShot(P, orb) {
 
 // 衝擊巨箭:巨箭沿線飛出(40 m/s,飛完線長淡出),穿透所有標靶;命中傷害 + 強制跌倒 + 擊退;撞到高台側面就停下爆散
 function castShockArrow(P, orb) {
-  const E = auraEl(), p = mage.root.position, cfg = CFG.skills.shockArrow, dx = Math.sin(P.dir), dz = Math.cos(P.dir), y0 = p.y + 1.3;
+  const E = casterAura(P), p = casterPos(P), cfg = CFG.skills.shockArrow, dx = Math.sin(P.dir), dz = Math.cos(P.dir), y0 = p.y + 1.3;
   if (orb) dissolveOrb(orb, E);
   const w = lerp(cfg.width0, cfg.width1, P.q), from = new V3(p.x + dx * .8, y0, p.z + dz * .8), to = new V3(from.x + dx * P.r, y0, from.z + dz * P.r);
   const mesh = giantArrowMesh(w, E.hex, lerp(.7, 1.2, P.q)), dir = new V3(dx, 0, dz);
@@ -120,13 +120,13 @@ function castShockArrow(P, orb) {
 
 // 箭雨:落點上空 14 m 出現光圈陣(0~0.4 s);箭數 = CHG.count(40, q) 在 0.4~2.0 s 落下;每 0.2 s 範圍傷害一次(共 8 跳,每跳 9 × dmgK)
 function castArrowRain(P, orb) {
-  const E = auraEl(), cx = P.target.x, cz = P.target.z, gy = P.target.y, R = P.r;
+  const E = casterAura(P), cx = P.target.x, cz = P.target.z, gy = P.target.y, R = P.r;
   if (orb) dissolveOrb(orb, E);
   const sig = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: RUNE_TEX, color: E.hex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   sig.rotation.x = -Math.PI / 2; sig.position.set(cx, gy + 14, cz); sig.scale.setScalar(R * 2.6); scene.add(sig);
   const gi = new Indicator(scene);
   const n = Math.max(4, Math.round(CHG.count(40, P.q) * CFG.fxq));
-  const sched = []; for (let i = 0; i < n; i++) sched.push(.4 + i / n * 1.6 + rnd(0, .08));
+  const sched = []; for (let i = 0; i < n; i++) sched.push(.4 + i / n * 1.6 + prnd(P, 0, .08));
   sched.sort((a, b) => a - b);
   let age = 0, k = 0;
   addFx(dt => {
@@ -134,7 +134,7 @@ function castArrowRain(P, orb) {
     const fin = age > 2 ? Math.max(0, 1 - (age - 2) / .6) : 1, a0 = Math.min(1, age * 2.5);
     sig.material.opacity = a0 * .9 * fin; sig.rotation.z += dt * .6;
     gi.set(cx, cz, 0, R, 0, 0, 0, .45 * a0 * fin, E.hex, gy); gi.tick(age);
-    while (sched.length && age >= sched[0]) { sched.shift(); rainArrow(cx, cz, gy, R, E); }
+    while (sched.length && age >= sched[0]) { sched.shift(); rainArrow(cx, cz, gy, R, E, P); }
     while (k < 8 && age >= .4 + .2 * k) { k++; areaHit(cx, gy, cz, R, 9 * P.dmgK); }
     if (age > 3) {
       scene.remove(sig); sig.geometry.dispose(); sig.material.dispose(); gi.root.parent.remove(gi.root);
@@ -144,8 +144,8 @@ function castArrowRain(P, orb) {
   });
 }
 // 箭雨的一支箭:從天落到落點 0.35 s,插地 0.6 s 後消失,落地 3 顆煙塵
-function rainArrow(cx, cz, gy, R, E) {
-  const a = rnd(0, 6.283), rr = Math.sqrt(Math.random()) * R * .9, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr, gy2 = surfaceY(x, z, gy + 3), top = gy2 + 14;
+function rainArrow(cx, cz, gy, R, E, P) {
+  const a = prnd(P, 0, 6.283), rr = Math.sqrt(prnd(P, 0, 1)) * R * .9, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr, gy2 = surfaceY(x, z, gy + 3), top = gy2 + 14;
   const mesh = arrowMesh(.9, .025, E.hex, 1);
   mesh.position.set(x, top, z); mesh.lookAt(x, gy2, z); scene.add(mesh);
   let t = 0, stuck = -1;
@@ -179,7 +179,7 @@ function arcSlash(center, R, th, hex, life) {
 
 // 蓄力斬:圓心固定在角色前方 cfg.range(1.6 m);圓內標靶受傷並沿離開角色的方向擊退
 function castPowerSlash(P, orb) {
-  const E = auraEl(), p = mage.root.position, cfg = CFG.skills.powerSlash;
+  const E = casterAura(P), p = casterPos(P), cfg = CFG.skills.powerSlash;
   if (orb) dissolveOrb(orb, E);
   const cx = p.x + Math.sin(P.dir) * cfg.range, cz = p.z + Math.cos(P.dir) * cfg.range, cy = surfaceY(cx, cz, p.y + 2);
   areaHit(cx, cy, cz, P.r, 90 * P.dmgK, 1.5 * P.fxK, p.x, p.z);
@@ -309,7 +309,7 @@ function backstabLand(P) {
 
 // 飛刀:扇形平均射出 n 把(n = CHG.count(7, q),扇形角 = P.r 度),射程 cfg.range,各自命中第一個標靶後消失
 function castKnives(P, orb) {
-  const E = auraEl(), cfg = CFG.skills.knives, n = CHG.count(7, P.q), A = P.r * Math.PI / 180, from = mage.tipWorld(new V3());
+  const E = casterAura(P), cfg = CFG.skills.knives, n = CHG.count(7, P.q), A = P.r * Math.PI / 180, from = casterTip(P, new V3());
   if (orb) dissolveOrb(orb, E);
   for (let i = 0; i < n; i++) {
     const a = P.dir + (n === 1 ? 0 : lerp(-A / 2, A / 2, i / (n - 1)));

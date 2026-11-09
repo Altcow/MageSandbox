@@ -55,7 +55,7 @@ function ed_init() {
 
 // 土龍術施放入口(launchSpell 依 SHAPE_FN_NAME.earth.sky 查表呼叫):能量球鑽入前方 1.5 m 後開裂
 function castEarthDragon(P, orb) {
-  const E = EL.earth, p = mage.root.position, dir = P.dir || 0;
+  const E = EL.earth, p = casterPos(P), dir = P.dir || 0;
   const ox = p.x + Math.sin(dir) * 1.5, oz = p.z + Math.cos(dir) * 1.5, oy = terrainH(ox, oz);
   if (!orb) return ed_start(P, E, dir, ox, oz);
   orbFly(orb, new V3(ox, oy + .3, oz), .25, E, () => { dissolveOrb(orb, E); ed_start(P, E, dir, ox, oz); });
