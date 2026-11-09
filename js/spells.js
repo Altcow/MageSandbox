@@ -21,7 +21,7 @@ const SPELLS = {
   water: [
     { name: '水彈術', icon: '💧', img: 'assets/icons/sp_water_bolt.png', chant: '清泉之靈,凝於掌心,化為奔流之彈——', shout: '水彈術!', preview: q => '減速 ' + _pct(q) + '%' },
     { name: '水幕術', icon: '🌊', img: 'assets/icons/sp_water_wall.png', chant: '深潭之水,湧泉而起,化作阻敵之幕——', shout: '水幕術!', preview: q => '減速 ' + _pct(q) + '%' },
-    { name: '水龍彈', icon: '🐉', img: null, chant: '深淵之龍,聽我呼喚,破浪而出——', shout: '水龍彈!', aim: 'line', line: (q, rs, m) => ({ len: 2.5 * rs * CHG.size(q, m), hw: 1.6 * CHG.thick(q, m), off: 2, maxLen: 2.5 * rs * (m === 'B' ? .6 : 1), maxHw: 1.6 * (m === 'A' ? 1.6 : 1) }), unit: 'copies', unitName: '條', preview: q => '減速 ' + _pct(q) + '%' },
+    { name: '水龍彈', icon: '🐉', img: 'assets/icons/sp_water_sky.png', chant: '深淵之龍,聽我呼喚,破浪而出——', shout: '水龍彈!', aim: 'line', line: (q, rs, m) => ({ len: 2.5 * rs * CHG.size(q, m), hw: 1.6 * CHG.thick(q, m), off: 2, maxLen: 2.5 * rs * (m === 'B' ? .6 : 1), maxHw: 1.6 * (m === 'A' ? 1.6 : 1) }), unit: 'copies', unitName: '條', preview: q => '減速 ' + _pct(q) + '%' },
     { name: '水精靈', icon: '🧚', img: 'assets/icons/summon_water.png', chant: '清泉之靈,應我之約,現身吧——', shout: '水精靈!', preview: q => '減速 ' + Math.round(30 * CHG.fx(q)) + '%' }
   ],
   fire: [
@@ -32,8 +32,8 @@ const SPELLS = {
   ],
   wind: [
     { name: '風刃術', icon: '🌀', img: 'assets/icons/sp_wind_bolt.png', chant: '疾風之刃,隨我意行,斬裂虛空——', shout: '風刃術!', preview: q => '擊退 ' + _m(5, q) + ' m' },
-    { name: '風壁術', icon: '🍃', img: 'assets/icons/sp_wind_wall.png', chant: '流轉之風,環繞成壁,拒敵於外——', shout: '風壁術!', preview: q => '推出 ' + _m(2.5, q) + ' m' },
-    { name: '風刃切割', icon: '🌬️', img: null, chant: '天穹之風,化為千刃,斬斷前路——', shout: '風刃切割!', aim: 'line', line: (q, rs, m) => ({ len: 32, hw: rs * CHG.size(q, m), off: 1, maxLen: 32, maxHw: rs * (m === 'B' ? .6 : 1) }), unit: 'copies', unitName: '波', preview: q => '傷害 ' + Math.round(130 * CHG.dmg(q)) },
+    { name: '颶風牆', icon: '🍃', img: 'assets/icons/sp_wind_wall.png', chant: '流轉之風,環繞成壁,拒敵於外——', shout: '風壁術!', preview: q => '推出 ' + _m(2.5, q) + ' m' },
+    { name: '風刃切割', icon: '🌬️', img: 'assets/icons/sp_wind_sky.png', chant: '天穹之風,化為千刃,斬斷前路——', shout: '風刃切割!', aim: 'line', line: (q, rs, m) => ({ len: 32, hw: rs * CHG.size(q, m), off: 1, maxLen: 32, maxHw: rs * (m === 'B' ? .6 : 1) }), unit: 'copies', unitName: '波', preview: q => '傷害 ' + Math.round(130 * CHG.dmg(q)) },
     { name: '鎌鼬', icon: '🦦', img: 'assets/icons/summon_wind.png', chant: '疾風之子,藏刃於風,來去無蹤——', shout: '鎌鼬!', preview: q => '真空刃 ' + Math.round(80 * CHG.dmg(q)) }
   ],
   earth: [
