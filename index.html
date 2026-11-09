@@ -31,6 +31,8 @@ canvas{display:block}
 #elBar.busy{opacity:.25;pointer-events:none}
 #modeTag{position:fixed;bottom:18px;right:calc(50% + 175px);width:52px;height:40px;border-radius:10px;background:rgba(14,16,40,.75);border:2px solid rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;line-height:1.1;cursor:pointer;user-select:none;z-index:4}
 #modeTag small{font-size:10px}
+#clsBar img.ci{width:18px;height:18px;vertical-align:-4px;object-fit:contain}
+body.touch #clsBar img.ci{width:14px;height:14px;vertical-align:-3px}
 #stBar{position:fixed;left:16px;bottom:96px;display:flex;gap:4px;z-index:3;pointer-events:none}
 #stBar img{width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 3px #000)}
 body.touch #stBar{left:calc(12px + env(safe-area-inset-left));top:62px;bottom:auto}

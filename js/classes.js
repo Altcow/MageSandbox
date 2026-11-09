@@ -181,7 +181,7 @@ function classTick(dt) {
 function clsHex(c) { return '#' + (CLASSES[c].aura || EL.fire).hex.toString(16).padStart(6, '0'); }
 function buildClsBar() {
   const bar = document.createElement('div'); bar.id = 'clsBar';
-  CLASS_ORDER.forEach(c => { const b = document.createElement('button'); b.textContent = CLASSES[c].icon + ' ' + CLASSES[c].name; b.tabIndex = -1; b.onclick = () => { setClass(c); b.blur(); }; bar.appendChild(b); });
+  CLASS_ORDER.forEach(c => { const b = document.createElement('button'); b.innerHTML = '<img class="ci" src="assets/icons/cls_' + c + '.png" alt="' + CLASSES[c].icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))"> ' + CLASSES[c].name; b.tabIndex = -1; b.onclick = () => { setClass(c); b.blur(); }; bar.appendChild(b); });
   document.body.appendChild(bar);
 }
 function refreshClsBar() {

@@ -82,7 +82,7 @@ function playerHeal(n, src) {
   if (G.down > 0) return 0;
   const before = G.hp; G.hp = Math.min(G.hpMax, G.hp + n);
   const d = Math.round(G.hp - before);
-  if (d > 0) { const p = mage.root.position; addDmgText(new V3(p.x, p.y + 2.2, p.z), '+' + d, '#7dff8a'); }
+  if (d > 0) { G.healUntil = G.time + 1.2; const p = mage.root.position; addDmgText(new V3(p.x, p.y + 2.2, p.z), '+' + d, '#7dff8a'); }
   return d;
 }
 
@@ -173,18 +173,21 @@ function resBar(id, cur, max, off, txt) {
   setTxt(rhEl(id + 'n'), txt);
 }
 // 目前狀態圖示列(緩速、暈眩、虛弱、潛行、倒地):只在組合改變時才寫 DOM
-const ST_NAME = { slow: '緩速', stun: '暈眩', weak: '虛弱', stealth: '潛行', down: '倒地' };
+const ST_NAME = { slow: '緩速', stun: '暈眩', weak: '虛弱', stealth: '潛行', down: '倒地', shield: '護盾', heal: '治癒' };
+const ST_ICON = { slow: 'st_slow', stun: 'st_stun', weak: 'st_weak', stealth: 'st_stealth', down: 'st_down', shield: 'buff_shield', heal: 'buff_heal' };
 function updateStatusBar() {
   const sb = rhEl('stBar'); if (!sb) return;
   const ks = [], p = mage.root.position;
   if (G.down > 0) ks.push('down');
+  if (G.shield > 0) ks.push('shield');
+  if (G.time < (G.healUntil || 0)) ks.push('heal');
   if (G.stun > 0) ks.push('stun');
   if (G.weak > 0) ks.push('weak');
   if (G.stealth) ks.push('stealth');
   if (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y).pct > 0) ks.push('slow');
   const k = ks.join(',');
   if (sb._k === k) return; sb._k = k;
-  sb.innerHTML = ks.map(x => '<img src="assets/icons/st_' + x + '.png" alt="' + ST_NAME[x] + '" title="' + ST_NAME[x] + '">').join('');
+  sb.innerHTML = ks.map(x => '<img src="assets/icons/' + ST_ICON[x] + '.png" alt="' + ST_NAME[x] + '" title="' + ST_NAME[x] + '">').join('');
 }
 
 function updateResHUD() {
