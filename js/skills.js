@@ -283,6 +283,7 @@ function castBackstab(P, orb) {
   const dx = P.target.x - p.x, dz = P.target.z - p.z, d = Math.hypot(dx, dz), L = Math.min(d, cfg.range * P.sizeK);
   const dirx = d > .01 ? dx / d : Math.sin(P.dir), dirz = d > .01 ? dz / d : Math.cos(P.dir);
   P.recover = .14 + .12 + cfg.recover;
+  G.tp = (G.tp | 0) + 1;   // 瞬移計數:遠端收到快照的 tp 改變時直接跳到新位置(§2-8)
   G.dash = { kind: 'blink', dirx, dirz, yaw: Math.atan2(dirx, dirz), speed: L / .12, left: L, t: 0, step: 0, s0x: p.x, s0z: p.z, hex: E.hex, ghosts: 0, end: () => backstabLand(P) };
 }
 function backstabLand(P) {

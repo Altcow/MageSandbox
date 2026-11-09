@@ -9,6 +9,7 @@
 //   on(ev, fn) / off(ev, fn);事件:
 //     'players'([{id,name,cls,el,ready,host}])、'start'({scene, players, seed})、
 //     'closed'({reason}) reason:'idle' | 'hostleft' | 'network'、'idleCountdown'({secondsLeft}|{secondsLeft:null} 表示不顯示)
+//   emitEv(obj)(送出遊戲事件 ev/<座位>/<key>,回傳 key);on('ev', fn) 收到他人事件 {seat, key, data}(已去重,略過開啟前 2 s 以前的舊事件)
 //   其他:now()、me、isHost、code、stub、online、idleMs(測試時可改短)
 (function () {
   const NET_PROTO = 1;          // 協定版本(meta.v)
@@ -29,6 +30,8 @@
   let myRoom = null;     // 目前房號
   let mySeat = 0;        // 我的座位(同時作為玩家 id)
   let lastPlayersKey = '', lastRound = 0, lastCountdown = undefined, idleSince = 0, lastHb = 0;
+  let evOpenT = 0;                                  // 本次房間串流開啟的時間(舊事件判斷,§1-7)
+  const EV_SEEN = new Set(), EV_SEEN_Q = [];         // 事件去重(保留最近 512 筆,§1-7)
 
   const cryptoOk = () => !!(window.crypto && window.crypto.subtle);
   const clean = s => String(s == null ? '' : s).trim().slice(0, 8) || '玩家';
@@ -222,12 +225,32 @@
     return 0;
   }
   function wire(b) {
+    evOpenT = b.now();
     b.on('put', () => { if (bus === b) onChange(); });
-    b.on('patch', () => { if (bus === b) onChange(); });
+    b.on('patch', m => { if (bus === b) { dispatchEv(m); onChange(); } });
     b.on('down', reason => { if (bus === b) closeLocal(reason || 'hostleft'); });
+  }
+  // 事件分派(§1-7):同一則 patch 內依路徑排序(鍵前 9 碼為時間,排序即時間序);只處理他人座位;去重;舊事件只標記不處理
+  function dispatchEv(map) {
+    if (!map || typeof map !== 'object') return;
+    Object.keys(map).sort().forEach(path => {
+      const hit = /^ev\/(\d+)\/([0-9a-z_]+)$/.exec(path), val = map[path];
+      if (!hit || typeof val !== 'string') return;
+      const seat = +hit[1], key = hit[2];
+      if (seat === mySeat) return;
+      const id = seat + '/' + key;
+      if (EV_SEEN.has(id)) return;
+      EV_SEEN.add(id); EV_SEEN_Q.push(id);
+      if (EV_SEEN_Q.length > 512) EV_SEEN.delete(EV_SEEN_Q.shift());
+      if (!(parseInt(key.slice(0, 9), 36) >= evOpenT - 2000)) return;
+      let data = null;
+      try { data = JSON.parse(val); } catch (e) { return; }
+      if (data && typeof data.t === 'string') emit('ev', { seat: seat, key: key, data: data });
+    });
   }
   function resetLocal() {
     bus = null; myRoom = null; mySeat = 0;
+    EV_SEEN.clear(); EV_SEEN_Q.length = 0;
     lastPlayersKey = ''; lastRound = 0; lastCountdown = undefined; idleSince = 0; lastHb = 0;
   }
   // 離開本機房間(不發事件);byeReason 只在房主離開時傳入
@@ -409,6 +432,7 @@
     setProfile: setProfile,
     startGame: startGame,
     // 多人對戰(remote.js)用:快照寫入自己的 snap/<座位>、讀取任一座位的快照、讀取本局 round
+    emitEv(obj) { return bus && myRoom && mySeat ? bus.emit(obj) : null; },   // 施放等遊戲事件(netcombat.js)
     setSnap(s) { return bus && mySeat ? bus.setState('snap/' + mySeat, s) : Promise.resolve(); },
     snapOf(seat) { const r = root(); return r && r.snap ? r.snap[seat] : undefined; },
     roundOf() { const r = root(); return r && r.meta && r.meta.round ? r.meta.round : null; }

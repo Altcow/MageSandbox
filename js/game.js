@@ -443,7 +443,9 @@ function updateCasting(dt) {
   } else if (G.state === 'cast') {
     G.castT += dt;
     if (!G.launched && G.castT >= 0.14) {
-      G.launched = true; G.kick = 1; launchSpell(G.pending, G.orb); G.orb = null;
+      G.launched = true; G.kick = 1;
+      if (window.NETON) netSendCast(G.pending);   // 多人:出手瞬間送出施放事件(netcombat.js)
+      launchSpell(G.pending, G.orb); G.orb = null;
       const kd = G.pending.skill.kind;
       G.frameT = kd === 'sky' ? 3.8 : (kd === 'wall' ? 1.6 : 1.1);
     }

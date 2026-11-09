@@ -190,9 +190,10 @@ class RemotePlayer {
       else if (rt <= B[0].t) p = B[0];
       else { let j = 1; while (B[j].t < rt) j++; const a = B[j - 1], b = B[j]; p = mixPose(a, b, (rt - a.t) / ((b.t - a.t) || 1)); }
     }
-    if (stale || !p) { this.dead = true; this.g.visible = false; this.shadow.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false; return; }
+    if (stale || !p) { this.gf = 0; this.dead = true; this.g.visible = false; this.shadow.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false; return; }
     const g = p.g, stealth = !!(g & 2), away = !!(g & 256), down = !!(g & 64), inv = !!(g & 32);
     this.dead = down || away;
+    this.gf = g;                                                   // 快照旗標(netcombat.js 的位移招式特效用)
     this.px = p.x; this.py = p.y; this.pz = p.z; this.yaw = p.r;
     this.col.x = p.x; this.col.z = p.z;
     this.hp = p.hp; this.sh = p.sh;
@@ -402,6 +403,7 @@ function netTick(dt) {
   const iv = 1 / sendHz();
   sendAcc += dt;
   if (sendAcc >= iv) { sendAcc = sendAcc >= 2 * iv ? 0 : sendAcc - iv; sendSnap(now); }
+  if (typeof netFxTick === 'function') netFxTick(dt);   // 遠端位移招式特效(netcombat.js,§2-9)
 }
 window.netTick = netTick;
 
