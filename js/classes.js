@@ -5,7 +5,16 @@
 // 載入順序:game.js → spells.js → skills.js → classes.js → touch.js。本檔最後呼叫 startLoop() 才開始主迴圈
 
 const rgbOf = h => [(h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255];
-const curSkill = i => G.cls === 'mage' ? SKILLS[i] : CLASSES[G.cls].skills[i];
+// 法師招式 = SKILLS[i] 合併目前屬性的 aim / line(依屬性快取;切屬性時自然換一張)
+const MAGE_SK = {};
+function mageSkill(i) {
+  if (!SKILLS[i]) return SKILLS[i];
+  const el = G.el, row = MAGE_SK[el] || (MAGE_SK[el] = []);
+  if (!row[i]) { const sp = SPELLS[el][i] || {}; row[i] = Object.assign({}, SKILLS[i], { aim: sp.aim || SKILLS[i].aim, line: sp.line }); }
+  return row[i];
+}
+const curSkill = i => G.cls === 'mage' ? mageSkill(i) : CLASSES[G.cls].skills[i];
+const skillCount = () => G.cls === 'mage' ? SKILLS.length : CLASSES[G.cls].skills.length;   // 法師 4 格、其他職業 3 格
 const baseOf = i => curSkill(i).base || curSkill(i).id;
 const spellOf = i => G.cls === 'mage' ? SPELLS[G.el][i] : CLASSES[G.cls].skills[i];   // 名稱/圖示/咒語/喊招:法師依目前屬性,其他職業用自己的招式   // 法師招式沒有 base,直接用 id(fireball / firewall / meteor)
 const moveCharge = () => !!CLASSES[G.cls].moveWhileCharging;   // 集氣中可移動(劍士、刺客)
@@ -88,7 +97,8 @@ function auraSpark(dt, p, E) {
 /* ---------- 方向型瞄準(D2~D4 的 line / front / self / none) ---------- */
 // 矩形光圈的幾何:line 型從角色前方 off 起、沿瞄準方向 len 長、半寬 hw
 function lineShape(sk, q, rs) {
-  const cfg = CFG.skills[sk.id], sz = CHG.size(q);
+  if (sk.line) return sk.line(q, rs, curMode());   // 法師的線型招式(水龍彈 / 風刃切割)自帶尺寸表
+  const cfg = CFG.skills[sk.id], sz = CHG.size(q, curMode());
   if (sk.id === 'knives') { const len = cfg.range, hw = len * Math.sin(rs * sz * Math.PI / 360); return { len, hw, off: .6, maxLen: len, maxHw: len * Math.sin(rs * Math.PI / 360) }; }
   if (sk.id === 'shieldCharge') return { len: rs * sz, hw: cfg.width / 2, off: 0, maxLen: rs, maxHw: cfg.width / 2 };
   return { len: rs * sz, hw: lerp(cfg.width0, cfg.width1, q) / 2, off: .8, maxLen: rs, maxHw: cfg.width1 / 2 };   // shockArrow
@@ -98,11 +108,12 @@ function aimSpecial(sk, p, charging, q, rs, alpha, E) {
   const a = sk.aim;
   if (!a || a === 'circle' || a === 'wall') return false;
   const cfg = CFG.skills[sk.id], prog = charging ? q : 0, th = Math.atan2(G.target.x - p.x, G.target.z - p.z);
+  if (a === 'dir') { ind.hide(); hideIndPool(); return true; }   // 第 1 招:方向型,不畫任何光圈 / 線 / 落點
   if (a === 'none') { ind.hide(); return true; }
-  if (a === 'self') { ind.setMax(rs, 0, 0); ind.set(p.x, p.z, 0, rs * CHG.size(q), 0, 0, prog, alpha, E.hex, surfaceY(p.x, p.z, p.y + .5)); return true; }
+  if (a === 'self') { ind.setMax(rs, 0, 0); ind.set(p.x, p.z, 0, rs * CHG.size(q, curMode()), 0, 0, prog, alpha, E.hex, surfaceY(p.x, p.z, p.y + .5)); return true; }
   if (a === 'front') {
     const cx = p.x + Math.sin(th) * cfg.range, cz = p.z + Math.cos(th) * cfg.range;
-    ind.setMax(rs, 0, 0); ind.set(cx, cz, 0, rs * CHG.size(q), 0, 0, prog, alpha, E.hex, surfaceY(cx, cz, p.y + 2)); return true;
+    ind.setMax(rs, 0, 0); ind.set(cx, cz, 0, rs * CHG.size(q, curMode()), 0, 0, prog, alpha, E.hex, surfaceY(cx, cz, p.y + 2)); return true;
   }
   // line:矩形(本地 x 軸 = 瞄準方向,yaw = θ − π/2)
   const L = lineShape(sk, q, rs), cx = p.x + Math.sin(th) * (L.off + L.len / 2), cz = p.z + Math.cos(th) * (L.off + L.len / 2);
@@ -127,13 +138,17 @@ function classInfo() {
 /* ---------- 快捷列與冷卻 ---------- */
 function refreshHotbar() {
   slots.forEach((el, i) => {
-    const s = spellOf(i);
+    const n = skillCount(), s = spellOf(i);
+    el.style.display = i < n ? '' : 'none';   // 非法師隱藏第 4 格
+    el.querySelector('b').textContent = i < 3 ? String(i + 1) : '~';   // 第 4 格(召喚)鍵位 ~
+    if (i >= n) return;
     el.querySelector('.ic').innerHTML = s.img ? '<img src="' + s.img + '" alt="' + s.icon + '" style="width:34px;height:34px" onerror="this.replaceWith(document.createTextNode(this.alt))">' : s.icon;
     el.querySelector('.nm').textContent = s.name;
   });
 }
 function updateCdHUD() {
   slots.forEach((el, i) => {
+    if (i >= skillCount()) return;
     const s = curSkill(i), st = s.id === 'stealth' && G.stealth ? G.stealth : null;   // 潛行中格子顯示剩餘潛行時間
     const tot = st ? st.dur : s.cd, left = st ? Math.max(0, st.left) : (tot ? (G.cd[s.id] || 0) : 0);
     if (!el._cm) { el._cm = el.querySelector('.cdmask'); el._ct = el.querySelector('.cdt'); }
@@ -150,7 +165,7 @@ function classTick(dt) {
   if (G.stealth) { G.stealth.left -= dt; if (G.stealth.left <= 0) revealStealth('time'); }
   if (G.dash) dashTick(dt, p);
   if (G.spin) spinTick(dt, p);
-  G.spdK = (G.spin ? .5 : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1);   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
+  G.spdK = (G.spin ? .5 : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z).pct : 1);   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
   if (G.state !== 'charging') AURA.full = false;
   else if (G.charge >= 1 && !AURA.full) { AURA.full = true; auraGather(); }   // 聚能收束:集氣滿時環繞粒子飛向武器尖端
   if (G.stealth || (G.dash && G.dash.kind === 'charge')) auraSpark(dt, p, E);
@@ -176,7 +191,7 @@ function refreshClsBar() {
     b.classList.toggle('on', on); b.style.borderColor = on ? hx : ''; b.style.boxShadow = on ? '0 0 10px ' + hx : '';
   });
 }
-function syncElBar() { const eb = document.getElementById('elBar'); if (eb) eb.style.display = CLASSES[G.cls].elements ? '' : 'none'; }   // 屬性列只給法師(任務 C 的 #elBar)
+function syncElBar() { const eb = document.getElementById('elBar'); if (eb) eb.style.display = CLASSES[G.cls].elements ? '' : 'none'; syncModeUI(); }   // 屬性列只給法師(任務 C 的 #elBar)
 
 /* ---------- 切換職業 ---------- */
 function setClass(c) {

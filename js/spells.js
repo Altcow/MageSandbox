@@ -21,32 +21,38 @@ const SPELLS = {
   water: [
     { name: '水彈術', icon: '💧', img: 'assets/icons/sp_water_bolt.png', chant: '清泉之靈,凝於掌心,化為奔流之彈——', shout: '水彈術!', preview: q => '減速 ' + _pct(q) + '%' },
     { name: '水幕術', icon: '🌊', img: 'assets/icons/sp_water_wall.png', chant: '深潭之水,湧泉而起,化作阻敵之幕——', shout: '水幕術!', preview: q => '減速 ' + _pct(q) + '%' },
-    { name: '間歇泉', icon: '⛲', img: 'assets/icons/sp_water_sky.png', chant: '大地之脈,沉睡之泉,聽我號令——噴湧吧!', shout: '間歇泉!', preview: q => '水柱 ' + CHG.count(10, q) + ' 道' }
+    { name: '水龍彈', icon: '🐉', img: null, chant: '深淵之龍,聽我呼喚,破浪而出——', shout: '水龍彈!', aim: 'line', line: (q, rs, m) => ({ len: 2.5 * rs * CHG.size(q, m), hw: 1.6 * CHG.thick(q, m), off: 2, maxLen: 2.5 * rs * (m === 'B' ? .6 : 1), maxHw: 1.6 * (m === 'A' ? 1.6 : 1) }), unit: 'copies', unitName: '條', preview: q => '減速 ' + _pct(q) + '%' },
+    { name: '水精靈', icon: '🧚', img: null, chant: '清泉之靈,應我之約,現身吧——', shout: '水精靈!', preview: q => '減速 ' + Math.round(30 * CHG.fx(q)) + '%' }
   ],
   fire: [
     { name: '火球術', icon: '🔥', img: 'assets/icons/sp_fire_bolt.png', chant: '火之精靈,聚於我手,化為灼熱之球——燃盡一切!', shout: '火球術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
     { name: '火牆術', icon: '🧱', img: 'assets/icons/sp_fire_wall.png', chant: '烈焰之壁,拔地而起,焚盡來犯之敵——', shout: '火牆術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
-    { name: '隕石術', icon: '☄️', img: 'assets/icons/sp_fire_sky.png', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石術!', preview: q => '燃燒 ' + _m(3, q) + ' s' }
+    { name: '隕石墜擊', icon: '☄️', img: 'assets/icons/sp_fire_sky.png', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石墜擊!', unit: 'copies', unitName: '顆', preview: q => '坑內減速 55%' },
+    { name: '多頭火蛇', icon: '🐍', img: null, chant: '烈焰之蛇,三首同心,盤踞於此——', shout: '多頭火蛇!', preview: q => '燃燒 ' + _m(1.5, q) + ' s' }
   ],
   wind: [
     { name: '風刃術', icon: '🌀', img: 'assets/icons/sp_wind_bolt.png', chant: '疾風之刃,隨我意行,斬裂虛空——', shout: '風刃術!', preview: q => '擊退 ' + _m(5, q) + ' m' },
     { name: '風壁術', icon: '🍃', img: 'assets/icons/sp_wind_wall.png', chant: '流轉之風,環繞成壁,拒敵於外——', shout: '風壁術!', preview: q => '推出 ' + _m(2.5, q) + ' m' },
-    { name: '龍捲風', icon: '🌪️', img: 'assets/icons/sp_wind_sky.png', chant: '天地之息,旋而不止,捲起萬物——', shout: '龍捲風!', preview: q => '吸引 ' + _m(4, q) + ' m/s' }
+    { name: '風刃切割', icon: '🌬️', img: null, chant: '天穹之風,化為千刃,斬斷前路——', shout: '風刃切割!', aim: 'line', line: (q, rs, m) => ({ len: 32, hw: rs * CHG.size(q, m), off: 1, maxLen: 32, maxHw: rs * (m === 'B' ? .6 : 1) }), unit: 'copies', unitName: '波', preview: q => '傷害 ' + Math.round(130 * CHG.dmg(q)) },
+    { name: '鎌鼬', icon: '🦦', img: null, chant: '疾風之子,藏刃於風,來去無蹤——', shout: '鎌鼬!', preview: q => '真空刃 ' + Math.round(80 * CHG.dmg(q)) }
   ],
   earth: [
     { name: '岩彈術', icon: '🪨', img: 'assets/icons/sp_earth_bolt.png', chant: '沉眠之岩,醒於我手,化為重擊之石——', shout: '岩彈術!', preview: q => '擊飛 ' + _m(1.2, q) + ' m' },
     { name: '石牆術', icon: '🗿', img: 'assets/icons/sp_earth_wall.png', chant: '大地之骨,拔地而起,築我屏障——', shout: '石牆術!', preview: q => '擊飛 ' + _m(1, q) + ' m' },
-    { name: '地裂石柱', icon: '⛰️', img: 'assets/icons/sp_earth_sky.png', chant: '撼地之力,裂土而出,石柱貫天——', shout: '地裂石柱!', preview: q => '擊飛 ' + _m(1.8, q) + ' m' }
+    { name: '地裂石柱', icon: '⛰️', img: 'assets/icons/sp_earth_sky.png', chant: '撼地之力,裂土而出,石柱貫天——', shout: '地裂石柱!', unit: 'count', cntN: 10, unitName: '柱', preview: q => '擊飛 ' + _m(1.8, q) + ' m' },
+    { name: '石頭人', icon: '🗿', img: null, chant: '大地之骨,化為巨像,為我而戰——', shout: '石頭人!', preview: q => '暈眩 ' + _m(.4, q) + ' s' }
   ],
   light: [
     { name: '聖光彈', icon: '✨', img: 'assets/icons/sp_light_bolt.png', chant: '晨曦之光,凝為一點,穿透黑暗——', shout: '聖光彈!', preview: q => '連鎖 ' + Math.max(1, Math.round(2 * _f(q))) + ' 跳' },
     { name: '聖域結界', icon: '🔆', img: 'assets/icons/sp_light_wall.png', chant: '神聖之光,劃地為界,照見一切——', shout: '聖域結界!', preview: q => '易傷 +' + Math.round(25 * _f(q)) + '%' },
-    { name: '聖光柱', icon: '🌟', img: 'assets/icons/sp_light_sky.png', chant: '天穹之光,垂落人間,審判降臨——', shout: '聖光柱!', preview: q => '光柱 ' + CHG.count(10, q) + ' 道' }
+    { name: '聖光柱', icon: '🌟', img: 'assets/icons/sp_light_sky.png', chant: '天穹之光,垂落人間,審判降臨——', shout: '聖光柱!', unit: 'count', cntN: 10, unitName: '道', preview: q => '光柱 ' + CHG.count(10, q, curMode()) + ' 道' },
+    { name: '六翼熾天使', icon: '👼', img: null, chant: '六翼之光,降臨守護,照我前路——', shout: '熾天使!', preview: q => '治癒 ' + Math.round(12 * _f(q)) + ' / 2 s' }
   ],
   dark: [
     { name: '暗影彈', icon: '🟣', img: 'assets/icons/sp_dark_bolt.png', chant: '幽冥之影,聚於指尖,吞噬光明——', shout: '暗影彈!', preview: q => '吸引 ' + _m(1.5, q) + ' m' },
     { name: '暗影幕', icon: '🌫️', img: 'assets/icons/sp_dark_wall.png', chant: '無光之幕,自深淵升起,束縛來者——', shout: '暗影幕!', preview: q => '吸向中線 ' + _m(3, q) + ' m/s' },
-    { name: '黑洞', icon: '🕳️', img: 'assets/icons/sp_dark_sky.png', chant: '虛無之核,吞星噬月,萬物歸一——', shout: '黑洞!', preview: q => '吸引 ' + _m(6, q) + ' m/s' }
+    { name: '黑洞', icon: '🕳️', img: 'assets/icons/sp_dark_sky.png', chant: '虛無之核,吞星噬月,萬物歸一——', shout: '黑洞!', preview: q => '吸引 ' + _m(6, q) + ' m/s' },
+    { name: '暗影', icon: '👤', img: null, chant: '影中之影,自我足下,甦醒吧——', shout: '暗影!', preview: q => '侵蝕 ' + _m(4, q) + ' s' }
   ]
 };
 
@@ -73,6 +79,7 @@ const FX_FIXED = { slow: 1, lit: 1 };   // 持續秒數固定,不隨集氣縮放
 function elFx(el, fxK) {
   const o = {}, base = EL_FX[el] || {};
   for (const k in base) o[k] = FX_FIXED[k] ? base[k] : base[k] * fxK;
+  if (el === 'water') o.slowPct = .5 * fxK;   // 水系減速幅度 25% → 50%(設計 §5-2)
   return o;
 }
 
@@ -83,7 +90,7 @@ function hitEl(d, dmg, el, sx, sz, fx) {
   if (fx.knock) d.knock(sx, sz, fx.knock);
   if (fx.lift) d.lift(fx.lift);
   if (fx.stun) d.stun(fx.stun);
-  if (fx.slow) d.slow(fx.slow);
+  if (fx.slow) d.slow(fx.slow, fx.slowPct);
   if (fx.lit) d.light(fx.lit);
   if (fx.erode) d.erode(fx.erode);
 }
@@ -105,7 +112,7 @@ function areaEl(pos, R, B, el, P, fx) {
 
 // ================= C2/C3:水、風、土、光、暗的專屬招式(投射 / 牆 / 大招) =================
 // 投射走 castBolt(共用引擎)、牆走 spawnZone(共用引擎)、大招各自一個函式(能量球先飛 → 時間軸)。
-// 火系三招仍是 game.js 的 castFireball / castFirewall / castMeteor;launchSpell 依 SHAPE_FN[元素][形狀] 查表。
+// 火球術 castFireBolt 在本檔;火牆 castFirewall 在 game.js;launchSpell 依 SHAPE_FN_NAME[元素][形狀] 查名稱、以 window[名稱] 呼叫。
 // 本段只在執行期被呼叫;用到的 game.js / world.js / fx.js 全域都在那之後才會用到。
 
 // 爆炸焦痕色(explode 讀取):RGB 乘數,焦痕貼圖本身很暗所以需要 >1 才看得出棕 / 紫;null = 不留焦痕
@@ -182,6 +189,7 @@ function castBolt(P, orb, st) {
 }
 // 飛行軌跡(每幀):a → b 為上一幀到這一幀,o 為能量球,E 為屬性表
 const TRAIL = {
+  fire: (a, b, o, E) => { trail(a, b, 6, o.r * 1.3, .45, 'fire'); smoke.emit(b.x, b.y, b.z, rnd(-.3, .3), rnd(0, .5), rnd(-.3, .3), 1, o.r * 1.5, [.25, .2, .18], [.08, .08, .09], .35, 2.2, -.2, .5); },
   water: (a, b, o, E) => {
     tpath(a, b, fq(4), (x, y, z) => fire.emit(x, y, z, rnd(-.6, .6), rnd(-.3, .8), rnd(-.6, .6), rnd(.3, .45), o.r * rnd(.8, 1.2), E.c0, E.c1, .9, .3, -.5, .4));
     smoke.emit(b.x, b.y, b.z, rnd(-.2, .2), 0, rnd(-.2, .2), .7, o.r * .6, E.s0, E.s1, .9, 1, 9, 0);   // 水滴(grav 9 往下掉)
@@ -222,14 +230,15 @@ function debris(p, n, col, size) {
 //     emit(seg, ramp, c)(每段每幀)、onSegOn(seg, c)(段第一次啟動)、frame(c)(每幀)、onStart(c) / onEnd(c)
 // c:{ P, gy, ax, az, half, thick, dur, segs, age, dt, fade, token, plat };牆軸 = (ax, az),法線 across = (-az, ax)
 function spawnZone(P, st) {
-  const gy = P.target.y, cfg = sc(P.idx), half = P.r / 2, thick = cfg.thick, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw);
+  if (P.ncopy == null) { forCopies(P, 'wall', .12, wallPlace, Qi => spawnZone(Qi, st)); return; }   // 牆的份數(B 模式多道):每道各自 spawnZone,由近到遠依序立起
+  const gy = P.target.y, cfg = sc(P.idx), half = P.r / 2, thick = cfg.thick * P.thickK, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw);
   const n = Math.ceil(P.r / .7) + 1, segs = [];
   for (let i = 0; i < n; i++) { const o = (i / (n - 1) - .5) * P.r, x = P.target.x + ax * o, z = P.target.z + az * o; segs.push({ o, x, z, gy: surfaceY(x, z, gy + 1), on: Math.abs(o) / half * .4, acc: 0, went: false, mesh: null }); }
-  const c = { P, gy, ax, az, half, thick, dur: cfg.duration * P.durK, segs, age: 0, dt: 0, fade: 1, tick: 0, token: {}, plat: null };
+  const c = { P, gy, ax, az, half, thick, dur: cfg.duration * P.durK, segs, age: 0, dt: 0, fade: 1, tick: 0, token: {}, plat: null, emitK: (P.ncopy > 1 ? 1 / (P.ncopy * .6) : 1) * Math.sqrt(P.thickK) };
   const wi = new Indicator(scene);
   flashLight(new V3(P.target.x, gy + 1.5, P.target.z), st.hex, 4, .5, 20);
   G.shake = Math.max(G.shake, .08 * CFG.shake);
-  if (st.lightInt) claimLight(c.token, st.lightHex, new V3(P.target.x, gy + 1.8, P.target.z), 10 + P.r * 1.3);
+  if (st.lightInt && !P.copy) claimLight(c.token, st.lightHex, new V3(P.target.x, gy + 1.8, P.target.z), 10 + P.r * 1.3);
   if (st.onStart) st.onStart(c);
   addFx(dt => {
     c.age += dt; c.dt = dt; c.fade = c.age > c.dur - 1 ? Math.max(0, c.dur - c.age) : 1;
@@ -274,13 +283,91 @@ function orbFly(orb, to, time, E, done) {
   });
 }
 
+/* ---------- 第一招:朝方向射出的子彈(無瞄準輔助,設計 §1) ---------- */
+// 水平直線、固定高度(槍口高)、固定速度、無重力;不畫地面光圈 / 線 / 落點,只有飛行尾跡與 1.8 s 殘影
+const SHOT_ANG = [0, -6, 6, -12, 12].map(a => a * Math.PI / 180);   // B 模式扇形固定角,依序取前 n 個(中心 0° 永遠與單發相同)
+const TRACER_MAX = 6, TRACERS = [];
+function dropTracer(o) {
+  o.dead = true; const i = TRACERS.indexOf(o); if (i >= 0) TRACERS.splice(i, 1);
+  scene.remove(o.m, o.s); o.m.material.dispose(); o.s.material.dispose();
+}
+// 彈道殘影:槍口 → 結束點的細光線 + 終點光點,1.8 s 線性淡出;全場最多 TRACER_MAX 條(超過移除最舊)
+function addTracer(a, b, E) {
+  while (TRACERS.length >= TRACER_MAX) dropTracer(TRACERS[0]);
+  const m = new THREE.Mesh(BEAM_GEO, new THREE.MeshBasicMaterial({ color: E.hex, transparent: true, opacity: .45, blending: THREE.AdditiveBlending, depthWrite: false }));
+  m.position.copy(a).add(b).multiplyScalar(.5); m.lookAt(b); m.scale.set(.05, .05, a.distanceTo(b) || .01); scene.add(m);
+  const s = glowSprite(E.hex, .8, .7); s.position.copy(b); scene.add(s);
+  const o = { m, s, dead: false }; TRACERS.push(o);
+  let t = 0;
+  addFx(dt => {
+    if (o.dead) return false;
+    t += dt / 1.8;
+    if (t >= 1) { dropTracer(o); return false; }
+    m.material.opacity = .45 * (1 - t); s.material.opacity = .7 * (1 - t);
+    return true;
+  });
+}
+// 共用引擎:P.dir 方向、P.muzzle 槍口、P.copies 發數;st:{ speed, trail(a, b, orb, E), impact(end, P), done?(end) }
+// 第 0 發用 orb,其餘發 makeOrb 複製;各發 dmgK × CHG.perK(n, 'bolt')
+function castShot(P, orb, st) {
+  const n = P.copies || 1, k = CHG.perK(n, 'bolt');
+  for (let i = 0; i < n; i++) {
+    const Pi = Object.assign({}, P, { copy: i, ncopy: n, dmgK: P.dmgK * k, target: P.target.clone() });
+    let o = orb;
+    if (i) { o = makeOrb(EL[P.el]); scene.add(o); }
+    shotOne(Pi, o, st, P.dir + SHOT_ANG[i]);
+  }
+}
+// 單發:每幀細分為 ≤ 0.5 m 的步長(光彈 64 m/s 不穿過標靶);標靶 > 地形 / 平台 / 裝飾柱 > 場地邊界 > 射程盡頭
+function shotOne(P, orb, st, dir) {
+  const E = EL[P.el], dx = Math.sin(dir), dz = Math.cos(dir), from = P.muzzle.clone(), Y = from.y, hitR = .5 * P.thickK;
+  orb.setR(Math.max(orb.r, .3) * (.8 + .6 * P.power) * P.thickK); orb.position.copy(from);
+  let cur = from.clone(), s = 0, ended = false;
+  const stop = (pt, boom) => {
+    ended = true; orb.position.copy(pt);
+    if (boom) { scene.remove(orb); addTracer(from, pt, E); st.impact(pt, P); }
+    else { dissolveOrb(orb, E); addTracer(from, pt, E); }
+    if (st.done) st.done(pt);
+  };
+  const hitAt = (a, b) => {   // 這一小段 a → b:標靶先比(段內最早接觸);其餘在段尾判定
+    let bt = 2, best = null;
+    for (const d of DUMMIES) { if (d.dead) continue; const t = segHitT(a, b, d, hitR); if (t >= 0 && t < bt) { bt = t; best = d; } }
+    if (best) return { pt: new V3(a.x + (b.x - a.x) * bt, Y, a.z + (b.z - a.z) * bt), boom: true };
+    if (b.y < terrainH(b.x, b.z) + .1) return { pt: b, boom: true };
+    for (const H of PLATFORMS) if (platContains(H, b.x, b.z, .1) && b.y <= platTop(H, b.x, b.z) && (H.bottom == null || b.y >= H.bottom)) return { pt: b, boom: true };
+    for (const c of COLLIDERS) if (c.deco && Math.hypot(b.x - c.x, b.z - c.z) < c.r) return { pt: b, boom: true };
+    return null;
+  };
+  addFx(dt => {
+    if (ended) return false;
+    const dist = st.speed * dt, steps = Math.max(1, Math.ceil(dist / .5)), step = dist / steps, f0 = cur.clone();
+    for (let j = 0; j < steps; j++) {
+      const a = cur.clone(); cur.x += dx * step; cur.z += dz * step; cur.y = Y; s += step;
+      const h = hitAt(a, cur);
+      if (h) { stop(h.pt, h.boom); return false; }
+      if (Math.hypot(cur.x, cur.z) > ARENA_R) { stop(cur.clone(), false); return false; }   // 場地邊界:小煙消失,不爆炸
+      if (s >= P.range) { stop(cur.clone(), true); return false; }                        // 射程盡頭:空中爆炸
+    }
+    orb.position.copy(cur);
+    st.trail(f0, cur, orb, E);
+    return true;
+  });
+}
+// 火球術(第 1 招,與其他屬性同走 castShot);爆炸參數同舊 castFireball
+function castFireBolt(P, orb) {
+  castShot(P, orb, {
+    speed: BOLT_SPEED * ELMOD.fire.speedMul, trail: TRAIL.fire,
+    impact(end, Q) { explode(end, Q.r, Q.power, { dmg: 80, gy: Q.target.y, el: 'fire', mul: Q.dmgK, fxK: Q.fxK, burn: 3 * Q.fxK }); }
+  });
+}
+
 /* ---------- 各屬性 3 招 ---------- */
 
-// 水彈術:減速(3 s);爆炸水滴噴濺,無焦痕
+// 水彈術:減速(3 s);爆炸水滴噴濺,無焦痕(第 1 招,朝方向射出)
 function castWaterBolt(P, orb) {
   const E = EL.water;
-  castBolt(P, orb, {
-    speed: BOLT_SPEED * ELMOD.water.speedMul, arc: .06, trail: TRAIL.water,
+  castShot(P, orb, {
+    speed: BOLT_SPEED * ELMOD.water.speedMul, trail: TRAIL.water,
     impact(end, Q) {
       explode(end, Q.r, Q.power, { dmg: 0, el: 'water', gy: Q.target.y, fxK: Q.fxK });
       for (let i = 0; i < fq(30); i++) smoke.emit(end.x + rnd(-.4, .4), end.y, end.z + rnd(-.4, .4), rnd(-1.2, 1.2), rnd(4, 7), rnd(-1.2, 1.2), rnd(.6, .9), rnd(.12, .22), E.s0, E.s1, .9, 1, 9, .2);
@@ -296,7 +383,7 @@ function castWaterWall(P, orb) {
     impact: (end, Q) => spawnZone(Q, {
       hex: E.hex, indHex: E.hex, alpha: .35, lightHex: 0x4aa8ff, lightInt: 1.8, tickInt: .3,
       emit(s, ramp, c) {
-        s.acc += c.dt * 24 * ramp * FXQ();
+        s.acc += c.dt * 24 * ramp * FXQ() * c.emitK;
         while (s.acc >= 1) {
           s.acc -= 1; const lx = rnd(-c.thick / 2, c.thick / 2), x = s.x - c.az * lx, z = s.z + c.ax * lx;
           fire.emit(x, s.gy + rnd(0, .2), z, rnd(-.3, .3), rnd(4, 6), rnd(-.3, .3), rnd(.5, .8), rnd(.35, .6), E.c0, E.c1, .95, .35, 9, .3);
@@ -309,7 +396,7 @@ function castWaterWall(P, orb) {
 }
 // 間歇泉:地面水圈預告 → 多道小水柱(小擊飛)→ 中央大水柱(大擊飛 + 大範圍)
 function castGeyser(P, orb) {
-  const E = EL.water, gy = P.target.y, R = P.r, sched = [], n = CHG.count(10, P.q);
+  const E = EL.water, gy = P.target.y, R = P.r, sched = [], n = CHG.count(10, P.q, P.mode);
   for (let i = 0; i < n; i++) sched.push({ t: .5 + (i / n) * 1.8 + rnd(0, .2), big: false });
   sched.push({ t: 2.6, big: true });
   const geyser = (x, y, z, big) => {
@@ -347,44 +434,6 @@ function castGeyser(P, orb) {
   });
 }
 
-// 風刃術:半透明月牙飛行(自轉),爆炸水平化 + 白色煙 + 雙層擴散環,擊退 2.5 → 5 m
-function castWindBolt(P, orb) {
-  const E = EL.wind, moon = new THREE.Mesh(MOON_GEO, new THREE.MeshBasicMaterial({ color: E.hex, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  scene.add(moon);
-  castBolt(P, orb, {
-    speed: BOLT_SPEED * ELMOD.wind.speedMul, arc: 0,
-    trail(a, b, o, Ev) {
-      moon.position.copy(b); moon.lookAt(b.x + (b.x - a.x) * 9, b.y, b.z + (b.z - a.z) * 9); moon.rotateZ(.5);
-      TRAIL.wind(a, b, o, Ev);
-    },
-    impact(end, Q) {
-      scene.remove(moon); moon.material.dispose();
-      explode(end, Q.r, Q.power, { dmg: 0, el: 'wind', gy: Q.target.y, fxK: Q.fxK, flatY: .3, smokeA: .25 });
-      burstRing(end, EL_BURST.wind.ring, Q.r); burstRing(end, EL_BURST.wind.ring, Q.r * 1.4);
-      areaEl(end, Q.r, 60, 'wind', Q);
-    }
-  });
-}
-// 風壁術:螺旋上升的風牆,每跳擊退(2.5 → 1.25 m 的牆外推出)
-function castWindWall(P, orb) {
-  const E = EL.wind;
-  castBolt(P, orb, {
-    speed: 36, arc: 0, endY: .5, dmin: .2, dmax: .6, trail: TRAIL.wind,
-    impact: (end, Q) => spawnZone(Q, {
-      hex: E.hex, indHex: E.hex, alpha: .3, lightHex: E.hex, lightInt: 2.5, tickInt: .3,
-      emit(s, ramp, c) {
-        s.acc += c.dt * 20 * ramp * FXQ();
-        while (s.acc >= 1) {
-          s.acc -= 1;
-          const lx = rnd(-c.thick / 2, c.thick / 2), x = s.x - c.az * lx, z = s.z + c.ax * lx, sway = Math.sin(c.age * 6 + s.o) * 1.2;
-          fire.emit(x, s.gy + rnd(0, .4), z, c.ax * sway, rnd(2.5, 4.5), c.az * sway, rnd(.6, .9), rnd(.2, .35), E.c0, E.c1, .9, .5, -.2, .8);
-          if (Math.random() < .3) fire.emit(x, s.gy + rnd(.3, 2.5), z, rnd(-.5, .5), rnd(0, .6), rnd(-.5, .5), rnd(.8, 1.2), rnd(.08, .14), LEAF0, LEAF1, .8, .5, -.4, .8);
-        }
-      },
-      onTick: c => zoneTick(c, 5, 'wind', { knock: 2.5 * c.P.fxK })
-    })
-  });
-}
 // 龍捲風:能量球升到上空成形,龍捲繞圈移動、持續吸引與抬升,結束時爆風擊退 4 → 2 m
 function castTornado(P, orb) {
   const E = EL.wind, gy = P.target.y, R = P.r, Rm = R * .3, w = 1.2 / Rm, dur = 3.2 + 1.4 * P.q, token = {};
@@ -424,10 +473,10 @@ function castTornado(P, orb) {
   });
 }
 
-// 土:岩彈(擊飛 + 暈眩)
+// 土:岩彈(擊飛 + 暈眩)(第 1 招,朝方向射出)
 function castEarthBolt(P, orb) {
-  castBolt(P, orb, {
-    speed: BOLT_SPEED * ELMOD.earth.speedMul, arc: .18, trail: TRAIL.earth,
+  castShot(P, orb, {
+    speed: BOLT_SPEED * ELMOD.earth.speedMul, trail: TRAIL.earth,
     impact(end, Q) {
       const R = Q.r * .9;
       explode(end, R, Q.power, { dmg: 0, el: 'earth', gy: Q.target.y, fxK: Q.fxK });
@@ -471,11 +520,11 @@ function castStoneWall(P, orb) {
 }
 // 地裂石柱:地面裂紋預告 → 三圈石柱(中心 / R×.5 / R×.9),每個標靶只吃到所在那一圈
 function castEarthSpikes(P, orb) {
-  const E = EL.earth, gy = P.target.y, R = P.r, cnt = IS_TOUCH ? [1, 5, 8] : [1, 6, 10];
+  const E = EL.earth, gy = P.target.y, R = P.r, cnt = (IS_TOUCH ? [1, 5, 8] : [1, 6, 10]).map(c => CHG.count(c, P.q, P.mode));
   const RAD = [0, R * .5, R * .9], BAND = [[0, R * .25], [R * .25, R * .7], [R * .7, R * 1.05]], TIMES = [.6, .8, 1.0];
   const spike = (x, z) => {
     const m = new THREE.Mesh(SPIKE_GEO, STONE_MAT);
-    m.rotation.set(rnd(-.15, .15), rnd(0, 6.283), rnd(-.15, .15)); m.position.set(x, gy - 1.1, z); scene.add(m);
+    m.rotation.set(rnd(-.15, .15), rnd(0, 6.283), rnd(-.15, .15)); m.position.set(x, gy - 1.1, z); m.scale.setScalar(P.thickK); scene.add(m);
     let t = 0;
     addFx(dt => {
       t += dt;
@@ -519,10 +568,10 @@ function castEarthSpikes(P, orb) {
   });
 }
 
-// 聖光彈:細長光痕 → 白金爆炸(無煙無焦痕),連鎖 1 → 2 跳(與預覽同公式 max(1, round(2 × fxK)))
+// 聖光彈:細長光痕 → 白金爆炸(無煙無焦痕),連鎖 1 → 2 跳(與預覽同公式 max(1, round(2 × fxK)))(第 1 招)
 function castHolyBolt(P, orb) {
-  castBolt(P, orb, {
-    speed: BOLT_SPEED * ELMOD.light.speedMul, arc: 0, trail: TRAIL.light,
+  castShot(P, orb, {
+    speed: BOLT_SPEED * ELMOD.light.speedMul, trail: TRAIL.light,
     impact(end, Q) {
       const R = Q.r * .8;
       explode(end, R, Q.power, { dmg: 0, el: 'light', gy: Q.target.y, fxK: Q.fxK });
@@ -540,7 +589,7 @@ function castSanctuary(P, orb) {
     impact: (end, Q) => spawnZone(Q, {
       hex: E.hex, indHex: E.hex, alpha: .5, lightHex: 0xfff2a0, lightInt: 2.5, tickInt: .4,
       emit(s, ramp, c) {
-        s.acc += c.dt * 20 * ramp * FXQ();
+        s.acc += c.dt * 20 * ramp * FXQ() * c.emitK;
         while (s.acc >= 1) {
           s.acc -= 1; const lx = rnd(-c.thick / 2, c.thick / 2);
           fire.emit(s.x - c.az * lx, s.gy + rnd(0, .2), s.z + c.ax * lx, rnd(-.2, .2), rnd(3, 5), rnd(-.2, .2), .5, rnd(.15, .3), E.c0, E.c1, .9, .3, 0, .5);
@@ -552,7 +601,7 @@ function castSanctuary(P, orb) {
 }
 // 聖光柱:能量球往上飛 → 多道小光柱(連鎖 1 跳)→ 中央大光柱(連鎖 1 → 3 跳)
 function castHolyPillar(P, orb) {
-  const E = EL.light, gy = P.target.y, R = P.r, n = CHG.count(10, P.q), sched = [];
+  const E = EL.light, gy = P.target.y, R = P.r, n = CHG.count(10, P.q, P.mode), sched = [];
   for (let i = 0; i < n; i++) sched.push({ t: .4 + (i / n) * 1.6 + rnd(0, .15), big: false });
   sched.push({ t: 2.3, big: true });
   const pillar = (x, z, rad, big) => {
@@ -570,8 +619,8 @@ function castHolyPillar(P, orb) {
   };
   const small = () => {
     const ang = rnd(0, 6.283), rr = Math.sqrt(Math.random()) * Math.max(1.4, R * .25), x = P.target.x + Math.cos(ang) * rr, z = P.target.z + Math.sin(ang) * rr;
-    pillar(x, z, .35, false);
-    areaEl(new V3(x, gy, z), 1.4, 45, 'light', P, {});
+    pillar(x, z, .35 * P.thickK, false);
+    areaEl(new V3(x, gy, z), 1.4 * P.thickK, 45, 'light', P, {});
     const first = nearestDummy(x, z, 1.8);
     if (first) chainFrom(first, 1, 45 * P.dmgK * .5, 'light');
   };
@@ -594,10 +643,10 @@ function castHolyPillar(P, orb) {
   });
 }
 
-// 暗影彈:能量球為黑核紫邊;命中先吸入(0.25 s),再爆炸並把範圍內標靶拉向爆心、侵蝕 3 s
+// 暗影彈:黑核紫邊的子彈;命中先吸入(0.25 s),再爆炸並把範圍內標靶拉向爆心、侵蝕(第 1 招)
 function castShadowBolt(P, orb) {
-  castBolt(P, orb, {
-    speed: BOLT_SPEED * ELMOD.dark.speedMul, arc: .04, trail: TRAIL.dark,
+  castShot(P, orb, {
+    speed: BOLT_SPEED * ELMOD.dark.speedMul, trail: TRAIL.dark,
     impact(end, Q) {
       const E = EL.dark, R = Q.r, gy = Q.target.y;
       for (let i = 0; i < fq(24); i++) {   // 先吸入:粒子從 1.3R 處往爆心飛,0.3 s 到達
@@ -620,7 +669,7 @@ function castShadowCurtain(P, orb) {
     impact: (end, Q) => spawnZone(Q, {
       hex: E.hex, indHex: E.hex, alpha: .35, lightHex: 0x9a4dff, lightInt: 1.2, tickInt: .3,
       emit(s, ramp, c) {
-        s.acc += c.dt * 12 * ramp * FXQ();
+        s.acc += c.dt * 12 * ramp * FXQ() * c.emitK;
         while (s.acc >= 1) {
           s.acc -= 1; const lx = rnd(-c.thick / 2, c.thick / 2), x = s.x - c.az * lx, z = s.z + c.ax * lx;
           smoke.emit(x, s.gy + rnd(.3, 1.2), z, rnd(-.3, .3), rnd(1, 2), rnd(-.3, .3), rnd(.8, 1.2), rnd(1.5, 2.5), E.s0, E.s1, .7, 1, -.3, .3);
@@ -639,8 +688,21 @@ function castShadowCurtain(P, orb) {
   });
 }
 // 黑洞:能量球升到上空成形 → 吸引圈內標靶向心移動並侵蝕 → 坍縮爆炸(大傷害,之後標靶彈回原位)
+// 份數(B 模式):垂直瞄準方向 0 / +0.9R / −0.9R 並排;只有第 0 份驅動持續光源;A 模式黑球 / 吸積環 ×thickK
 function castBlackHole(P, orb) {
-  const E = EL.dark, gy = P.target.y, R = P.r, pullR = R * 1.4, attr = 2.4 + P.q, ground0 = new V3(P.target.x, gy, P.target.z);
+  forCopies(P, 'sky', .2, blackPlace, (Pi, i) => {
+    let o = orb;
+    if (i) { o = makeOrb(EL.dark); o.setR(orb.r); scene.add(o); o.position.copy(orb.position); }
+    blackHoleOne(Pi, o);
+  });
+}
+function blackPlace(Pi, i) {
+  if (!i) return;
+  const s = (i % 2 ? 1 : -1) * .9 * Pi.r, x = Pi.target.x + Math.cos(Pi.dir) * s, z = Pi.target.z - Math.sin(Pi.dir) * s;
+  Pi.target = new V3(x, surfaceY(x, z, Pi.target.y + 1), z);
+}
+function blackHoleOne(P, orb) {
+  const E = EL.dark, gy = P.target.y, R = P.r, pullR = R * 1.4, attr = 2.4 + P.q, ground0 = new V3(P.target.x, gy, P.target.z), tk = P.thickK;
   orbFly(orb, new V3(P.target.x, gy + 2.5, P.target.z), .3, E, () => {
     scene.remove(orb);
     const C = new V3(P.target.x, gy + 2.5, P.target.z), token = {};
@@ -648,14 +710,14 @@ function castBlackHole(P, orb) {
     sph.position.copy(C); sph.scale.setScalar(.01); scene.add(sph);
     const halo = glowSprite(0x9a4dff, 5, .5); halo.position.copy(C); scene.add(halo);
     const ring = new THREE.Mesh(TORUS_GEO, new THREE.MeshBasicMaterial({ color: 0xb070ff, transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false }));
-    ring.position.copy(C); ring.rotation.x = Math.PI / 2 - .4; scene.add(ring);
-    claimLight(token, 0x9a4dff, C, 14);
+    ring.position.copy(C); ring.rotation.x = Math.PI / 2 - .4; ring.scale.setScalar(tk); scene.add(ring);
+    if (!P.copy) claimLight(token, 0x9a4dff, C, 14);
     const endAt = .4 + attr, boom = endAt + .15;
     let t = 0, tick = 0, boomed = false;
     addFx(dt => {
       t += dt;
       const grow = Math.min(1, t / .4), shrink = t > endAt ? Math.max(0, 1 - (t - endAt) / .15) : 1;
-      sph.scale.setScalar(Math.max(.01, .7 * grow * shrink)); ring.rotation.z += dt * 2.5;
+      sph.scale.setScalar(Math.max(.01, .7 * tk * grow * shrink)); ring.rotation.z += dt * 2.5;
       if (t <= endAt) {
         driveLight(token, 1);
         for (const d of DUMMIES) {
@@ -684,12 +746,12 @@ function castBlackHole(P, orb) {
   });
 }
 
-/* ---------- 形狀查表(launchSpell 用):SHAPE_FN[元素][形狀];火系三招仍用 game.js 原函式 ---------- */
-const SHAPE_FN = {
-  fire: { bolt: castFireball, wall: castFirewall, sky: castMeteor },
-  water: { bolt: castWaterBolt, wall: castWaterWall, sky: castGeyser },
-  wind: { bolt: castWindBolt, wall: castWindWall, sky: castTornado },
-  earth: { bolt: castEarthBolt, wall: castStoneWall, sky: castEarthSpikes },
-  light: { bolt: castHolyBolt, wall: castSanctuary, sky: castHolyPillar },
-  dark: { bolt: castShadowBolt, wall: castShadowCurtain, sky: castBlackHole }
+/* ---------- 形狀查表(launchSpell 用):元素 → 形狀 → 函式名稱;執行期以 window[名稱] 取用,階段 1 的新檔可各自定義而不必改本檔 ---------- */
+const SHAPE_FN_NAME = {
+  fire:  { bolt: 'castFireBolt',   wall: 'castFirewall',      sky: 'castCraterMeteor', summon: 'castSummon' },
+  water: { bolt: 'castWaterBolt',  wall: 'castWaterWall',     sky: 'castWaterDragon',  summon: 'castSummon' },
+  wind:  { bolt: 'castWindBolt',   wall: 'castWindWall',      sky: 'castWindCut',      summon: 'castSummon' },
+  earth: { bolt: 'castEarthBolt',  wall: 'castStoneWall',     sky: 'castEarthSpikes',  summon: 'castSummon' },
+  light: { bolt: 'castHolyBolt',   wall: 'castSanctuary',     sky: 'castHolyPillar',   summon: 'castSummon' },
+  dark:  { bolt: 'castShadowBolt', wall: 'castShadowCurtain', sky: 'castBlackHole',    summon: 'castSummon' }
 };

@@ -49,6 +49,7 @@
   const press = (id, fn) => $(id).addEventListener('pointerdown', e => { e.preventDefault(); touchNow(); fn(); });
   press('btnJump', doJump);
   press('btnRoll', tryRoll);
+  press('btnMode', toggleChgMode);   // 手機:集氣模式 A / B
   press('btnWeap', () => { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); });   // 集氣中此鈕變「取消」
   // 來襲鈕:短按 = 來襲測試;按住滿 0.6 s = 切換自動來襲
   const hitBtn = $('btnHit'); let hitT = 0, hitId = null;
@@ -104,8 +105,8 @@
     if (edge(9)) document.getElementById('panel').classList.toggle('on');   // +:參數面板
     if (edge(10)) toggleAuto();                              // 左搖桿按下:自動來襲
     if (edge(11)) resetCam();                                // 右搖桿按下:鏡頭重置
-    if (edge(12)) G.zoom = clamp(G.zoom * .9, .5, 1.9);      // 十字上:拉近
-    if (edge(13)) G.zoom = clamp(G.zoom * 1.1, .5, 1.9);     // 十字下:拉遠
+    if (edge(12)) toggleChgMode();      // 十字上:切換集氣模式
+    if (edge(13)) { const ZS = [1, .8, 1.3]; G.zoom = ZS[(ZS.findIndex(z => Math.abs(z - G.zoom) < .01) + 1) % 3]; }     // 十字下:縮放循環 1.0 → 0.8 → 1.3
     if (edge(14)) cycleElement(-1);                          // 十字左:上一屬性
     if (edge(15)) cycleElement(1);                           // 十字右:下一屬性
     prev = gp.buttons.map(x => x.pressed);

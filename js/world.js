@@ -129,6 +129,7 @@ function setTerrain(feats, look) {
     col.setXYZ(k, lerp(1, cc.r, st) * sh, lerp(1, cc.g, st) * sh, lerp(1, cc.b, st) * sh);
   }
   col.needsUpdate = true;
+  TER.H0 = Float32Array.from(H); TER.C0 = Float32Array.from(col.array); TER.flat0 = TER.flat; TER.hMin0 = lo; TER.hMax0 = hi;   // 原地形快照(階段 1-C 坑洞還原用)
 }
 // 回傳射線 o + d·t 第一次碰到地形的 t(0~tMax),沒碰到回傳 Infinity
 function rayTerrain(o, d, tMax) {
@@ -158,6 +159,21 @@ function checkTerrain() {
   for (let x = -28; x <= 28; x += 2) for (let z = -6; z <= 48; z += 2) if (Math.abs(terrainH(x, z)) > .01) { w('zone F', x, z); return; }
 }
 
+// 共用減速區(設計 §5-1):玩家、標靶、召喚物都讀這裡;pct 0~1,區內取最大者、不疊加
+// { kind:'circle', x, z, r, pct, hex }  或  { kind:'rect', x, z, hx, hz, c, s, pct, hex }(c,s = cos/sin(yaw),同平台本地座標)
+const SLOW_ZONES = [];
+function addSlowZone(o) { SLOW_ZONES.push(o); return o; }
+function removeSlowZone(o) { const i = SLOW_ZONES.indexOf(o); if (i >= 0) SLOW_ZONES.splice(i, 1); }
+function zoneSlowAt(x, z) {
+  let best = null;
+  for (const Z of SLOW_ZONES) {
+    let inside;
+    if (Z.kind === 'circle') inside = Math.hypot(x - Z.x, z - Z.z) <= Z.r;
+    else { const L = platLocal(Z, x, z); inside = Math.abs(L.lx) <= Z.hx && Math.abs(L.lz) <= Z.hz; }
+    if (inside && (!best || Z.pct > best.pct)) best = Z;
+  }
+  return best ? { pct: best.pct, hex: best.hex } : { pct: 0, hex: 0 };
+}
 const COLLIDERS = [];
 // 可站立平台(高台);deco:true = 場景裝飾(換場景時清掉);tmp:true = 法術產生的暫時平台(由法術自己移除)
 const PLAYER_R = 0.4, STEP_UP = 0.25;
@@ -238,6 +254,7 @@ class Dummy {
     this.fg = new THREE.Mesh(new THREE.PlaneGeometry(.94, .08), new THREE.MeshBasicMaterial({ color: 0xe03030, depthTest: false }));
     bg.renderOrder = 20; this.fg.renderOrder = 21; this.fg.position.z = .001; this.bar.add(bg, this.fg); this.bar.visible = false;
     this.col = { x, z, r: .5, ref: this }; COLLIDERS.push(this.col);
+    this.slowPct = 0; this.zSlow = 0; this.zHex = 0;
     this.flashHex = 0xff3300; this.ph = Math.random() * 6.283; this.walkT = this.ph; this.walkX = 0; this.spin = 0; this.pAcc = 0; this.pAcc2 = 0;
     this.clearStatus();
   }
@@ -246,8 +263,8 @@ class Dummy {
   get z() { return this.home.z + this.oz; }
   // 清除位移、離地與所有狀態(死亡、R 重置、重生時呼叫)
   clearStatus() {
-    this.ox = this.oz = this.ovx = this.ovz = 0; this.y = this.vy = 0;
-    this.slowT = this.stunT = this.erodeT = this.erodeAcc = this.litT = this.pushT = this.windT = 0;
+    this.ox = this.oz = this.ovx = this.ovz = 0; this.y = terrainH(this.home.x, this.home.z); this.vy = 0;   // y 為絕對高度(地形上)
+    this.slowT = this.slowPct = this.stunT = this.erodeT = this.erodeAcc = this.litT = this.pushT = this.windT = 0;
     if (this.stars) this.stars.forEach(s => s.visible = false);
     if (this.litSpr) this.litSpr.visible = false;
   }
@@ -278,7 +295,8 @@ class Dummy {
     const s = Math.min(speed * dt, d - .5) / d; this.ox += dx * s; this.oz += dz * s; this.pushT = 0;
   }
   stun(t) { this.stunT = Math.max(this.stunT, t); }
-  slow(t) { this.slowT = Math.max(this.slowT, t); }
+  // 減速:計時 t 秒、幅度 pct(省略 = 0.5);同時存在取最大幅度
+  slow(t, pct) { const p = pct == null ? .5 : pct; this.slowT = Math.max(this.slowT, t); this.slowPct = Math.max(this.slowPct, p); }
   erode(t) { this.erodeT = Math.max(this.erodeT, t); }
   light(t) { this.litT = Math.max(this.litT, t); }
   die() {
@@ -297,6 +315,8 @@ class Dummy {
   stunFx(t) { this.stun(t); }   // 舊掛點,統一走 stun()
   update(dt) {
     if (this.dead) { this.respawn -= dt; if (this.respawn <= 0) this.reset(); return; }
+    const zz = zoneSlowAt(this.x, this.z); this.zSlow = zz.pct; this.zHex = zz.hex;
+    const kSl = Math.max(this.slowT > 0 ? this.slowPct : 0, this.zSlow);   // 有效減速 = 計時減速與區域減速取大者
     if (this.popping) { const s = Math.min(1, this.g.scale.x + dt * 3); this.g.scale.setScalar(s); if (s >= 1) this.popping = false; }
     this.vx += (-60 * this.ax - 5 * this.vx) * dt; this.vz += (-60 * this.az - 5 * this.vz) * dt;
     this.ax += this.vx * dt; this.az += this.vz * dt;
@@ -316,16 +336,18 @@ class Dummy {
     this.ovx *= Math.exp(-3.2 * dt); this.ovz *= Math.exp(-3.2 * dt);
     this.ox += this.ovx * dt; this.oz += this.ovz * dt;
     this.pushT += dt;
-    if (this.pushT > 1.2) { const k = this.slowT > 0 ? 1.25 : 2.5; this.ox = damp(this.ox, 0, k, dt); this.oz = damp(this.oz, 0, k, dt); }
+    if (this.pushT > 1.2) { const k = 2.5 * (1 - kSl); this.ox = damp(this.ox, 0, k, dt); this.oz = damp(this.oz, 0, k, dt); }
     const L = Math.hypot(this.ox, this.oz); if (L > 6) { this.ox *= 6 / L; this.oz *= 6 / L; }
     // 2) 離地:重力;落地速度 > 3 時揚起塵土
     this.vy -= 20 * dt; this.y += this.vy * dt;
-    if (this.y <= 0) {
-      if (this.vy < -3) for (let i = 0; i < 6; i++) smoke.emit(this.x + rnd(-.3, .3), .1, this.z + rnd(-.3, .3), rnd(-1, 1), rnd(.3, 1), rnd(-1, 1), rnd(.5, .9), rnd(.8, 1.4), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5);
-      this.y = 0; this.vy = 0;
+    const fl = terrainH(this.x, this.z);   // 地板 = 地形高度(山坡 / 坑洞上也會貼地)
+    if (this.y <= fl) {
+      if (this.vy < -3) for (let i = 0; i < 6; i++) smoke.emit(this.x + rnd(-.3, .3), fl + .1, this.z + rnd(-.3, .3), rnd(-1, 1), rnd(.3, 1), rnd(-1, 1), rnd(.5, .9), rnd(.8, 1.4), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5);
+      this.y = fl; this.vy = 0;
     }
     // 3) 計時器與侵蝕(每 .5 s 4 點紫色傷害)
     this.slowT = Math.max(0, this.slowT - dt); this.stunT = Math.max(0, this.stunT - dt); this.litT = Math.max(0, this.litT - dt); this.windT = Math.max(0, this.windT - dt);
+    if (this.slowT <= 0) this.slowPct = 0;
     if (this.erodeT > 0) {
       this.erodeT -= dt; this.erodeAcc += dt;
       if (this.erodeAcc >= .5) { this.erodeAcc -= .5; this.hit(4, 0, 0, 0, 'dark', 'dot'); if (this.dead) return; }
@@ -336,7 +358,7 @@ class Dummy {
       for (let i = 0; i < 2; i++) fire.emit(this.x + rnd(-.25, .25), this.y + rnd(.6, 1.8), this.z + rnd(-.25, .25), rnd(-.3, .3), rnd(1, 2.5), rnd(-.3, .3), rnd(.4, .7), rnd(.4, .7), EL.fire.c0, EL.fire.c1, .9, .3, -.5, .5);
     }
     // 4) 左右移動選項:減速時 ×0.5、暈眩時停止
-    this.walkT += dt * (this.slowT > 0 ? .5 : 1) * (this.stunT > 0 ? 0 : 1);
+    this.walkT += dt * (1 - kSl) * (this.stunT > 0 ? 0 : 1);
     this.walkX = CFG.dummyMove ? Math.sin(this.walkT * .8) * 1.5 : 0;
     // 5) 狀態粒子(每標靶每秒上限 6 顆)
     if (this.slowT > 0) {
@@ -366,6 +388,7 @@ class Dummy {
     else if (this.litT > 0) { bm.emissive.setHex(0xffe08a); bm.emissiveIntensity = .4; }
     else if (this.erodeT > 0) { bm.emissive.setHex(0x8a3aff); bm.emissiveIntensity = .35; }
     else if (this.slowT > 0) { bm.emissive.setHex(0x3aa8ff); bm.emissiveIntensity = .3; }
+    else if (this.zSlow > 0) { bm.emissive.setHex(this.zHex); bm.emissiveIntensity = .25; }   // 區域減速(風場 / 坑洞)
     else bm.emissiveIntensity = 0;
     this.hpShow -= dt;
     this.bar.visible = this.hpShow > 0 && this.hp < this.max;

@@ -4,7 +4,7 @@ const GRAV = 20, COYOTE = 0.10;   // 重力加速度;離地後仍可地面跳的
 const DEFAULT_CFG = {
   jumpV: 9.5, airJumpV: 10, airRollDist: 3.5, airRollTime: 0.32, airRollGrav: 0.25, rollDist: 5, rollTime: 0.45, rollCD: 0.6,
   moveSpeed: 5, runMul: 1.7, camDist: 9, camSens: 0.005, autoFrame: true, shake: 1, bloom: true, bloomStrength: 0.85, minHold: 0.3,
-  rad: [2.2, 9, 7], radById: {}, fxq: 1, dummyMove: false,
+  rad: [2.2, 9, 7, 1.2], radById: {}, fxq: 1, dummyMove: false, slowSelf: true,
   skills: {
     fireball: { chargeTime: 1.4, range: 24, rMin: 1.2, rMax: 4.5, recover: 0.45 },
     firewall: { chargeTime: 1.5, range: 22, rMin: 4, rMax: 16, recover: 0.5, thick: 1.6, duration: 8 },
@@ -17,7 +17,8 @@ const DEFAULT_CFG = {
     shieldCharge: { chargeTime: 1.0, range: 0, rMin: 5, rMax: 12, recover: 0.35, width: 1.6 },
     backstab: { chargeTime: 0.6, range: 5, rMin: 1, rMax: 1.6, recover: 0.3 },
     knives: { chargeTime: 0.7, range: 18, rMin: 20, rMax: 60, recover: 0.3 },
-    stealth: { chargeTime: 0.8, range: 0, rMin: 0, rMax: 0, recover: 0.2 }
+    stealth: { chargeTime: 0.8, range: 0, rMin: 0, rMax: 0, recover: 0.2 },
+    summon: { chargeTime: 1.3, range: 14, rMin: 1.2, rMax: 1.2, recover: 0.4 }
   }
 };
 const CFG = JSON.parse(JSON.stringify(DEFAULT_CFG));
@@ -26,23 +27,53 @@ function mergeCfg(dst, src) { for (const k in src) { if (dst[k] && typeof dst[k]
 if (IS_TOUCH) CFG.bloom = false;  // 手機預設關泛光(省效能),可在 P 面板打開
 if (IS_TOUCH) CFG.fxq = 0.6;      // 手機預設粒子量 60%(只影響新屬性)
 try { const s = JSON.parse(localStorage.getItem(CFG_KEY)); if (s) mergeCfg(CFG, s); } catch (e) { }
+while (CFG.rad.length < 4) CFG.rad.push(DEFAULT_CFG.rad[CFG.rad.length]);   // 存檔的陣列會整個覆蓋,補回第 4 格(召喚)預設
 function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (e) { } }
 
 // 形狀槽位(kind:bolt 投射 / wall 牆 / sky 大招);名稱與咒語依屬性在 spells.js 的 SPELLS
 const SKILLS = [
-  { id: 'fireball', name: '火球術', icon: '🔥', el: 'fire', shape: 'circle', kind: 'bolt', chant: '火之精靈,聚於我手,化為灼熱之球——燃盡一切!', shout: '火球術!' },
+  { id: 'fireball', name: '火球術', icon: '🔥', el: 'fire', shape: 'circle', kind: 'bolt', aim: 'dir', chant: '火之精靈,聚於我手,化為灼熱之球——燃盡一切!', shout: '火球術!' },
   { id: 'firewall', name: '火牆術', icon: '🧱', el: 'fire', shape: 'wall', kind: 'wall', chant: '烈焰之壁,拔地而起,焚盡來犯之敵——', shout: '火牆術!' },
-  { id: 'meteor', name: '隕石術', icon: '☄️', el: 'fire', shape: 'circle', kind: 'sky', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石術!' }
+  { id: 'meteor', name: '隕石術', icon: '☄️', el: 'fire', shape: 'circle', kind: 'sky', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石術!' },
+  { id: 'summon', name: '召喚', icon: '✨', el: 'fire', shape: 'circle', kind: 'summon', aim: 'circle', cd: 8, chant: '', shout: '' }
 ];
 const sc = i => CFG.skills[baseOf(i)];   // 招式的數值表鍵(法師 = 自己的 id;職業暫時招式 = 沿用的 base)
-// 統一集氣倍率(C-0b):q = 集氣比例 0~1;兩端 q=0 與 q=1 之間線性;所有招式只讀這套
+// 統一集氣倍率(C-0b)+ 集氣模式(設計 §2):q = 集氣比例 0~1;mode:'A' 變大 / 'B' 變多(只有法師有 mode,其他職業 undefined = 舊公式)
 const CHG = {
   dmg:   q => 0.5 + 0.8 * (0.35 + 0.65 * q),       // 0.78 → 1.30
-  size:  q => lerp(0.6, 1.0, q),                    // 範圍:半徑 / 牆長 / 線長 / 位移距離
-  dur:   q => 0.7 + 0.6 * (0.35 + 0.65 * q),        // 0.91 → 1.30(持續時間)
   fx:    q => lerp(0.5, 1.0, q),                    // 效果強度:減速%、推 / 拉 / 擊飛距離、暈眩 / 燃燒秒數、易傷%
-  count: (n, q) => Math.max(1, Math.round(n * lerp(0.4, 1.0, q)))   // 數量:n = 滿集氣數量
+  dur:   q => 0.7 + 0.6 * (0.35 + 0.65 * q),        // 0.91 → 1.30(持續時間)
+  size:  (q, m) => m === 'B' ? 0.6 : lerp(0.6, 1.0, q),           // 範圍(半徑 / 牆長 / 線寬);B 固定在 0% 值
+  thick: (q, m) => m === 'A' ? lerp(1.0, 1.6, q) : 1,             // 粗細(牆厚、子彈命中寬、子單位大小);只有 A 成長
+  count: (n, q, m) => m === 'A' ? Math.max(1, Math.round(n * Math.pow(lerp(0.6, 1, q), 2)))
+                    : m === 'B' ? Math.max(1, Math.round(n * lerp(0.36, 1.5, q)))
+                    : Math.max(1, Math.round(n * lerp(0.4, 1.0, q))),   // 子單位數量(石柱 / 聖光柱 / 箭等)
+  copies: (N, q, m) => m === 'B' ? 1 + Math.round((N - 1) * q) : 1,      // 本體份數(發數 / 道數 / 顆數 / 隻數):只有 B 成長
+  perK: (n, shape) => n > 1 ? ({ bolt: .6, wall: .8, sky: .5, summon: .6 })[shape] : 1   // 份數 > 1 時每份傷害倍率
 };
+const COPIES_N = { bolt: 5, wall: 4, sky: 3, summon: 2 };   // 各形狀 B 模式份數上限
+const curMode = () => G.cls === 'mage' ? G.chgMode : undefined;
+// 份數共用實作:對每份呼叫 fn(Pi, i, n);Pi 為 P 的淺拷貝(dmgK 乘 perK、copy = i、ncopy = n);第 i 份延遲 i × delay 秒
+function forCopies(P, shape, delay, place, fn) {
+  const n = P.copies || 1, k = CHG.perK(n, shape);
+  for (let i = 0; i < n; i++) {
+    const Pi = Object.assign({}, P, { copy: i, ncopy: n, dmgK: P.dmgK * k, target: P.target.clone() });
+    if (place) place(Pi, i, n);
+    if (i === 0) fn(Pi, i, n); else after(i * delay, () => fn(Pi, i, n));
+  }
+}
+// 牆的第 i 道中心(B 模式並排):法線 (−az, ax) 朝遠離施法者的一側,間距 = 牆厚 × thickK + 1 m;第 0 道 = 選定點
+function wallCopyPos(T, yaw, i, thick) {
+  const p = mage.root.position, ax = Math.cos(yaw), az = -Math.sin(yaw), nx = -az, nz = ax;
+  const sg = Math.sign(nx * (T.x - p.x) + nz * (T.z - p.z)) || 1, o = i * (thick + 1) * sg;
+  const x = T.x + nx * o, z = T.z + nz * o;
+  return new V3(x, surfaceY(x, z, T.y + 1), z);
+}
+function wallPlace(Pi, i) {
+  if (!i) return;
+  Pi.target = wallCopyPos(Pi.target, Pi.wallYaw, i, sc(Pi.idx).thick * Pi.thickK);
+}
+
 // 換裝差異(法杖=重擊、魔法書=速唱);集氣時間與僵直只受 chargeMul / recoverMul 影響
 const WEAPONS = {
   staff: { name: '法杖', tag: '重擊', chargeMul: 1.0, dmgMul: 1.2, rangeMul: 1.15, recoverMul: 1.0 },
@@ -72,14 +103,17 @@ const G = {
   roll: null, rollCD: 0, invuln: false, stun: 0, dodged: 0, hits: 0, autoStrike: false, strikeT: 2,
   time: 0, cb: 0, kick: 0, vy: 0, frameT: 0, hover: 0, auraAmt: 0, maxFlash: false, halfFlash: false, shoutT: 0, atkHeld: false,
   cls: 'mage', cd: {}, stealth: null, weak: 0, dash: null, spin: null, px0: 0, pz0: 0, camK: 1,
-  el: 'fire'   // 目前屬性(C-8,只有法師使用),存 localStorage mageSandbox.el
+  el: 'fire', chgMode: 'A', hp: 100, hpMax: 100, shield: 0, shieldT: 0, downs: 0, downT: 0, slowImmT: 0   // 目前屬性(C-8,只有法師使用),存 localStorage mageSandbox.el;chgMode = 集氣模式 A/B;hp / shield / downs = S-6 玩家狀態
 };
 try { const v = localStorage.getItem('mageSandbox.el'); if (EL_ORDER.includes(v)) G.el = v; } catch (e) { }
+try { const m = localStorage.getItem('mageSandbox.chgMode'); if (m === 'A' || m === 'B') G.chgMode = m; } catch (e) { }
 
 /* ================= 角色與場景物件 ================= */
 const mage = new Mage(scene);
 mage.setElementColor(EL[G.el].hex);
 const ind = new Indicator(scene);
+const indPool = [new Indicator(scene), new Indicator(scene), new Indicator(scene), new Indicator(scene)];   // 集氣 B 牆的多道預覽(第 1~3 道用)
+function hideIndPool() { indPool.forEach(w => w.hide()); }
 const tmpV = new V3(), tmpV2 = new V3(), tmpV3 = new V3();
 
 // 施法時角色身上的光環與腳下魔法陣(顏色跟目前屬性)
@@ -134,6 +168,8 @@ addEventListener('keydown', e => {
   else if (e.code === 'KeyT') strike();
   else if (e.code === 'KeyY') toggleAuto();
   else if (e.code === 'KeyK') cycleClass(1);
+  else if (e.code === 'KeyG') toggleChgMode();
+  else if (e.code === 'Backquote') selectSkill(3);
 });
 addEventListener('keyup', e => { G.keys[e.code] = false; });
 addEventListener('blur', () => { G.keys = {}; G.atkHeld = false; if (G.state === 'charging') cancelCharge(); });
@@ -181,13 +217,49 @@ let saveTimer = 0; function saveCfgSoon() { clearTimeout(saveTimer); saveTimer =
 
 function selectSkill(i) {
   if (G.state !== 'ready') return;
+  if (i >= skillCount()) return;
   if (G.skill === i) G.skill = -1; else setSkill(i);
 }
 // 設定目前法術(不切換):記錄 lastSkill,並把牆角度歸零
 function setSkill(i) { if (G.state !== 'ready') return; G.skill = i; G.lastSkill = i; G.wallOff = 0; }
 // 手把 L / R:未選法術時選回上次那一招;已選則前後換一招
-function cycleSkill(d) { if (G.skill < 0) setSkill(G.lastSkill); else setSkill((G.skill + d + SKILLS.length) % SKILLS.length); }
+function cycleSkill(d) { if (G.skill < 0) setSkill(G.lastSkill); else setSkill((G.skill + d + skillCount()) % skillCount()); }
 function toggleAuto() { G.autoStrike = !G.autoStrike; G.strikeT = 1; banner('自動來襲 ' + (G.autoStrike ? 'ON' : 'OFF'), '#ffe3b0'); }
+// 集氣模式(設計 §2-5):G 鍵 / 手機 #btnMode / 手把十字上;只套法師;全域一個,存 localStorage
+function toggleChgMode() {
+  if (G.cls !== 'mage') { banner('此職業無集氣模式', '#ffc46b'); return; }
+  G.chgMode = G.chgMode === 'A' ? 'B' : 'A'; try { localStorage.setItem('mageSandbox.chgMode', G.chgMode); } catch (e) { }
+  banner(G.chgMode === 'A' ? '集氣模式 A:變大' : '集氣模式 B:變多', '#ffe3b0');
+  burstRing(mage.root.position, auraEl().hex, 1.0); syncModeUI();
+}
+let _modeKey = '';
+// #modeTag(桌機)與 #btnMode(手機)依模式與職業顯示;只在變動時寫 DOM
+function syncModeUI() {
+  const on = G.cls === 'mage', key = on ? G.chgMode : '-';
+  if (key === _modeKey) return; _modeKey = key;
+  const A = G.chgMode === 'A', col = A ? '#ffc46b' : '#8fd0ff';
+  const tag = document.getElementById('modeTag'), bt = document.getElementById('btnMode');
+  if (tag) { tag.style.display = on ? '' : 'none'; tag.innerHTML = A ? 'A<br><small>變大</small>' : 'B<br><small>變多</small>'; tag.style.borderColor = col; }
+  if (bt) { bt.style.display = on ? '' : 'none'; bt.textContent = A ? 'A 大' : 'B 多'; bt.style.borderColor = col; bt.style.color = col; }
+}
+// #chargeTxt 第三段:A = 範圍 / 厚度;B = 份數(copies)或數量(count)
+function modeTxt(q) {
+  if (!curMode()) return '';
+  const k = curSkill(G.skill).kind, sp = spellOf(G.skill);
+  if (G.chgMode === 'A') return 'A 範圍 ' + Math.round(CHG.size(q, 'A') * 100) + '% 厚 ×' + CHG.thick(q, 'A').toFixed(2);
+  if (sp.unit === 'count') return 'B 數量 ' + CHG.count(sp.cntN || 10, q, 'B');
+  return 'B ×' + CHG.copies(COPIES_N[k] || 1, q, 'B') + ' ' + (sp.unitName || { bolt: '發', wall: '道', sky: '個', summon: '隻' }[k] || '');
+}
+// 玩家受擊(S-6):先扣護盾;護盾完全吸收 → 不暈眩、不擊飛;血量歸零 = 倒下 2 s 後補滿(不死亡)
+function hurtPlayer(n) {
+  let rest = n;
+  if (G.shield > 0) { const a = Math.min(G.shield, rest); G.shield -= a; rest -= a; if (G.shield <= 0) { G.shield = 0; G.shieldT = 0; } }
+  if (rest <= 0) { banner('護盾擋下!', '#ffd27a'); return; }
+  G.hp = Math.max(0, G.hp - rest);
+  G.stun = .6; G.vy = 5;
+  if (G.hp <= 0) { if (G.downT <= 0) { G.downs++; G.downT = 2; banner('倒下', '#ff5050'); } }
+  else banner('致命一擊!', '#ff5050');
+}
 function resetCam() { G.zoom = 1; G.camPitch = .42; G.camYaw = Math.PI; }
 function toggleWeapon() {
   if (G.state !== 'ready') return;
@@ -247,7 +319,7 @@ function strike() {
     else if (!inside) { G.dodged++; if (S) banner('目標遺失', '#c08aff'); else banner('走位躲開', '#bff0a0'); }
     else {
       if (G.stealth) revealStealth('hit');   // 潛行中被紅圈炸到:顯形
-      G.hits++; G.stun = .6; G.vy = 5; banner('致命一擊!', '#ff5050');
+      G.hits++; hurtPlayer(30);
       const f = document.getElementById('flash'); f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120);
       if (G.state === 'charging') cancelCharge();
     }
@@ -281,8 +353,20 @@ function pickGround(out) {
 }
 
 // 搖桿/觸控瞄準:集氣時左搖桿的方向=光圈方向、推多少=離多遠;放開搖桿則光圈停在原地
+// 方向型(第 1 招 aim 'dir'):只取方向、距離固定 range × .6,推過 .3 才更新方向(手機 / 手把;設計 §1-2)
 function pickStick(out) {
-  const p = mage.root.position, mc = moveCharge();
+  const p = mage.root.position, mc = moveCharge(), dirA = G.skill >= 0 && curSkill(G.skill).aim === 'dir';
+  if (dirA) {
+    if (G.state === 'charging' && G.stick.mag > .3) {
+      const ix = G.stick.x / G.stick.mag, iz = -G.stick.y / G.stick.mag;
+      const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
+      const dx = fx * iz + rx * ix, dz = fz * iz + rz * ix, d = skillRange() * .6;
+      const x = p.x + dx * d, z = p.z + dz * d; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
+    } else if (G.state !== 'charging') {
+      const x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
+    }
+    out.copy(G.stickHold); return;
+  }
   if (G.state === 'charging' && G.stick.mag > .15 && !mc) {
     const ix = G.stick.x / G.stick.mag, iz = -G.stick.y / G.stick.mag;
     const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
@@ -316,13 +400,16 @@ function dissolveOrb(orb, E) {
   scene.remove(orb);
 }
 // 施放:存下集氣比例 q,並算好統一倍率(C-0b)。所有招式只讀 P.dmgK / P.sizeK / P.durK / P.fxK 與 CHG.count
+// 施放:存下集氣比例 q,並算好統一倍率(C-0b);集氣模式 mode 只在這裡決定 sizeK / thickK / copies(設計 §2-2)
 function release() {
-  const sk = curSkill(G.skill), sp = spellOf(G.skill), p = mage.root.position, q = G.charge;
-  const dir = Math.atan2(G.target.x - p.x, G.target.z - p.z);
+  const sk = curSkill(G.skill), sp = spellOf(G.skill), p = mage.root.position, q = G.charge, mode = curMode();
+  const dir = Math.atan2(G.target.x - p.x, G.target.z - p.z), sizeK = CHG.size(q, mode);
   G.pending = {
     skill: sk, spell: sp, base: baseOf(G.skill), idx: G.skill, el: G.cls === 'mage' ? G.el : 'fire', target: G.target.clone(), q, charge: q,
-    r: skillRad() * CHG.size(q), power: 0.35 + 0.65 * q,
-    dmgK: CHG.dmg(q) * W().dmgMul, sizeK: CHG.size(q), durK: CHG.dur(q), fxK: CHG.fx(q),
+    mode, sizeK, thickK: CHG.thick(q, mode), copies: CHG.copies(COPIES_N[sk.kind] || 1, q, mode),
+    r: skillRad() * sizeK, power: 0.35 + 0.65 * q, range: skillRange(),
+    muzzle: new V3(p.x + Math.sin(dir) * .7, p.y + 1.25, p.z + Math.cos(dir) * .7),   // 第 1 招子彈的槍口(設計 §1-3)
+    dmgK: CHG.dmg(q) * W().dmgMul, durK: CHG.dur(q), fxK: CHG.fx(q),
     dir, wallYaw: dir + G.wallOff, dmgMul: W().dmgMul, recover: sc(G.skill).recover * W().recoverMul
   };
   if (sk.cd) G.cd[sk.id] = sk.cd;   // 冷卻從施放開始計
@@ -436,9 +523,11 @@ function updateAim(dt) {
     if (G.state === 'cast' && G.pending) { /* 施放中:光圈保持並淡出(只畫實際範圍,不畫外圈) */
       const P = G.pending, a = Math.max(0, 1 - G.castT / Math.max(.2, P.recover)) * .9, hex = auraEl().hex;
       ind.setMax(0, 0, 0);
-      if (P.skill.shape === 'wall') ind.set(P.target.x, P.target.z, 1, P.r / 2, sc(P.idx).thick / 2, P.wallYaw, 1, a, hex, P.target.y);
+      if (P.skill.aim === 'dir') ind.hide();   // 第 1 招:施放中不畫任何光圈
+      else if (P.skill.shape === 'wall') ind.set(P.target.x, P.target.z, 1, P.r / 2, sc(P.idx).thick * P.thickK / 2, P.wallYaw, 1, a, hex, P.target.y);
       else ind.set(P.target.x, P.target.z, 0, P.r, 0, 0, 1, a, hex, P.target.y);
     } else ind.hide();
+    hideIndPool();
     return;
   }
   if (G.inputMode === 'stick') pickStick(tmpV2); else pickGround(tmpV2);
@@ -446,19 +535,28 @@ function updateAim(dt) {
   G.target.y = surfaceY(G.target.x, G.target.z, tmpV2.y);
   if (G.state === 'ready' && ind.root.visible === false) G.target.copy(tmpV2);
   const sk = curSkill(G.skill), c = sc(G.skill), p = mage.root.position, E = auraEl();
-  const charging = G.state === 'charging', q = charging ? G.charge : 0, rs = skillRad();
+  const charging = G.state === 'charging', q = charging ? G.charge : 0, rs = skillRad(), mode = curMode();
   const pulse = charging && G.charge >= 1 ? .75 + .25 * Math.sin(G.time * 14) : 1;
-  const alpha = (charging ? .95 : .55) * pulse;
-  if (aimSpecial(sk, p, charging, q, rs, alpha, E)) return;   // 方向型 / 前方 / 自身 / 無光圈(classes.js)
-  // 光圈雙層(C-0b):外圈 = 滿集氣範圍 R(setMax),內圈 = 實際範圍 R × CHG.size(q)
+  const alpha = (charging ? .95 : .55) * pulse, prog = charging ? G.charge : 0;
+  hideIndPool();
+  if (aimSpecial(sk, p, charging, q, rs, alpha, E)) return;   // 方向型(dir)/ 前方 / 自身 / 線型 / 無光圈(classes.js)
+  // 光圈雙層(C-0b):外圈 = 滿集氣範圍 R(setMax),內圈 = 實際範圍 R × CHG.size(q, mode)
   if (sk.shape === 'wall') {
     if (G.keys.KeyQ) G.wallOff += dt * 1.8; if (G.keys.KeyE) G.wallOff -= dt * 1.8;
     const yaw = Math.atan2(G.target.x - p.x, G.target.z - p.z) + G.wallOff;
+    const half = rs * CHG.size(q, mode) / 2, th = c.thick * CHG.thick(q, mode) / 2;
     ind.setMax(0, rs / 2, c.thick / 2);
-    ind.set(G.target.x, G.target.z, 1, rs * CHG.size(q) / 2, c.thick / 2, yaw, charging ? G.charge : 0, alpha, E.hex, G.target.y);
+    ind.set(G.target.x, G.target.z, 1, half, th, yaw, prog, alpha, E.hex, G.target.y);
+    if (mode === 'B') {   // 集氣 B:牆的多道並排預覽;未達集氣的道數淡色(×.25)
+      const n = CHG.copies(COPIES_N.wall, q, mode);
+      for (let i = 1; i < 4; i++) {
+        const pos = wallCopyPos(G.target, yaw, i, c.thick);
+        indPool[i - 1].set(pos.x, pos.z, 1, half, th, yaw, prog, i < n ? alpha : alpha * .25, E.hex, pos.y);
+      }
+    }
   } else {
     ind.setMax(rs, 0, 0);
-    ind.set(G.target.x, G.target.z, 0, rs * CHG.size(q), 0, 0, charging ? G.charge : 0, alpha, E.hex, G.target.y);
+    ind.set(G.target.x, G.target.z, 0, rs * CHG.size(q, mode), 0, 0, prog, alpha, E.hex, G.target.y);
   }
 }
 
@@ -609,8 +707,10 @@ function explode(pos, R, power, o) {
 function launchSpell(P, orb) {
   if (!orb) { orb = makeOrb(auraEl()); scene.add(orb); mage.tipWorld(orb.position); orb.setR(.3); }
   if (P.skill.cast) return P.skill.cast(P, orb);   // D2~D4 專屬招式
-  // 元素 + 形狀查表(SHAPE_FN 在 spells.js);查不到退回火系原行為
-  const row = SHAPE_FN[P.el] || SHAPE_FN.fire, f = row[P.skill.kind] || SHAPE_FN.fire[P.skill.kind];
+  // 元素 + 形狀查名稱表(SHAPE_FN_NAME 在 spells.js),執行期取 window[名稱];找不到 → 警告並退回火球術
+  const row = SHAPE_FN_NAME[P.el] || SHAPE_FN_NAME.fire, name = row[P.skill.kind] || SHAPE_FN_NAME.fire[P.skill.kind];
+  let f = window[name];
+  if (typeof f !== 'function') { console.warn('[launchSpell] 找不到 ' + name + ',退回 castFireBolt'); f = castFireBolt; }
   f(P, orb);
 }
 
@@ -622,44 +722,32 @@ function trail(a, b, n, size, life, el) {
   }
 }
 
-function castFireball(P, orb) {
-  const gy = P.target.y, start = orb.position.clone(), end = P.target.clone(); end.y = gy + .4;
-  const dist = start.distanceTo(end), dur = clamp(dist / 32, .25, .9); let t = 0; const prev = start.clone(), r0 = Math.max(orb.r, .3);
-  orb.setR(r0 * (.8 + P.power * .6));
-  addFx(dt => {
-    t += dt / dur; const u = Math.min(t, 1);
-    orb.position.lerpVectors(start, end, u); orb.position.y += Math.sin(Math.PI * u) * dist * .06;
-    trail(prev, orb.position, 6, orb.r * 1.3, .45, P.el); smoke.emit(orb.position.x, orb.position.y, orb.position.z, rnd(-.3, .3), rnd(0, .5), rnd(-.3, .3), 1, orb.r * 1.5, [.25, .2, .18], [.08, .08, .09], .35, 2.2, -.2, .5);
-    prev.copy(orb.position);
-    if (u >= 1) { scene.remove(orb); explode(end, P.r, P.power, { dmg: 80, gy, el: P.el, mul: P.dmgK, fxK: P.fxK, burn: 3 * P.fxK }); return false; }
-  });
-}
-
 function castFirewall(P, orb) {
   const gy = P.target.y, start = orb.position.clone(), end = P.target.clone(); end.y = gy + .5; const dur = clamp(start.distanceTo(end) / 36, .2, .6); let t = 0; const prev = start.clone();
   addFx(dt => {
     t += dt / dur; const u = Math.min(t, 1);
     orb.position.lerpVectors(start, end, u); trail(prev, orb.position, 5, orb.r * 1.2, .4, P.el); prev.copy(orb.position);
-    if (u >= 1) { scene.remove(orb); spawnWall(P); return false; }
+    if (u >= 1) { scene.remove(orb); forCopies(P, 'wall', .12, wallPlace, spawnWall); return false; }
   });
 }
 function spawnWall(P) {
-  const gy = P.target.y, cfg = sc(P.idx), half = P.r / 2, thick = cfg.thick, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw), E = EL[P.el];
-  const n = Math.ceil(P.r / .7) + 1, segs = [], dur = cfg.duration * P.durK;
+  const gy = P.target.y, cfg = sc(P.idx), half = P.r / 2, thick = cfg.thick * P.thickK, ax = Math.cos(P.wallYaw), az = -Math.sin(P.wallYaw), E = EL[P.el];
+  const n = Math.ceil(P.r / .7) + 1, segs = [], dur = cfg.duration * P.durK, emitK = (P.ncopy > 1 ? 1 / (P.ncopy * .6) : 1) * Math.sqrt(P.thickK);
   for (let i = 0; i < n; i++) { const o = (i / (n - 1) - .5) * P.r, x = P.target.x + ax * o, z = P.target.z + az * o; segs.push({ o, x, z, gy: surfaceY(x, z, gy + 1), on: Math.abs(o) / half * .4, acc: 0 }); }
   const wi = new Indicator(scene); let age = 0, tick = 0;
   const gl = []; for (let i = 0; i < n; i += 2) { const s = glowSprite(E.hex, 3, .5); s.position.set(segs[i].x, segs[i].gy + .6, segs[i].z); scene.add(s); gl.push(s); }
   flashLight(new V3(P.target.x, gy + 2, P.target.z), E.hex, 5, .5, 25); G.shake = Math.max(G.shake, .08 * CFG.shake);
-  const L = LIGHTS[4]; L.color.setHex(E.hex); L.position.set(P.target.x, gy + 1.8, P.target.z); L.distance = 10 + P.r * 1.3;
+  const L = LIGHTS[4];
+  if (!P.copy) { L.color.setHex(E.hex); L.position.set(P.target.x, gy + 1.8, P.target.z); L.distance = 10 + P.r * 1.3; }   // 持續光源只由第 0 道驅動
   addFx(dt => {
     age += dt; const fade = age > dur - 1 ? Math.max(0, dur - age) : 1;
-    if (age >= dur) { wi.hide(); wi.root.parent.remove(wi.root); gl.forEach(s => { scene.remove(s); s.material.dispose(); }); L.intensity = 0; return false; }
+    if (age >= dur) { wi.hide(); wi.root.parent.remove(wi.root); gl.forEach(s => { scene.remove(s); s.material.dispose(); }); if (!P.copy) L.intensity = 0; return false; }
     wi.set(P.target.x, P.target.z, 1, half, thick / 2, P.wallYaw, 0, .35 * fade * (.8 + .2 * Math.sin(age * 12)), E.hex, gy); wi.tick(age);
-    L.intensity = 3.5 * fade * (.85 + Math.random() * .3);
+    if (!P.copy) L.intensity = 3.5 * fade * (.85 + Math.random() * .3);
     const H = (.7 + P.power * .6) * 1.2;
     for (const s of segs) {
       if (age < s.on) continue;
-      const ramp = Math.min(1, (age - s.on) / .25) * fade; s.acc += dt * 38 * ramp;
+      const ramp = Math.min(1, (age - s.on) / .25) * fade; s.acc += dt * 38 * ramp * emitK;
       while (s.acc >= 1) {
         s.acc -= 1; const lx = rnd(-thick / 2, thick / 2);
         fire.emit(s.x + (-az) * lx, s.gy + rnd(0, .3), s.z + ax * lx, rnd(-.4, .4), rnd(2.5, 4.5) * H * ramp, rnd(-.4, .4), rnd(.6, 1.0), rnd(.9, 1.5), E.c0, E.c1, .95, .35, -.3, .6);
@@ -695,7 +783,7 @@ function castMeteor(P, orb) {
   });
 }
 function startShower(P) {
-  const gy = P.target.y, S = new V3(-9, 0, -6), skyY = gy + 16, E = EL[P.el], count = CHG.count(15, P.q), rock = [];
+  const gy = P.target.y, S = new V3(-9, 0, -6), skyY = gy + 16, E = EL[P.el], count = CHG.count(15, P.q, P.mode), rock = [];
   const sig = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: RUNE_TEX, color: E.hex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   sig.rotation.x = -Math.PI / 2; sig.position.set(P.target.x + S.x, skyY, P.target.z + S.z); sig.scale.setScalar(P.r * 2.6); scene.add(sig);
   const gi = new Indicator(scene);
@@ -741,6 +829,11 @@ function startShower(P) {
 function updateWorld(dt) {
   if (G.autoStrike) { G.strikeT -= dt; if (G.strikeT <= 0) { strike(); G.strikeT = 2.2; } }
   const bn = document.getElementById('banner'); if (bn._t > 0) { bn._t -= dt; bn.style.opacity = Math.min(1, bn._t * 2); }
+  updateSummons(dt);
+  // S-6 玩家狀態計時:倒下 2 s 後補滿、護盾時效、區域減速免疫
+  if (G.downT > 0) { G.downT -= dt; if (G.downT <= 0) G.hp = G.hpMax; }
+  if (G.shieldT > 0) { G.shieldT -= dt; if (G.shieldT <= 0) G.shield = 0; }
+  if (G.slowImmT > 0) G.slowImmT = Math.max(0, G.slowImmT - dt);
   for (const d of DUMMIES) d.update(dt);
   for (const s of SCORCH) { s.age += dt; if (s.age > 20) s.m.material.opacity = Math.max(0, .75 * (1 - (s.age - 20) / 6)); }
   for (const b of BRAZIERS) {
@@ -748,7 +841,7 @@ function updateWorld(dt) {
   }
 }
 function resetWorld() {
-  G.dodged = G.hits = 0;
+  G.dodged = G.hits = 0; G.hp = G.hpMax; G.shield = 0; G.shieldT = 0; G.downs = 0; G.downT = 0; G.slowImmT = 0;
   DUMMIES.forEach(d => { d.hp = d.max; d.burn = 0; if (d.dead) d.reset(); else d.clearStatus(); });
   SCORCH.forEach(s => { scene.remove(s.m); s.m.material.dispose(); }); SCORCH.length = 0;
 }
@@ -790,6 +883,7 @@ SKILLS.forEach((s, i) => {
   d.onclick = () => selectSkill(i); hotbar.appendChild(d);
 });
 const slots = [...hotbar.children], cBox = document.getElementById('chargeBox'), cFill = document.getElementById('chargeFill'), cTxt = document.getElementById('chargeTxt'), infoEl = document.getElementById('info'), chantEl = document.getElementById('chant');
+const pHPfg = document.getElementById('pHPfg'), pHPsh = document.getElementById('pHPsh');
 const btnJumpEl = document.getElementById('btnJump'), btnRollEl = document.getElementById('btnRoll'), btnWeapEl = document.getElementById('btnWeap');
 // 屬性列(C-8):點擊切換;集氣 / 施法中淡化(CSS .busy)
 const elBar = document.getElementById('elBar');
@@ -799,6 +893,7 @@ EL_ORDER.forEach((k, i) => {
   d.onclick = () => setElement(k); elBar.appendChild(d);
 });
 const elBtns = [...elBar.children];
+document.getElementById('modeTag').onclick = toggleChgMode;   // 桌機點擊切換集氣模式
 // 把 0~255 色碼的 #rrggbb 調暗(k 為倍率)
 function dimHex(c, k) { const n = parseInt(c.slice(1), 16); return '#' + [16, 8, 0].map(s => Math.round(((n >> s) & 255) * k).toString(16).padStart(2, '0')).join(''); }
 let hotbarInit = false;   // SPELLS 在 spells.js(晚於 game.js 載入),快捷列第一次更新時才填入
@@ -827,21 +922,26 @@ function updateHUD() {
     cFill.style.boxShadow = max ? '0 0 12px #ffd27a' : '';
   }
   // 集氣文字預覽:集氣 ・ 傷害倍率 ・ 第三項(效果)
-  if (on) { const sp = spellOf(G.skill); cTxt.textContent = (max ? '集氣完成 MAX' : '集氣 ' + Math.round(q * 100) + '%') + ' ・ 傷害 ×' + CHG.dmg(q).toFixed(2) + (sp.preview ? ' ・ ' + sp.preview(q) : ''); }
+  if (on) { const sp = spellOf(G.skill), mt = modeTxt(q); cTxt.textContent = (max ? '集氣完成 MAX' : '集氣 ' + Math.round(q * 100) + '%') + ' ・ 傷害 ×' + CHG.dmg(q).toFixed(2) + (mt ? ' ・ ' + mt : '') + (sp.preview ? ' ・ ' + sp.preview(q) : ''); }
   else cTxt.textContent = '';
   const ts = '0 0 8px ' + E.css1 + ',0 0 2px #000';
   if (chantEl._ts !== ts) { chantEl._ts = ts; chantEl.style.textShadow = ts; }
   let t = '職業:' + CLASSES[G.cls].name + ' ・ ' + (G.cls === 'mage' ? '屬性:' + E.name + ' ・ 裝備:' + W().name + '(' + W().tag + ')' + weaponDesc() : '裝備:' + CLASSES[G.cls].wpn);
+  if (G.cls === 'mage') t += ' ・ 集氣模式 ' + G.chgMode;
   if (G.skill >= 0) { const sp = spellOf(G.skill), s = curSkill(G.skill); t += '<br>' + sp.name + ' ・ ' + (s.shape === 'wall' ? '長度 ' : '半徑 ') + skillRad().toFixed(1) + 'm ・ 射程 ' + skillRange().toFixed(1) + 'm'; }
   else t += '<br>未選擇法術(按 1/2/3)';
   t += '<br>' + (G.ground ? '跳躍 ● ●' : (G.airJumps > 0 ? '空中步 ●' : '空中步 ○')) + ' ・ 高度 ' + mage.root.position.y.toFixed(1) + 'm';
   t += '<br>閃避 ' + G.dodged + ' ・ 被擊中 ' + G.hits + (G.autoStrike ? ' ・ 自動來襲 ON' : '');
+  t += '<br>HP ' + Math.ceil(G.hp) + '/' + G.hpMax + (G.shield > 0 ? ' ・ 護盾 ' + Math.ceil(G.shield) : '') + (G.downs ? ' ・ 倒下 ' + G.downs : '');
+  { const zs = CFG.slowSelf && !(G.slowImmT > 0) ? zoneSlowAt(mage.root.position.x, mage.root.position.z).pct : 0; if (zs > 0) t += '<br>減速 ' + Math.round(zs * 100) + '%'; }
   t += classInfo();
   if (infoEl._t !== t) { infoEl.innerHTML = t; infoEl._t = t; }
   const air = !G.ground;
   btnJumpEl.classList.toggle('air', air && G.airJumps > 0); btnJumpEl.classList.toggle('spent', air && G.airJumps <= 0);
   btnRollEl.classList.toggle('air', air && G.airRolls > 0); btnRollEl.classList.toggle('spent', air && G.airRolls <= 0);
   const wt = G.state === 'charging' ? '取消' : '換裝'; if (btnWeapEl.textContent !== wt) btnWeapEl.textContent = wt;
+  pHPfg.style.width = clamp(G.hp / G.hpMax, 0, 1) * 100 + '%'; pHPsh.style.width = clamp(G.shield / G.hpMax, 0, 1) * 100 + '%';
+  syncModeUI();
   updateCdHUD();
   // 咒語字幕位置:角色頭上
   tmpV.copy(mage.root.position); tmpV.y += 3.1; tmpV.project(camera);
@@ -853,10 +953,11 @@ const PANEL = [
   ['鏡頭與操作'],
   ['camDist', '鏡頭距離', 4, 18, .5], ['camSens', '視角靈敏度', .002, .012, .0005], ['autoFrame', '施法自動拉鏡頭', 'bool'], ['shake', '震動強度', 0, 2, .1],
   ['moveSpeed', '移動速度', 2, 10, .5], ['jumpV', '跳躍力道', 5, 14, .5], ['airJumpV', '二段跳力道', 5, 12, .5], ['airRollDist', '空中翻滾距離', 1, 6, .5], ['rollDist', '翻滾距離', 2, 10, .5], ['rollTime', '翻滾時間(秒)', .25, .8, .05], ['rollCD', '翻滾冷卻(秒)', 0, 2, .1], ['minHold', '最短集氣(秒)', 0, 1, .05], ['bloom', '泛光特效', 'bool'], ['bloomStrength', '泛光強度', 0, 2, .05],
-  ['fxq', '特效粒子量(新屬性)', .3, 1, .05], ['dummyMove', '標靶左右移動', 'bool'],
+  ['fxq', '特效粒子量(新屬性)', .3, 1, .05], ['dummyMove', '標靶左右移動', 'bool'], ['slowSelf', '風場 / 坑洞減速玩家', 'bool'],
   ['投射類(火球等)'], ['skills.fireball.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.fireball.range', '最大射程', 8, 45, 1], ['skills.fireball.rMin', '最小半徑', .5, 5, .1], ['skills.fireball.rMax', '最大半徑', 1, 10, .1], ['skills.fireball.recover', '施法後僵直(秒)', 0, 2, .05],
   ['牆類(火牆等)'], ['skills.firewall.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.firewall.range', '最大射程', 8, 45, 1], ['skills.firewall.rMin', '最短長度', 2, 10, .5], ['skills.firewall.rMax', '最長長度', 6, 30, .5], ['skills.firewall.thick', '牆厚度', .5, 4, .1], ['skills.firewall.duration', '持續時間(秒)', 2, 20, .5], ['skills.firewall.recover', '施法後僵直(秒)', 0, 2, .05],
-  ['大招類(隕石等)'], ['skills.meteor.chargeTime', '集氣時間(秒)', .3, 5, .1], ['skills.meteor.range', '最大射程', 8, 50, 1], ['skills.meteor.rMin', '最小半徑', 2, 10, .5], ['skills.meteor.rMax', '最大半徑', 4, 20, .5], ['skills.meteor.recover', '施法後僵直(秒)', 0, 3, .05]
+  ['大招類(隕石等)'], ['skills.meteor.chargeTime', '集氣時間(秒)', .3, 5, .1], ['skills.meteor.range', '最大射程', 8, 50, 1], ['skills.meteor.rMin', '最小半徑', 2, 10, .5], ['skills.meteor.rMax', '最大半徑', 4, 20, .5], ['skills.meteor.recover', '施法後僵直(秒)', 0, 3, .05],
+  ['召喚類(第 4 格)'], ['skills.summon.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.summon.range', '射程', 4, 30, 1], ['skills.summon.recover', '施法後僵直(秒)', 0, 2, .05]
 ];
 function getPath(o, p) { return p.split('.').reduce((a, k) => a[k], o); }
 function setPath(o, p, v) { const ks = p.split('.'), l = ks.pop(); ks.reduce((a, k) => a[k], o)[l] = v; }
