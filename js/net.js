@@ -1,5 +1,5 @@
 'use strict';
-// 多人連線:房間管理與大廳介面 window.Net,以及房間匯流排 RoomBus / BcBus(同一台電腦多分頁)/ FirebaseBus(N8 骨架)
+// 多人連線:房間管理與大廳介面 window.Net,以及房間匯流排 RoomBus / BcBus(同一台電腦多分頁)/ FirebaseBus(N8:REST + SSE)
 // 載入順序:netcfg.js → net.js → qr.js → cover.js(cover.js 只使用 window.Net)
 // window.Net(方法回傳 Promise):
 //   createRoom({name, scene, maxPlayers, password|null, cls, el}) → {code, link, host:true, me:{id,name}, scene, maxPlayers, hasPassword}
@@ -170,15 +170,300 @@
     }
   }
 
-  /* FirebaseBus:REST + SSE 的骨架(N8 才實作,§1-2、§1-4~1-7)。目前所有網路操作都回報 network。 */
+  /* FirebaseBus(N8):REST(fetch)+ SSE(EventSource),不用 SDK、不下載外部程式庫。
+     規則見 設計_多人連線.md §1-8;寫入格式與順序見 §1-4、§1-6;串流 / 重連 / 看門狗見 §1-7;時間校正見 §1-5。
+     本機鏡像 this.root 由串流維護;寫入時同步套到本機鏡像(與 BcBus 相同),串流回來的自己寫入會覆寫成同值或伺服器時間。
+     寫入分四條通道:structural(建房、加入、關房、心跳、名單等,依序執行)、state(snap/sm,同時最多 1 個在途、只保留最新)、
+     ev(事件,最多 4 併發、8 秒逾時、逾時重送一次,鍵唯一故冪等)。錯誤一律轉成 {reason},見 net.js 的 reason 清單。 */
+  const FB_SV_LAST = ['hb', 'lastActive', 'created', 'joined'];   // 這些欄位寫入時改為伺服器時間戳 {".sv":"timestamp"}
+  const FB_STATE_RE = /^(snap|sm)\/\d+$/;                          // 快照通道
+  const FB_EV_RE = /^ev\/\d+\/[0-9a-z_]+$/;                        // 事件通道
+  const FB_TIMEOUT_MS = 8000;      // 單次請求逾時
+  const FB_INIT_MS = 8000;         // 等待第一個 put(房間完整狀態)的上限
+  const FB_STALL_MS = 45000;       // 超過此時間沒有任何串流訊息 → 重開串流
+  const FB_DOWN_MS = 90000;        // 連續失敗超過此時間 → 視為網路中斷(closed network)
+  // 寫入前把伺服器時間欄位換成 .sv;回傳換好的值,並把換過的相對路徑收進 out(用來量測時間偏差)
+  function fbWire(path, v, out) {
+    if (typeof v === 'number' && FB_SV_LAST.indexOf(path.slice(path.lastIndexOf('/') + 1)) >= 0) { out.push(path); return { '.sv': 'timestamp' }; }
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const o = {};
+      Object.keys(v).forEach(k => { o[k] = fbWire(path + '/' + k, v[k], out); });
+      return o;
+    }
+    return v;
+  }
+  // 把一個節點展開成葉節點 { '相對路徑': 值 }(供 dispatchEv 使用)
+  function fbLeaves(prefix, v, out) {
+    if (v && typeof v === 'object') Object.keys(v).forEach(k => fbLeaves(prefix + '/' + k, v[k], out));
+    else out[prefix] = v;
+    return out;
+  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
   class FirebaseBus extends RoomBus {
-    constructor(cfg) { super(); this.dbUrl = cfg.dbUrl; this.apiKey = cfg.apiKey; }
-    now() { return Date.now(); }   // N8:加上伺服器時間偏差
-    attach() { return Promise.reject({ reason: 'network' }); }
-    create() { return Promise.reject({ reason: 'network' }); }
-    join() { return Promise.reject({ reason: 'network' }); }
-    patchRoot() { return Promise.resolve(); }
-    leave() { this.root = null; this.seat = 0; }
+    constructor(cfg) {
+      super();
+      this.dbUrl = String(cfg.dbUrl || '').replace(/\/+$/, '');
+      this.apiKey = cfg.apiKey || '';
+      this.es = null; this._closed = true; this._init = null;
+      this._retryTimer = null; this._retryN = 0; this._wd = null;
+      this.lastMsg = 0; this.failSince = 0;
+      this.offset = 0; this._samples = []; this._svSent = new Map();   // 伺服器時間偏差(ms)與待回收的 .sv 寫入時刻
+      this._chain = Promise.resolve(); this._broken = false;
+      this._stBusy = false; this._stNext = null;
+      this._evQ = []; this._evActive = 0;
+    }
+    now() { return Math.round(Date.now() + this.offset); }   // 整數:事件鍵由它組成(§1-3)
+
+    /* ---------- 底層 HTTP ---------- */
+    _url(path) { return this.dbUrl + '/' + path + '.json?print=silent'; }
+    // 寫入請求:逾時 8 秒、429 / 503 或網路錯誤時重試一次;回傳 Response(呼叫端用 _ok 檢查)
+    async _req(method, url, body) {
+      for (let i = 0; i < 2; i++) {
+        const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = setTimeout(() => { if (ctl) ctl.abort(); }, FB_TIMEOUT_MS);
+        try {
+          const res = await fetch(url, {
+            method: method,
+            headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+            body: body !== undefined ? JSON.stringify(body) : undefined,
+            keepalive: true,
+            signal: ctl ? ctl.signal : undefined
+          });
+          clearTimeout(timer);
+          if ((res.status === 429 || res.status === 503) && i === 0) { await sleep(1000); continue; }
+          return res;
+        } catch (e) {
+          clearTimeout(timer);
+          console.warn('[net] 寫入請求失敗', method, e && e.name);
+          if (i === 0) await sleep(500);
+        }
+      }
+      throw { reason: 'network' };
+    }
+    _ok(res) { if (!res.ok) throw { reason: 'network', status: res.status }; return res; }
+    _track(svs) {
+      const t = Date.now();
+      (svs || []).forEach(p => { if (p === 'meta/created' || p === 'players/' + this.seat + '/hb') this._svSent.set(p, t); });
+    }
+    // 多路徑 PATCH 到根目錄(body 的鍵為完整路徑;規則以寫入前資料判斷,所以 pw / mem / players 不可混在同一請求)
+    _patchRoot(body, svs) {
+      this._track(svs);
+      return this._req('PATCH', this.dbUrl + '/.json?print=silent', body).then(r => this._ok(r));
+    }
+    // 房間內的寫入:相對路徑 map → 完整路徑的多路徑 PATCH
+    _writeMap(map) {
+      const body = {}, svs = [], code = this.code;
+      Object.keys(map).forEach(k => { body['rooms/' + code + '/' + k] = fbWire(k, map[k], svs); });
+      return this._patchRoot(body, svs);
+    }
+    _serial(fn) {
+      const p = this._chain.then(fn);
+      this._chain = p.catch(() => { });
+      return p;
+    }
+
+    /* ---------- 串流 ---------- */
+    _open(code) {
+      this._stopStream();
+      this._closed = false; this.code = code; this.root = null;
+      this._retryN = 0; this.failSince = 0;
+      this._connect();
+      this._wd = setInterval(() => this._watch(), 5000);
+    }
+    _stopStream() {
+      this._closed = true;
+      if (this._wd) { clearInterval(this._wd); this._wd = null; }
+      if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
+      this._closeEs();
+    }
+    _closeEs() {
+      const es = this.es;
+      this.es = null;
+      if (es) { es.onopen = null; es.onerror = null; es.close(); }
+    }
+    _connect() {
+      this._closeEs();
+      let es = null;
+      try { es = new EventSource(this.dbUrl + '/rooms/' + this.code + '.json'); }
+      catch (e) { console.warn('[net] 無法開啟串流'); return this._remoteDown('network'); }
+      this.es = es;
+      this.lastMsg = Date.now();
+      es.onopen = () => { if (this.es !== es) return; this._retryN = 0; this.failSince = 0; };
+      es.onerror = () => this._onErr(es);
+      es.addEventListener('put', e => this._onMsg(es, e, 'put'));
+      es.addEventListener('patch', e => this._onMsg(es, e, 'patch'));
+      es.addEventListener('keep-alive', () => { if (this.es === es) this._touch(); });
+      es.addEventListener('cancel', () => { if (this.es === es) this._remoteDown('hostleft'); });
+      es.addEventListener('auth_revoked', () => { if (this.es === es) this._remoteDown('hostleft'); });
+    }
+    _touch() { this.lastMsg = Date.now(); this.failSince = 0; }
+    _onErr(es) {
+      if (this.es !== es || this._closed) return;
+      if (!this.failSince) this.failSince = Date.now();
+      // 瀏覽器會自動重連(CONNECTING);只有 CLOSED 時才自己退避重開
+      if (es.readyState === EventSource.CLOSED) this._scheduleReconnect();
+    }
+    _scheduleReconnect() {
+      if (this._retryTimer || this._closed) return;
+      const d = Math.min(15000, 1000 * Math.pow(2, this._retryN));
+      this._retryN++;
+      this._retryTimer = setTimeout(() => { this._retryTimer = null; if (!this._closed) this._connect(); }, d);
+    }
+    // 看門狗:長時間無任何訊息(含 keep-alive)就重開;失敗太久就回報網路中斷
+    _watch() {
+      if (this._closed) return;
+      const t = Date.now();
+      if (this.failSince && t - this.failSince > FB_DOWN_MS) return this._remoteDown('network');
+      if (this.es && !this._retryTimer && t - this.lastMsg > FB_STALL_MS) { this._connect(); }
+    }
+    _remoteDown(reason) {
+      if (this._closed) return;
+      if (this._init) return this._settle({ reason: 'network' });
+      this._stopStream();
+      this._fire('down', reason);
+    }
+    _settle(err, root) {
+      const i = this._init;
+      if (!i) return;
+      this._init = null;
+      clearTimeout(i.timer);
+      if (err) { this._stopStream(); i.reject(err); } else i.resolve(root);
+    }
+    _onMsg(es, e, type) {
+      if (this.es !== es || this._closed) return;
+      this._touch();
+      let msg = null;
+      try { msg = JSON.parse(e.data); } catch (err) { console.warn('[net] 串流資料無法解析'); return; }
+      if (!msg || typeof msg !== 'object') return;
+      const rel = String(msg.path || '/').replace(/^\/+|\/+$/g, ''), data = msg.data;
+      if (!rel && type === 'put') return this._full(data);
+      if (!this.root) return;
+      const leaves = {};
+      if (type === 'put') {
+        setAt(this.root, rel, data);
+        fbLeaves(rel, data, leaves);
+      } else if (data && typeof data === 'object') {
+        Object.keys(data).forEach(k => {
+          const p = rel ? rel + '/' + k : k;
+          setAt(this.root, p, data[k]);
+          fbLeaves(p, data[k], leaves);
+        });
+      }
+      // 自己寫入的伺服器時間回來 → 量測時間偏差
+      Object.keys(leaves).forEach(p => {
+        const st = this._svSent.get(p);
+        if (st != null && typeof leaves[p] === 'number') { this._svSent.delete(p); this._sample(leaves[p], st, Date.now()); }
+      });
+      if (Object.keys(leaves).length) this._fire('patch', leaves);
+    }
+    // 房間完整狀態(連線後第一個 put,或重連後的 put):null 表示房間不存在
+    _full(data) {
+      const init = !!this._init;
+      this.root = data && typeof data === 'object' ? data : null;
+      if (init) return this._settle(null, this.root);
+      this._fire('open');   // 讓 net.js 把舊事件判斷的起點移到本次串流開啟時
+      this._fire('put');
+    }
+    _sample(sv, sendT, recvT) {
+      const rtt = recvT - sendT;
+      if (!(rtt >= 0 && rtt < 5000)) return;
+      this._samples.push({ rtt: rtt, off: sv - (sendT + recvT) / 2 });
+      if (this._samples.length > 8) this._samples.shift();
+      const best = this._samples.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+      this.offset = this._samples.length === 1 ? best.off : this.offset + (best.off - this.offset) * 0.2;
+    }
+
+    /* ---------- RoomBus 介面 ---------- */
+    attach(code, waitMs) {
+      return new Promise((resolve, reject) => {
+        this._init = { resolve, reject, timer: setTimeout(() => this._settle({ reason: 'network' }), Math.max(waitMs || 0, FB_INIT_MS)) };
+        this._open(code);
+      });
+    }
+    create(code, meta, pwHash) {
+      if (this.code !== code || this._closed) this._open(code);
+      this._broken = false;
+      this.root = { meta: meta, pw: pwHash || null, players: {}, mem: {} };
+      const p = this._serial(async () => {
+        try {
+          const svs = [], body = {};
+          body['roomIdx/' + code] = { '.sv': 'timestamp' };
+          body['rooms/' + code + '/meta'] = fbWire('meta', meta, svs);
+          await this._patchRoot(body, svs);
+          if (pwHash) this._ok(await this._req('PUT', this._url('pw/' + code), pwHash));
+        } catch (e) { this._broken = true; throw e; }
+      });
+      p.catch(() => { });   // createRoom 不 await 這個 promise;失敗會由接著的 join 回報
+      return p;
+    }
+    join(seat, player, memHash) {
+      this.seat = seat;
+      this._applyMap({ ['players/' + seat]: player });
+      const code = this.code;
+      return this._serial(async () => {
+        if (this._broken) throw { reason: 'network' };
+        if (memHash) {
+          const r = await this._req('PUT', this._url('mem/' + code + '/' + seat), memHash);
+          if (r.status === 401 || r.status === 403) throw { reason: 'password', needPassword: true, wrong: true };
+          this._ok(r);
+        }
+        const svs = [];
+        const body = fbWire('players/' + seat, player, svs);
+        this._track(svs);
+        this._ok(await this._req('PUT', this._url('rooms/' + code + '/players/' + seat), body));
+      });
+    }
+    patchRoot(map) {
+      if (!this.root) return Promise.resolve();
+      const keys = Object.keys(map);
+      this._applyMap(map);
+      if (keys.length && keys.every(k => FB_STATE_RE.test(k))) return this._stateSend(map);
+      if (keys.length && keys.every(k => FB_EV_RE.test(k))) { const p = this._evSend(map); p.catch(e => console.warn("[net] 事件寫入失敗", e && e.reason)); return p; }
+      this._fire('patch', map);
+      return this._serial(() => this._writeMap(map));
+    }
+    // 快照通道:同時最多 1 個在途;在途期間來的寫入合併成一包(同鍵保留最新),完成後送出
+    _stateSend(map) {
+      return new Promise(resolve => {
+        if (!this._stBusy) { this._stBusy = true; this._stFlush(map, [resolve]); return; }
+        if (!this._stNext) this._stNext = { map: {}, waiters: [] };
+        Object.assign(this._stNext.map, map);
+        this._stNext.waiters.push(resolve);
+      });
+    }
+    _stFlush(map, waiters) {
+      this._writeMap(map).catch(e => console.warn('[net] 快照寫入失敗', e && e.reason)).then(() => {
+        waiters.forEach(w => w());
+        const n = this._stNext;
+        this._stNext = null;
+        if (n) this._stFlush(n.map, n.waiters); else this._stBusy = false;
+      });
+    }
+    // 事件通道:最多 4 併發,超過排隊
+    _evSend(map) {
+      return new Promise((resolve, reject) => { this._evQ.push({ map: map, resolve: resolve, reject: reject }); this._evPump(); });
+    }
+    _evPump() {
+      while (this._evActive < 4 && this._evQ.length) {
+        const j = this._evQ.shift();
+        this._evActive++;
+        this._writeMap(j.map).then(j.resolve, j.reject).then(() => { this._evActive--; this._evPump(); });
+      }
+    }
+    // 關房(只有房主以 byeReason 呼叫):依序刪除 roomIdx、rooms、pw、mem(規則要求房間先為 closed,且刪 pw / mem 時房間仍在或已刪)
+    leave(byeReason) {
+      const code = this.code;
+      this._stopStream();
+      this.root = null; this.seat = 0;
+      if (byeReason && code) {
+        this._serial(async () => {
+          for (const path of ['roomIdx/' + code, 'rooms/' + code, 'pw/' + code, 'mem/' + code]) {
+            this._ok(await this._req('DELETE', this._url(path)));
+          }
+        }).catch(e => console.warn('[net] 關房清理失敗', e && e.reason));
+      }
+    }
   }
 
   /* ================= 房間管理(與匯流排無關,只透過 RoomBus 讀寫) ================= */
@@ -225,6 +510,7 @@
   }
   function wire(b) {
     evOpenT = b.now();
+    b.on('open', () => { if (bus === b) evOpenT = b.now(); });
     b.on('put', () => { if (bus === b) onChange(); });
     b.on('patch', m => { if (bus === b) { dispatchEv(m); onChange(); } });
     b.on('down', reason => { if (bus === b) closeLocal(reason || 'hostleft'); });
@@ -376,7 +662,7 @@
       if (!opt.password) return fail({ reason: 'password', needPassword: true });
       if (!cryptoOk()) return fail({ reason: 'nopwcrypto' });
       h = await sha256hex(m.salt + ':' + opt.password);
-      if (h !== r.pw) return fail({ reason: 'password', needPassword: true, wrong: true });
+      if (r.pw != null && h !== r.pw) return fail({ reason: 'password', needPassword: true, wrong: true });   // Firebase 的 pw 不可讀,由伺服器比對 mem(join 內)
     }
     const t = b.now();
     const seat = findSeat(r, t);
@@ -385,7 +671,7 @@
     bus = b; myRoom = code; mySeat = seat; lastHb = t;
     wire(b);
     try { await b.join(seat, mkPlayer(name, opt.cls, opt.el, t), h); }
-    catch (e) { dropRoom(); throw { reason: (e && e.reason) || 'network' }; }
+    catch (e) { dropRoom(); throw (e && e.reason === 'password') ? e : { reason: (e && e.reason) || 'network' }; }
     onChange();
     return { code: code, link: linkOf(code), me: { id: seat, name: name }, scene: m.scene, maxPlayers: m.max, hasPassword: !!m.locked };
   }
