@@ -6,7 +6,7 @@
 
 const RES_MAX = { hp: 100, mp: 100, sp: 100 };
 const MAGE_COST = { bolt: 8, wall: 18, sky: 35, summon: 30 };   // 法師 MP 基準花費(依形狀;六屬性同價)
-const CLASS_COST = { quickShot: 6, shockArrow: 18, arrowRain: 30, powerSlash: 12, whirlwind: 20, shieldCharge: 25, backstab: 12, knives: 10, stealth: 20 };   // 非法師 SP 基準花費(沒列到的招式預設 10)
+const CLASS_COST = { quickShot: 6, shockArrow: 18, arrowRain: 30, powerSlash: 12, whirlwind: 20, shieldCharge: 25, backstab: 12, knives: 10, stealth: 20, scatter: 10, disengage: 18, snare: 15, flare: 25, parry: 12, slam: 20, leap: 25, unyield: 0, shadowStep: 15, smoke: 20, eviscerate: 15, decoy: 25 };   // 非法師 SP 基準花費(沒列到的招式預設 10)
 
 // 招式的資源種類與基準花費:法師 = MP(依 kind),其他職業 = SP(依招式 id)
 function skillCost(i) {
@@ -52,24 +52,42 @@ function runAllowed(dt, moving) {
   return true;
 }
 
+/* ---------- 職業能量(非法師共用 API:弓專注 / 劍鬥氣 / 刺連擊點;只有 CLASSES[cls].energy 有值的職業生效) ---------- */
+// 能量表 = CLASSES[cls].energy { kind, name, max, css, seg? };法師沒有能量
+function energyCfg() { return G.cls === 'mage' ? null : (CLASSES[G.cls].energy || null); }
+// 獲得:夾在 0~max,回傳實際增加量;獲得即重置 crIdle(流失計時由各職業寫手實作)
+function gainEnergy(n) { const E = energyCfg(); if (!E || !(n > 0)) return 0; const b = G.cr; G.cr = Math.min(E.max, G.cr + n); G.crIdle = 0; return G.cr - b; }
+// 消耗:不足回傳 false(不扣);足夠就扣除並回傳 true
+function spendEnergy(n) { if (!energyCfg()) return false; if (n <= 0) return true; if (G.cr < n - 1e-6) return false; G.cr = Math.max(0, G.cr - n); G.crIdle = 0; return true; }
+// 劍士鬥氣來源(§2-2):造成實扣傷害 ×1.0(netShowDmg 呼叫)、受到實扣傷害 ×1.5(playerHurt 呼叫)
+function crOnDealt(n) { if (G.cls === 'swordsman') gainEnergy(n); }
+function crOnHurt(n) { if (G.cls === 'swordsman') gainEnergy(n * 1.5); }
+// 顯示用文字(連擊點取整數)
+function energyTxt() { const E = energyCfg(); if (!E) return ''; return (E.kind === 'combo' ? Math.floor(G.cr) : Math.round(G.cr)) + '/' + E.max; }
+// 快捷列金框:該格招式的強化門檻 exCost 已達到(exCost 由寫手在資料列設定;未設定則不亮)
+function exReady(i) { const s = curSkill(i); return !!(s && s.exCost && G.cr >= s.exCost - 1e-6); }
+
 /* ---------- 受擊 / 倒下 / 復活 / 治癒(取代 S-6 的 hurtPlayer) ---------- */
 // 無敵或倒地中忽略;先扣護盾(護盾不耗 MP);來襲一律起身;血量歸零 → playerDown()
 function playerHurt(n, src) {
   if (G.down > 0 || G.invulnT > 0) return { blocked: true, dmg: 0, src };
   const o = src && typeof src === 'object' ? src : {}, net = !!o.net, dot = !!o.dot;   // src 可為 'strike' 之類字串(單人)或 {by, net, dot}(多人,§2-7)
-  let rest = n;
+  const uny = G.unyT > 0;   // 不屈戰意:受傷 ×0.75、HP 不低於 1、免硬直(netApplyFx 另跳過控制)
+  let rest = uny ? n * .75 : n;
   if (G.shield > 0) { const a = Math.min(G.shield, rest); G.shield -= a; rest -= a; if (G.shield <= 0) { G.shield = 0; G.shieldT = 0; } }
   sitBreak('hurt');
   if (rest <= 0) { banner('護盾擋下!', '#ffd27a'); return { blocked: true, dmg: 0, src }; }
-  G.hp = Math.max(0, G.hp - rest);
-  if (!net) { G.stun = .6; G.vy = 5; }   // 單人行為不變
-  else if (!dot) G.stun = typeof NET_RULES !== 'undefined' ? NET_RULES.hitStun : .2;   // 多人:硬直、不往上彈;DOT 不硬直
-  if (G.hp <= 0) playerDown(); else banner('致命一擊!', '#ff5050');
+  G.hp = Math.max(uny ? 1 : 0, G.hp - rest);
+  if (!uny && !net) { G.stun = .6; G.vy = 5; }   // 單人行為不變
+  else if (!uny && !dot) G.stun = typeof NET_RULES !== 'undefined' ? NET_RULES.hitStun : .2;   // 多人:硬直、不往上彈;DOT 不硬直
+  crOnHurt(rest);
+  if (G.hp <= 0) playerDown(); else if (!uny) banner('致命一擊!', '#ff5050');
   return { blocked: false, dmg: rest, src };
 }
 // 倒下:倒地 downTime 秒不能動;計入倒下次數;取消集氣與打坐;結束翻滾
 function playerDown() {
   G.hp = 0; G.down = CFG.res.downTime; G.downs++;
+  G.cr = 0; G.stance = 0; G.stanceBoostT = 0;   // 倒下:能量歸零、架勢回 A
   sitBreak('down');
   if (G.roll) { G.roll = null; G.invuln = false; }
   if (G.state === 'charging') cancelCharge();
@@ -170,16 +188,16 @@ function tog(el, name, on) { const k = '_c' + name; if (el[k] === on) return; el
 // 數字文字每 100 ms 最多寫一次(清空字串立即寫)
 function setTxt(el, s) { if (!el || el._tx === s) return; if (s !== '' && G.time - (el._tt || -9) < .1) return; el._tx = s; el._tt = G.time; el.textContent = s; }
 // 一條資源條:cur 四捨五入後的整數變動才改填充;低於 20% 脈動;off = 非法師 MP 灰掉
-function resBar(id, cur, max, off, txt) {
+function resBar(id, cur, max, off, txt, noLow) {
   const el = rhEl(id), k = Math.round(cur);
   if (el._v !== k) { el._v = k; rhEl(id + 'fg').style.transform = 'scaleX(' + clamp(cur / max, 0, 1) + ')'; }
-  tog(el, 'low', !off && cur / max < .2);
+  tog(el, 'low', !off && !noLow && cur / max < .2);
   tog(el, 'off', off);
   setTxt(rhEl(id + 'n'), txt);
 }
 // 目前狀態圖示列(緩速、暈眩、虛弱、潛行、倒地):只在組合改變時才寫 DOM
-const ST_NAME = { slow: '緩速', stun: '暈眩', weak: '虛弱', stealth: '潛行', down: '倒地', shield: '護盾', heal: '治癒' };
-const ST_ICON = { slow: 'st_slow', stun: 'st_stun', weak: 'st_weak', stealth: 'st_stealth', down: 'st_down', shield: 'buff_shield', heal: 'buff_heal' };
+const ST_NAME = { slow: '緩速', stun: '暈眩', weak: '虛弱', stealth: '潛行', down: '倒地', shield: '護盾', heal: '治癒', root: '定身', lit: '照亮', unyield: '不屈' };
+const ST_ICON = { slow: 'st_slow', stun: 'st_stun', weak: 'st_weak', stealth: 'st_stealth', down: 'st_down', shield: 'buff_shield', heal: 'buff_heal', root: 'st_root', lit: 'st_lit', unyield: 'buff_unyield' };
 function updateStatusBar() {
   const sb = rhEl('stBar'); if (!sb) return;
   const ks = [], p = mage.root.position;
@@ -189,10 +207,13 @@ function updateStatusBar() {
   if (G.stun > 0) ks.push('stun');
   if (G.weak > 0) ks.push('weak');
   if (G.stealth) ks.push('stealth');
+  if (G.slowT > 0 && G.slowPct >= 1) ks.push('root');   // 定身 = 減速 100%
+  if (G.litT > 0) ks.push('lit');
+  if (G.unyT > 0) ks.push('unyield');
   if (G.slowT > 0 || (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0)) ks.push('slow');
   const k = ks.join(',');
   if (sb._k === k) return; sb._k = k;
-  sb.innerHTML = ks.map(x => '<img src="assets/icons/' + ST_ICON[x] + '.png" alt="' + ST_NAME[x] + '" title="' + ST_NAME[x] + '">').join('');
+  sb.innerHTML = ks.map(x => '<img src="assets/icons/' + ST_ICON[x] + '.png" alt="' + ST_NAME[x] + '" title="' + ST_NAME[x] + '" onerror="this.replaceWith(document.createTextNode(this.alt))">').join('');
 }
 
 function updateResHUD() {
@@ -204,7 +225,12 @@ function updateResHUD() {
     const f = clamp(hpk / G.hpMax, 0, 1), s = clamp(shk / G.hpMax, 0, 1 - f);
     sh.style.transform = 'translateX(' + f * 100 + '%) scaleX(' + s + ')';
   }
-  resBar('pMP', G.mp, G.mpMax, !isMage, isMage ? Math.round(G.mp) + '/' + G.mpMax : '');
+  const EN = isMage ? null : CLASSES[G.cls].energy, mfg = rhEl('pMPfg'), mpEl = rhEl('pMP');
+  if (EN) resBar('pMP', G.cr, EN.max, false, energyTxt(), true);   // 非法師:MP 條位置改顯示職業能量
+  else resBar('pMP', G.mp, G.mpMax, !isMage, isMage ? Math.round(G.mp) + '/' + G.mpMax : '');
+  const mcol = EN ? EN.css : '';
+  if (mfg._c !== mcol) { mfg._c = mcol; mfg.style.background = mcol; }
+  tog(mpEl, 'seg5', !!(EN && EN.seg));
   resBar('pSP', G.sp, G.spMax, false, Math.round(G.sp) + '/' + G.spMax);
   const pr = rhEl('pRes');
   tog(pr, 'sit', G.sitting); tog(pr, 'down', G.down > 0);
@@ -216,6 +242,7 @@ function updateResHUD() {
     let poor = false;
     if (i < n && !CFG.res.infinite) { const c = skillCost(i); poor = !resCan(c.kind, costAt(c.base, 0)); }
     tog(el, 'poor', poor);
+    tog(el, 'ex', i < n && !isMage && exReady(i));
   });
   // 集氣條:qCap 紅刻度;打坐時 #chargeBar 隱藏(#chargeBox 改顯示打坐數值)
   const charging = G.state === 'charging', cap = charging ? chargeCap() : 1, ct = rhEl('capTick');
@@ -235,5 +262,6 @@ function resInit() {
   G.mpMax = RES_MAX.mp; G.spMax = RES_MAX.sp; G.mp = G.mpMax; G.sp = G.spMax; G.mpIdle = 9; G.spIdle = 9;
   G.runLock = false; G.sitting = false; G.sitK = 0; G.down = 0; G.downK = 0; G.invulnT = 0;
   G.kvx = 0; G.kvz = 0; G.slowT = 0; G.slowPct = 0; G.burnT = 0; G.erodeT = 0; G.litT = 0;
+  G.cr = 0; G.crIdle = 0; G.unyT = 0; G.parryT = 0; G.ccLog = [];   // 能量、不屈 / 格擋計時、多人控制紀錄
 }
 resInit();

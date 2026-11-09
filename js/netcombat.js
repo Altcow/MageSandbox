@@ -38,12 +38,13 @@ function netPostCast(m) {
 // 施放事件(§2-4 欄位):P 為 G.pending,在 launchSpell 前呼叫;tip 取出手當下的杖頭位置
 function netSendCast(P) {
   if (!window.NETON || !Net.me || !P || P.sd == null) return;
+  if (P.skill && P.skill.netSilent) return;   // 瞬發的格擋 / 不屈不送 cast 事件(只靠快照位元)
   netLastK = P.spell && P.spell.name ? String(P.spell.name).slice(0, 12) : '';   // 最近一次施放的招式名,命中時帶給擊殺訊息用
   netPostCast({
     t: 'cast', sq: ++netSeq, cls: G.cls, el: P.el, ix: P.idx, bs: P.base, md: P.mode || null,
     T: vOut(P.target), tip: vOut(mage.tipWorld(new V3())), mz: vOut(P.muzzle),
     dir: r3(P.dir), wy: r3(P.wallYaw), q: r3(P.q), sz: r3(P.sizeK), th: r3(P.thickK), cp: P.copies || 1,
-    r: r3(P.r), pw: r3(P.power), rg: r3(P.range), dk: r3(P.dmgK), uk: r3(P.durK), fk: r3(P.fxK), sd: P.sd
+    r: r3(P.r), pw: r3(P.power), rg: r3(P.range), dk: r3(P.dmgK), uk: r3(P.durK), fk: r3(P.fxK), sd: P.sd, ex: P.ex | 0
   });
 }
 
@@ -81,7 +82,7 @@ function netReplayCast(seat, m) {
   const cls = CLASSES[m.cls] ? m.cls : 'mage', el = EL[m.el] ? m.el : 'fire';
   const sk = netSkill(cls, el, m.ix | 0);
   const target = vIn(m.T);
-  if (!sk || !target || typeof m.sd !== 'number') return;
+  if (!sk || !target || typeof m.sd !== 'number' || sk.netSilent) return;
   const sp = netSpell(cls, el, m.ix | 0) || {};
   if (sk.netFx) { netFxPlay(sk.netFx, rp, sp, m); return; }   // 位移招式:只播簡化特效,不呼叫原函式(§2-9)
   const aura = auraOf(cls, el), tip = vIn(m.tip) || rp.g.position.clone();
@@ -90,7 +91,7 @@ function netReplayCast(seat, m) {
     sizeK: m.sz, thickK: m.th, copies: m.cp || 1, r: m.r, power: m.pw, range: m.rg, muzzle: vIn(m.mz) || tip.clone(),
     dmgK: m.dk, durK: m.uk, fxK: m.fk, dir: m.dir, wallYaw: m.wy, dmgMul: 1, recover: 0,
     net: seat, sd: m.sd, rng: seedRng(m.sd),                       // 種子與發送端相同,決定位置 / 時間的亂數一致(§2-4)
-    casterPos: rp.g.position, casterYaw: () => rp.yaw, tip: tip, aura: aura
+    casterPos: rp.g.position, casterYaw: () => rp.yaw, tip: tip, aura: aura, ex: m.ex | 0
   };
   const orb = makeOrb(aura); scene.add(orb); orb.position.copy(tip); orb.setR(.3);
   if (sp.shout) addDmgText(new V3(rp.px, rp.py + 2.8, rp.pz), sp.shout, '#ffffff');   // 遠端喊招(白色、1 s)
@@ -103,6 +104,7 @@ function netFxPlay(kind, rp, sp, m) {
   if (kind === 'spin') burstRing(c, hex, m.r || 2.4);
   else if (kind === 'dash' || kind === 'stealth') burstRing(c, hex, 1.6);
   else if (kind === 'blink') ghostSprite(c, hex);   // 閃身的起點殘影;落點由快照的 tp 直接跳過去
+  else if (kind === 'guard' || kind === 'unyield') burstRing(c, hex, 1.4);   // 格擋 / 不屈的遠端光效(寫手 B 細化)
   if (sp.shout) addDmgText(new V3(rp.px, rp.py + 2.8, rp.pz), sp.shout, '#ffffff');
 }
 // 每幀(remote.js netTick 呼叫,只在 NETON):依快照旗標播旋風斬的旋轉 / 弧光、衝鋒盾的拖尾
@@ -128,7 +130,7 @@ function netFxTick(dt) {
    流程:攻擊者端 RemotePlayer.hit 等記入待送 → netCombatTick 每幀合併成一則 hit 事件(有命中的那一幀)→
    受害者端 netApplyHit:去重、否決(倒地 / 無敵 / 衝鋒盾)、扣血(playerHurt,傷害 × NET_RULES.dmgK)、套 debuff、回報 dmg →
    倒下:netOnDown 送 down 事件、房主計分(score/<座位> = "擊倒,死亡")、所有人看到擊殺訊息。 */
-const NET_RULES = { dmgK: .4, hitStun: .2, burnDmg: 5, erodeDmg: 4, cancelDmg: 10, vetoMs: 60, invKeepMs: 1500, scoreWinS: 8 };   // §8 預設:傷害倍率、硬直 0.2 s、DOT 每 0.5 s、集氣中斷門檻、否決時間窗、無敵紀錄長度、擊倒歸屬 8 s
+const NET_RULES = { dmgK: .4, hitStun: .2, burnDmg: 5, erodeDmg: 4, cancelDmg: 10, vetoMs: 60, invKeepMs: 1500, scoreWinS: 8, ccCap: 1.5, ccDR: .5, ccWin: 4, bsBack: [2, 2.8], bsStealth: 1.3 };   // §8 預設:傷害倍率、硬直 0.2 s、DOT 每 0.5 s、集氣中斷門檻、否決時間窗、無敵紀錄長度、擊倒歸屬 8 s
 // 自己的減速區不減速自己(§8 #8):world.js 的 addSlowZone 與 classes.js 的 zoneSlowAt 以 NET_ME 排除自己的區域
 Object.defineProperty(window, 'NET_ME', { get: () => (Net.me || 0), configurable: true });
 const netInputLocked = () => !!(window.NETON && window.NET_LOCK);   // 開戰倒數中,觸控鈕等事件式入口也要擋(§5-1)
@@ -148,7 +150,6 @@ function netPlayerTick(dt) {
     if (Math.abs(G.kvz) < .01) G.kvz = 0;
   }
   if (G.slowT > 0) { G.slowT = Math.max(0, G.slowT - dt); if (G.slowT <= 0) G.slowPct = 0; }
-  if (G.litT > 0) G.litT = Math.max(0, G.litT - dt);
   if (G.erodeT > 0) {
     G.erodeT = Math.max(0, G.erodeT - dt); netEroAcc += dt;
     if (netEroAcc >= .5) { netEroAcc -= .5; playerHurt(NET_RULES.erodeDmg, { by: G.lastHitBy, net: true, dot: true }); }
@@ -170,10 +171,12 @@ function netApplyHit(from, m) {
   // 否決(§2-5):現在無敵,或攻擊者看到的時間點 ±60 ms 內自己無敵 → 閃避;衝鋒盾中 → 盾擋
   let blk = null;
   if (G.invuln || G.invulnT > 0 || NET_INV_LOG.some(r => r.inv && Math.abs(r.t - rt) <= NET_RULES.vetoMs)) blk = 'dodge';
+  else if (typeof parryOn === 'function' && parryOn(from, rt)) blk = 'parry';   // 格擋否決(skills_sword.js,寫手 B 實作)
   else if (shieldOn()) blk = 'shield';
   if (blk) {
-    banner(blk === 'dodge' ? '閃避!' : '盾擋!', blk === 'dodge' ? '#8fe8ff' : '#ffd27a');
+    if (blk === 'dodge') banner('閃避!', '#8fe8ff'); else banner(blk === 'parry' ? '格擋!' : '盾擋!', '#ffd27a');
     Net.emitEv({ t: 'dmg', by: from, n: 0, b: 0, blk: blk });
+    if (blk === 'parry' && typeof onParry === 'function') onParry(from);   // 擋下後的反擊(skills_sword.js)
     return;
   }
   const raw = (m.h || []).reduce((s, x) => s + (+x[0] || 0), 0);
@@ -192,18 +195,28 @@ function netApplyHit(from, m) {
   else if (full) addDmgText(new V3(p.x, p.y + 2.2, p.z), '護盾', '#ffd27a');
   if (sum > 0) Net.emitEv({ t: 'dmg', by: from, n: Math.round(dealt * 10) / 10, b: Math.round(absorbed * 10) / 10, blk: full ? 'shield' : 0 });
 }
+// 受害者端的控制遞減(§3-3):ccWin 秒內每多一次控制,時間再乘 ccDR(第 2 次 ×0.5、第 3 次 ×0.25);回傳本次倍率並記下這次
+function netCcScale() {
+  const now = G.time, log = G.ccLog || (G.ccLog = []);
+  while (log.length && now - log[0] > NET_RULES.ccWin) log.shift();
+  const k = Math.pow(NET_RULES.ccDR, log.length);
+  log.push(now);
+  return k;
+}
 // 套用 debuff(§2-7 步驟 4):h 內每筆命中的燃燒秒數取最大;fx 為攻擊者端合併後的效果
+// PvP 控制上限(ccCap)與遞減(netCcScale):暈眩 / 跌倒 / 定身(減速 100%)同一則命中只計一次;不屈戰意中免控(kb / lf / st / dn / pl 跳過)
 function netApplyFx(fx, h) {
-  const p = mage.root.position;
+  const p = mage.root.position, uny = G.unyT > 0;
   for (const x of h) if (x[4] > 0) G.burnT = Math.max(G.burnT, x[4]);
-  if (fx.kb) { G.kvx += fx.kb[0] * 3.2; G.kvz += fx.kb[1] * 3.2; }
-  if (fx.lf) { G.vy = Math.max(G.vy, Math.sqrt(2 * 20 * fx.lf)); G.ground = false; }
-  if (fx.st) G.stun = Math.max(G.stun, fx.st);
-  if (fx.sl) { G.slowT = Math.max(G.slowT, fx.sl[0]); G.slowPct = Math.max(G.slowPct, fx.sl[1]); }
+  const cc = !uny && !!(fx.st || fx.dn || (fx.sl && fx.sl[1] >= 1)), k = cc ? netCcScale() : 1, ccT = t => Math.min(t, NET_RULES.ccCap) * k;
+  if (fx.kb && !uny) { G.kvx += fx.kb[0] * 3.2; G.kvz += fx.kb[1] * 3.2; }
+  if (fx.lf && !uny) { G.vy = Math.max(G.vy, Math.sqrt(2 * 20 * fx.lf)); G.ground = false; }
+  if (fx.st && !uny) G.stun = Math.max(G.stun, ccT(fx.st));
+  if (fx.sl) { G.slowT = Math.max(G.slowT, cc && fx.sl[1] >= 1 ? ccT(fx.sl[0]) : fx.sl[0]); G.slowPct = Math.max(G.slowPct, fx.sl[1]); }
   if (fx.er) G.erodeT = Math.max(G.erodeT, fx.er);
   if (fx.li) G.litT = Math.max(G.litT, fx.li);
-  if (fx.dn) { G.stun = Math.max(G.stun, fx.dn[0]); G.downK = .6; }   // 跌倒的樣子簡化:借 downK 0.6,之後由 resTick 收回
-  if (fx.pl) { const x0 = p.x, z0 = p.z; p.x += fx.pl[0]; p.z += fx.pl[1]; terrainMove(p, x0, z0); }
+  if (fx.dn && !uny) { G.stun = Math.max(G.stun, ccT(fx.dn[0])); G.downK = .6; }   // 跌倒的樣子簡化:借 downK 0.6,之後由 resTick 收回
+  if (fx.pl && !uny) { const x0 = p.x, z0 = p.z; p.x += fx.pl[0]; p.z += fx.pl[1]; terrainMove(p, x0, z0); }
 }
 
 // 攻擊者端:合併本幀的待送命中(每個目標一則);吸引位移每 100 ms 送一次;小計分板更新
@@ -231,7 +244,9 @@ function netSendHit(rp, p, now) {
 function netShowDmg(seat, d) {
   const rp = REMOTES[String(seat)]; if (!rp) return;
   const pos = new V3(rp.px, rp.py + 2.4, rp.pz);
-  if (d.blk === 'dodge') addDmgText(pos, '閃避', '#8fe8ff');
+  if (+d.by === Net.me && +d.n > 0 && typeof crOnDealt === 'function') crOnDealt(+d.n);   // 劍士鬥氣:自己造成的實扣傷害(§4-4)
+  if (d.blk === 'parry') addDmgText(pos, '格擋', '#ffd27a');
+  else if (d.blk === 'dodge') addDmgText(pos, '閃避', '#8fe8ff');
   else if (d.blk === 'shield') addDmgText(pos, '護盾', '#ffd27a');
   else if (+d.n > 0) addDmgText(pos, '-' + Math.round(+d.n), '#ffd35a');
 }

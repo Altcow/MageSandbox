@@ -18,7 +18,19 @@ const DEFAULT_CFG = {
     backstab: { chargeTime: 0.6, range: 5, rMin: 1, rMax: 1.6, recover: 0.3 },
     knives: { chargeTime: 0.7, range: 18, rMin: 20, rMax: 60, recover: 0.3 },
     stealth: { chargeTime: 0.8, range: 0, rMin: 0, rMax: 0, recover: 0.2 },
-    summon: { chargeTime: 1.3, range: 14, rMin: 1.2, rMax: 1.2, recover: 0.4 }
+    summon: { chargeTime: 1.3, range: 14, rMin: 1.2, rMax: 1.2, recover: 0.4 },
+    scatter: { chargeTime: 0.5, range: 12, rMin: 25, rMax: 45, recover: 0.3 },
+    disengage: { chargeTime: 0, range: 20, rMin: 6, rMax: 6, recover: 0.35 },
+    snare: { chargeTime: 0.6, range: 10, rMin: 0.9, rMax: 0.9, recover: 0.3 },
+    flare: { chargeTime: 1.0, range: 30, rMin: 4, rMax: 6, recover: 0.4 },
+    parry: { chargeTime: 0, range: 3.5, rMin: 3.5, rMax: 3.5, recover: 0.35 },
+    slam: { chargeTime: 0.9, range: 0, rMin: 3, rMax: 4.5, recover: 0.45 },
+    leap: { chargeTime: 0.8, range: 10, rMin: 2.5, rMax: 3, recover: 0.3 },
+    unyield: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.2 },
+    shadowStep: { chargeTime: 0.3, range: 10, rMin: 3, rMax: 3, recover: 0.2 },
+    smoke: { chargeTime: 0.7, range: 12, rMin: 3.5, rMax: 5, recover: 0.3 },
+    eviscerate: { chargeTime: 0.5, range: 1.4, rMin: 1.2, rMax: 1.6, recover: 0.35 },
+    decoy: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.15 }
   },
   res: { infinite: false, mpRegen: 6, spRegen: 15, mpDelay: 1.5, spDelay: 1.0, sitMp: 4, sitSp: 3, runCost: 12, airJump: 20, roll: 20, airRoll: 15, reviveHP: 100, downTime: 3 }   // 資源系統(resources.js),隨 CFG 存 localStorage
 };
@@ -94,7 +106,7 @@ const NEUTRAL_EL = { chargeMul: 1, rangeMul: 1, speedMul: 1 };
 const W = () => G.cls === 'mage' ? WEAPONS[G.weapon] : NEUTRAL_W;
 const elm = () => G.cls === 'mage' ? ELMOD[G.el] : NEUTRAL_EL;   // ELMOD 在 spells.js(執行期才讀)
 const skillRange = () => (G.skill >= 0 && curSkill(G.skill).aim === 'line' ? Math.max(sc(G.skill).range, skillRad()) : sc(G.skill).range) * W().rangeMul * elm().rangeMul;
-const chargeTimeEff = () => sc(G.skill).chargeTime * W().chargeMul * elm().chargeMul;
+const chargeTimeEff = () => sc(G.skill).chargeTime * W().chargeMul * elm().chargeMul * (G.stanceBoostT > 0 ? 1 / 1.5 : 1);
 function weaponDesc() {
   const w = W(), parts = [];
   if (w.chargeMul !== 1) parts.push('集氣×' + w.chargeMul);
@@ -113,7 +125,7 @@ const G = {
   roll: null, rollCD: 0, invuln: false, stun: 0, dodged: 0, hits: 0, autoStrike: false, strikeT: 2,
   time: 0, cb: 0, kick: 0, vy: 0, frameT: 0, hover: 0, auraAmt: 0, maxFlash: false, halfFlash: false, shoutT: 0, atkHeld: false,
   cls: 'mage', cd: {}, stealth: null, weak: 0, dash: null, spin: null, px0: 0, pz0: 0, camK: 1,
-  el: 'fire', chgMode: 'A', hp: 100, hpMax: 100, shield: 0, shieldT: 0, downs: 0, slowImmT: 0, mp: 100, mpMax: 100, sp: 100, spMax: 100, mpIdle: 0, spIdle: 0, runLock: false, sitK: 0, sitting: false, down: 0, downK: 0, invulnT: 0, kvx: 0, kvz: 0, slowT: 0, slowPct: 0, burnT: 0, erodeT: 0, litT: 0, lastHitBy: 0, lastHitK: null, lastHitT: 0, tp: 0   // 目前屬性(C-8,只有法師使用),存 localStorage mageSandbox.el;chgMode = 集氣模式 A/B;hp / shield / downs = S-6 玩家狀態
+  el: 'fire', chgMode: 'A', hp: 100, hpMax: 100, shield: 0, shieldT: 0, downs: 0, slowImmT: 0, mp: 100, mpMax: 100, sp: 100, spMax: 100, mpIdle: 0, spIdle: 0, runLock: false, sitK: 0, sitting: false, down: 0, downK: 0, invulnT: 0, kvx: 0, kvz: 0, slowT: 0, slowPct: 0, burnT: 0, erodeT: 0, litT: 0, lastHitBy: 0, lastHitK: null, lastHitT: 0, tp: 0, stance: 0, stanceCd: 0, stanceBoostT: 0, cr: 0, crIdle: 0, parryT: 0, unyT: 0, ccLog: []   // 非法師:架勢 stance(0/1)、冷卻、加速計時;職業能量 cr;不屈 / 格擋計時;多人控制紀錄 ccLog。 // 目前屬性(C-8,只有法師使用),存 localStorage mageSandbox.el;chgMode = 集氣模式 A/B;hp / shield / downs = S-6 玩家狀態
 };
 try { const v = localStorage.getItem('mageSandbox.el'); if (EL_ORDER.includes(v)) G.el = v; } catch (e) { }
 try { const m = localStorage.getItem('mageSandbox.chgMode'); if (m === 'A' || m === 'B') G.chgMode = m; } catch (e) { }
@@ -231,8 +243,9 @@ addEventListener('wheel', e => {
 let saveTimer = 0; function saveCfgSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveCfg, 400); }
 
 function selectSkill(i) {
-  if (G.state !== 'ready') return;
   if (i >= skillCount()) return;
+  if (G.cls !== 'mage' && curSkill(i).instant && (G.state === 'ready' || G.state === 'charging')) { castInstant(i); return; }   // 瞬發招(非法師):按下即發動
+  if (G.state !== 'ready') return;
   if (G.skill === i) G.skill = -1; else setSkill(i);
 }
 // 設定目前法術(不切換):記錄 lastSkill,並把牆角度歸零
@@ -270,8 +283,8 @@ function modeTxt(q) {
 // 玩家受擊 / 倒下 / 復活 / 治癒:見 resources.js(playerHurt / playerDown / playerRevive / playerHeal)
 function resetCam() { G.zoom = 1; G.camPitch = .42; G.camYaw = Math.PI; }
 function toggleWeapon() {
+  if (G.cls !== 'mage') { if (G.state === 'charging') cancelCharge(); else toggleStance(); return; }   // 非法師:Tab / X / 換裝鈕 = 切換架勢(集氣中 = 取消)
   if (G.state !== 'ready') return;
-  if (G.cls !== 'mage') { banner('此職業無換裝', '#ffc46b'); return; }
   G.weapon = G.weapon === 'staff' ? 'book' : 'staff'; mage.setWeapon(G.weapon); banner(W().name + '・' + W().tag, '#ffc46b');
 }
 // 範圍記憶:法師用 CFG.rad[槽位];其他職業用 CFG.radById[招式 id]
@@ -398,12 +411,27 @@ function pickStick(out) {
 function startCharge() {
   if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0) return;
   if (G.skill < 0) G.skill = G.lastSkill;
+  if (G.cls !== 'mage' && curSkill(G.skill).instant) { castInstant(G.skill); return; }   // 瞬發招(非法師):按下即發動
+  if (curSkill(G.skill).stub) { banner('尚未實作', '#ffc46b'); return; }   // S 批空殼:尚未實作的招式不進入集氣
   if (G.cd[curSkill(G.skill).id] > 0 || skillBlocked(curSkill(G.skill))) return;   // 冷卻中 / 虛弱中不能開始集氣
   { const c = skillCost(G.skill); if (!resCan(c.kind, costAt(c.base, 0))) { resDeny(c.kind); return; } }   // MP / SP 不夠 → 不進入集氣
   if (G.sitting) sitBreak('cast');
   G.state = 'charging'; G.chargeT = 0; G.charge = 0; G.queued = false; G.maxFlash = false; G.halfFlash = false;
   { const p = mage.root.position, x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z); }
   G.orb = makeOrb(auraEl()); scene.add(G.orb);
+}
+// 瞬發招(非法師 sk.instant):按下即以 q = 1 施放,集氣中先取消;仍走 release()(花費、冷卻、僵直、cast 事件都照常)
+function castInstant(i) {
+  const sk = curSkill(i);
+  if (sk.stub) { banner('尚未實作', '#ffc46b'); return; }
+  if (G.roll || G.stun > 0 || G.down > 0 || (G.state !== 'ready' && G.state !== 'charging')) return;
+  if (G.cd[sk.id] > 0 || skillBlocked(sk)) return;
+  if (G.state === 'charging') cancelCharge();
+  if (G.sitting) sitBreak('cast');
+  const c = skillCost(i);
+  if (!resCan(c.kind, costAt(c.base, 1))) { resDeny(c.kind); return; }
+  G.skill = i; G.lastSkill = i; G.charge = 1; G.chargeT = 0; G.queued = false;
+  release();
 }
 function cancelCharge() {
   if (G.state !== 'charging') return;
@@ -424,12 +452,12 @@ function release() {
   const sk = curSkill(G.skill), sp = spellOf(G.skill), p = mage.root.position, q = G.charge, mode = curMode();
   const dir = Math.atan2(G.target.x - p.x, G.target.z - p.z), sizeK = CHG.size(q, mode);
   G.pending = {
-    skill: sk, spell: sp, base: baseOf(G.skill), idx: G.skill, el: G.cls === 'mage' ? G.el : 'fire', target: G.target.clone(), q, charge: q,
+    skill: sk, spell: sp, base: baseOf(G.skill), idx: skillIx(G.skill), el: G.cls === 'mage' ? G.el : 'fire', target: G.target.clone(), q, charge: q,
     mode, sizeK, thickK: CHG.thick(q, mode), copies: CHG.copies(COPIES_N[sk.kind] || 1, q, mode),
     r: skillRad() * sizeK, power: 0.35 + 0.65 * q, range: skillRange(),
     muzzle: new V3(p.x + Math.sin(dir) * .7, p.y + 1.25, p.z + Math.cos(dir) * .7),   // 第 1 招子彈的槍口(設計 §1-3)
     dmgK: CHG.dmg(q) * W().dmgMul, durK: CHG.dur(q), fxK: CHG.fx(q),
-    dir, wallYaw: dir + G.wallOff, dmgMul: W().dmgMul, recover: sc(G.skill).recover * W().recoverMul
+    dir, wallYaw: dir + G.wallOff, dmgMul: W().dmgMul, recover: sc(G.skill).recover * W().recoverMul, ex: sk.exFn ? (sk.exFn(q) | 0) : 0
   };
   if (window.NETON) { G.pending.sd = (Math.random() * 2147483648) | 0; G.pending.rng = seedRng(G.pending.sd); }   // 多人:種子與決定位置 / 時間的亂數(§2-4);單人不加
   if (sk.cd) G.cd[sk.id] = sk.cd;   // 冷卻從施放開始計
@@ -453,7 +481,7 @@ function updateCasting(dt) {
       const kd = G.pending.skill.kind;
       G.frameT = kd === 'sky' ? 3.8 : (kd === 'wall' ? 1.6 : 1.1);
     }
-    if (G.castT >= G.pending.recover) { G.state = 'ready'; if (G.atkHeld) startCharge(); }
+    if (G.castT >= G.pending.recover) { G.state = 'ready'; if (G.atkHeld && !G.pending.skill.instant) startCharge(); }   // 瞬發招不因按住而連發
   } else G.charge = damp(G.charge, 0, 10, dt);
   G.kick = Math.max(0, G.kick - dt * 3.5);
   const tcb = (G.state === 'charging' || (G.state === 'cast' && G.castT < .32)) ? 1 : 0;
@@ -971,7 +999,7 @@ function updateHUD() {
   const air = !G.ground;
   btnJumpEl.classList.toggle('air', air && G.airJumps > 0); btnJumpEl.classList.toggle('spent', air && G.airJumps <= 0);
   btnRollEl.classList.toggle('air', air && G.airRolls > 0); btnRollEl.classList.toggle('spent', air && G.airRolls <= 0);
-  const wt = G.state === 'charging' ? '取消' : '換裝'; if (btnWeapEl.textContent !== wt) btnWeapEl.textContent = wt;
+  const wt = G.state === 'charging' ? '取消' : (G.cls === 'mage' ? '換裝' : '架勢'); if (btnWeapEl.textContent !== wt) btnWeapEl.textContent = wt;
   syncModeUI();
   updateCdHUD();
   // 咒語字幕位置:角色頭上

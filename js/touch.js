@@ -110,8 +110,8 @@
     if (edge(11)) resetCam();                                // 右搖桿按下:鏡頭重置
     if (edge(12)) toggleChgMode();      // 十字上:切換集氣模式
     if (edge(13)) { const ZS = [1, .8, 1.3]; G.zoom = ZS[(ZS.findIndex(z => Math.abs(z - G.zoom) < .01) + 1) % 3]; }     // 十字下:縮放循環 1.0 → 0.8 → 1.3
-    if (edge(14)) cycleElement(-1);                          // 十字左:上一屬性
-    if (edge(15)) cycleElement(1);                           // 十字右:下一屬性
+    if (edge(14)) { if (G.cls === 'mage') cycleElement(-1); else selectSkill(3); }                          // 十字左:法師上一屬性;其他職業直接選第 4 格(瞬發則發動)
+    if (edge(15)) { if (G.cls === 'mage') cycleElement(1); else { const k = instantSlot(); if (k >= 0) selectSkill(k); } }                           // 十字右:法師下一屬性;其他職業為目前架勢的瞬發招
     prev = gp.buttons.map(x => x.pressed);
   };
 })();

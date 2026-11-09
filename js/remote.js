@@ -7,7 +7,7 @@
 window.NETON = false;
 window.NET_LOCK = false;
 const REMOTES = {};              // 座位(字串)→ RemotePlayer
-const SNAP_CHARS = 23;           // 快照字元數:137 位元(§9-3)補齊到 138 位元 = 23 個 base64url 字元
+const SNAP_CHARS = 24;           // 快照字元數:142 位元(§9-3 的 137 位元,g 擴為 14 位元)補齊到 144 位元 = 24 個 base64url 字元(協定變更,NET_BUILD 須提升)
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const TAU = Math.PI * 2;
 const NAME_COLORS = ['#ffd27a', '#8fd0ff', '#ff8a8a', '#b8f08a', '#ffa8e0', '#a8fff0', '#d0a8ff', '#ffe08a', '#8affb0', '#ff9a5a', '#9ab0ff', '#e0e0e0'];
@@ -38,7 +38,7 @@ function packSnap(o) {
   put(qOpt(o.o), 5);
   put(qn(o.p, -Math.PI, Math.PI, 6), 6);
   put(qOpt(o.f), 5);
-  put(o.g & 511, 9);
+  put(o.g & 16383, 14);
   put(clamp(Math.round(o.hp), 0, 127), 7);
   put(clamp(Math.round(o.sh || 0), 0, 63), 6);
   put(o.w ? 1 : 0, 1);
@@ -65,7 +65,7 @@ function unpackSnap(str, nowRef) {
   o.o = dOpt(get(5));
   o.p = dq(get(6), -Math.PI, Math.PI, 6);
   o.f = dOpt(get(5));
-  o.g = get(9);
+  o.g = get(14);
   o.hp = get(7); o.sh = get(6);
   o.w = get(1);
   o.tp = get(4);
@@ -194,7 +194,7 @@ class RemotePlayer {
     if (stale || !p) { this.gf = 0; this.dead = true; this.g.visible = false; this.shadow.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false; return; }
     const g = p.g, stealth = !!(g & 2), away = !!(g & 256), down = !!(g & 64), inv = !!(g & 32);
     this.dead = down || away;
-    this.gf = g;                                                   // 快照旗標(netcombat.js 的位移招式特效用)
+    this.gf = g; this.guard = !!(g & 512); this.lit = !!(g & 1024); this.unyield = !!(g & 2048); this.stanceB = !!(g & 4096);   // 新旗標欄位(S 批只記值,呈現留給寫手)                                                   // 快照旗標(netcombat.js 的位移招式特效用)
     this.px = p.x; this.py = p.y; this.pz = p.z; this.yaw = p.r;
     this.col.x = p.x; this.col.z = p.z;
     this.hp = p.hp; this.sh = p.sh;
@@ -400,6 +400,10 @@ function sendSnap(now) {
   if (G.down > 0) g |= 64;
   if (G.state === 'charging') g |= 128;
   if (document.hidden) g |= 256;
+  if (G.stance === 1) g |= 4096;   // 非法師第 2 架勢(STANCE_B)
+  if (G.parryT > 0) g |= 512;      // 格擋窗(GUARD)
+  if (G.litT > 0) g |= 1024;       // 被照亮(LIT)
+  if (G.unyT > 0) g |= 2048;       // 不屈戰意(UNYIELD)
   sendSeq = (sendSeq + 1) & 255;
   Net.setSnap(packSnap({
     n: sendSeq, tm: now, x: p.x, y: p.y, z: p.z, r: mage.yaw, m: G.speedN || 0, c: G.cb || 0, k: G.kick || 0,

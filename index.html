@@ -61,6 +61,8 @@ body.touch .ri{width:14px;height:14px;flex:0 0 14px}
 .rn{flex:0 0 52px;font-size:11px;text-align:right;color:#ddd;text-shadow:0 0 3px #000;white-space:nowrap}
 #chargeBar.hide{display:none}
 .slot.poor .ic{filter:grayscale(.8) brightness(.7)}
+.slot.ex{border-color:#ffd24a;box-shadow:0 0 14px #ffd24a}
+#pMP.seg5::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(90deg,transparent calc(100% - 2px),rgba(0,0,0,.85) 0);background-size:20% 100%}
 body.touch #pRes{left:calc(12px + env(safe-area-inset-left));top:6px;bottom:auto;width:150px}
 body.touch .rb{height:5px}
 body.touch .rb.hp{height:8px}
@@ -265,7 +267,7 @@ body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.co
 <b>1 / 2 / 3</b> 選法術(光圈出現,可邊走邊選位置)・<b>Z / V 或 4~9</b> 切換屬性(水火風土光暗)<br>
 <b>按住左鍵</b> 集氣(光圈跟著滑鼠,施法中不能移動)・<b>放開</b> 施放<br>
 <b>滾輪</b> 調整範圍 ・ <b>Q / E</b> 旋轉牆(只在選牆時)・ <b>Esc / X</b> 取消<br>
-<b>右鍵拖曳</b> 轉視角 ・ <b>Ctrl+滾輪</b> 縮放 ・ <b>Tab</b> 法杖(重擊)/ 魔法書(速唱)<br>
+<b>右鍵拖曳</b> 轉視角 ・ <b>Ctrl+滾輪</b> 縮放 ・ <b>Tab</b> 法杖(重擊)/ 魔法書(速唱);弓 / 劍 / 刺 切換架勢<br>
 <b>Space</b> 跳 / 空中再按一次二段跳 ・ <b>F</b> 翻滾(翻滾中短暫無敵,空中可側翻一次)<br>
 <b>T</b> 腳下來襲測試(紅圈預告後爆炸)・ <b>Y</b> 自動來襲<br>
 <b>G</b> 切換集氣模式(A 變大 / B 變多)・<b>~</b> 召喚(第 4 格)<br>
@@ -409,6 +411,9 @@ body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.co
 <script src="js/summon_light.js"></script>
 <script src="js/summon_dark.js"></script>
 <script src="js/skills.js"></script>
+<script src="js/skills_archer.js"></script>
+<script src="js/skills_sword.js"></script>
+<script src="js/skills_assassin.js"></script>
 <script src="js/resources.js"></script>
 <script src="js/classes.js"></script>
 <script src="js/touch.js"></script>
