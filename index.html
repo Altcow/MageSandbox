@@ -49,6 +49,9 @@ canvas{display:block}
 .rb.off{opacity:.4}
 .rb.off .fg{background:#556 !important}
 #pRes.sit .rb{box-shadow:0 0 8px var(--sit)}
+.ri{width:18px;height:18px;flex:0 0 18px;object-fit:contain}
+.bi{width:78%;height:78%;object-fit:contain;pointer-events:none}
+body.touch .ri{width:14px;height:14px;flex:0 0 14px}
 .rn{flex:0 0 52px;font-size:11px;text-align:right;color:#ddd;text-shadow:0 0 3px #000;white-space:nowrap}
 #chargeBar.hide{display:none}
 .slot.poor .ic{filter:grayscale(.8) brightness(.7)}
@@ -150,9 +153,9 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <div id="modeTag" title="集氣模式(G)"></div>
 <div id="pRes">
   <div id="pDownTx"></div>
-  <div class="rr"><div class="rb hp" id="pHP"><i class="fg" id="pHPfg"></i><i id="pShield"></i></div><span class="rn" id="pHPn"></span></div>
-  <div class="rr"><div class="rb mp" id="pMP"><i class="fg" id="pMPfg"></i></div><span class="rn" id="pMPn"></span></div>
-  <div class="rr"><div class="rb sp" id="pSP"><i class="fg" id="pSPfg"></i></div><span class="rn" id="pSPn"></span></div>
+  <div class="rr"><img class="ri" src="assets/icons/ui_hp.png" alt=""><div class="rb hp" id="pHP"><i class="fg" id="pHPfg"></i><i id="pShield"></i></div><span class="rn" id="pHPn"></span></div>
+  <div class="rr"><img class="ri" src="assets/icons/ui_mp.png" alt=""><div class="rb mp" id="pMP"><i class="fg" id="pMPfg"></i></div><span class="rn" id="pMPn"></span></div>
+  <div class="rr"><img class="ri" src="assets/icons/ui_sp.png" alt=""><div class="rb sp" id="pSP"><i class="fg" id="pSPfg"></i></div><span class="rn" id="pSPn"></span></div>
 </div>
 <div id="dmgLayer"></div>
 <div id="touchUI">
@@ -163,7 +166,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
   <div class="tb sm" id="btnWeap">換裝</div>
   <div class="tb sm" id="btnHit">來襲</div>
   <div class="tb sm" id="btnMode">A 大</div>
-  <div class="tb sm" id="btnSit">打坐</div>
+  <div class="tb sm" id="btnSit"><img class="bi" src="assets/icons/ui_sit.png" alt="打坐"></div>
 </div>
 <div id="portraitMsg">請把手機轉成橫向</div>
 <div id="banner"></div>

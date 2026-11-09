@@ -242,8 +242,8 @@ function syncModeUI() {
   if (key === _modeKey) return; _modeKey = key;
   const A = G.chgMode === 'A', col = A ? '#ffc46b' : '#8fd0ff';
   const tag = document.getElementById('modeTag'), bt = document.getElementById('btnMode');
-  if (tag) { tag.style.display = on ? '' : 'none'; tag.innerHTML = A ? 'A<br><small>變大</small>' : 'B<br><small>變多</small>'; tag.style.borderColor = col; }
-  if (bt) { bt.style.display = on ? '' : 'none'; bt.textContent = A ? 'A 大' : 'B 多'; bt.style.borderColor = col; bt.style.color = col; }
+  if (tag) { tag.style.display = on ? '' : 'none'; tag.innerHTML = '<img src="assets/icons/' + (A ? 'ui_mode_big' : 'ui_mode_many') + '.png" alt="' + (A ? 'A' : 'B') + '" style="width:24px;height:24px;object-fit:contain">' + (A ? '<small>變大</small>' : '<small>變多</small>'); tag.style.borderColor = col; }
+  if (bt) { bt.style.display = on ? '' : 'none'; bt.innerHTML = '<img class="bi" src="assets/icons/' + (A ? 'ui_mode_big' : 'ui_mode_many') + '.png" alt="' + (A ? 'A 大' : 'B 多') + '">'; bt.style.borderColor = col; bt.style.color = col; }
 }
 // #chargeTxt 第三段:A = 範圍 / 厚度;B = 份數(copies)或數量(count)
 function modeTxt(q) {

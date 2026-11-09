@@ -201,7 +201,7 @@ function updateResHUD() {
   if (showCap && ct._v !== Math.round(cap * 100)) { ct._v = Math.round(cap * 100); ct.style.left = (cap * 100) + '%'; }
   tog(rhEl('chargeBar'), 'hide', resSitTxt() !== '');
   const bs = rhEl('btnSit');
-  if (bs) { tog(bs, 'on', G.sitting); const bt = G.sitting ? '起身' : '打坐'; if (bs._t !== bt) { bs._t = bt; bs.textContent = bt; } }
+  if (bs) { tog(bs, 'on', G.sitting); const bt = G.sitting ? '起身' : '打坐'; if (bs._t !== bt) { bs._t = bt; bs.title = bt; } }   // 按鈕上是打坐圖示,狀態用 .on 亮框表示
 }
 
 /* ---------- 每幀資源 HUD 之外的初始化 ---------- */
