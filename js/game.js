@@ -156,7 +156,7 @@ addEventListener('resize', onResize); onResize();
 
 /* ================= 輸入 ================= */
 addEventListener('keydown', e => {
-  if (window.COVER_ON) return;   // 封面期間不處理遊戲輸入
+  if (window.COVER_ON || (window.NETON && window.NET_LOCK)) return;   // 封面期間與多人開戰倒數不處理遊戲輸入
   if (e.target.tagName === 'INPUT') return;
   if (['Tab', 'Space'].includes(e.code)) e.preventDefault();
   if (e.ctrlKey && ['Equal', 'Minus', 'Digit0', 'NumpadAdd', 'NumpadSubtract', 'Numpad0'].includes(e.code)) { e.preventDefault(); if (e.code === 'Digit0' || e.code === 'Numpad0') G.zoom = 1; return; }
@@ -206,7 +206,7 @@ addEventListener('mousemove', e => {
   if (G.rmb) { G.camYaw -= e.movementX * CFG.camSens; G.camPitch = clamp(G.camPitch + e.movementY * CFG.camSens, 0.08, 1.35); }
 });
 addEventListener('mousedown', e => {
-  if (window.COVER_ON) return;
+  if (window.COVER_ON || (window.NETON && window.NET_LOCK)) return;
   if (e.target.tagName !== 'CANVAS' || fromTouch()) return;
   G.inputMode = 'mouse';
   if (e.button === 2) G.rmb = true;
@@ -1012,11 +1012,12 @@ let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, .05) * (window.TS || 1); last = now; G.time += dt;
-  if (window.inputTick) inputTick(dt);
+  if (window.inputTick && !(window.NETON && window.NET_LOCK)) inputTick(dt);   // 多人開戰倒數中鎖定輸入(remote.js)
   G.px0 = mage.root.position.x; G.pz0 = mage.root.position.z;
   classTick(dt); resTick(dt); updatePlayer(dt); updateAim(dt); updateCasting(dt);
   mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK });
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);
+  if (window.NETON) netTick(dt);   // 多人:送出快照、開戰倒數(remote.js);單人不執行
   fire.update(dt); smoke.update(dt); updateDmgTexts(dt); updateHUD(); updateResHUD();
   sky.position.copy(camera.position);
   { const sn = window.SHADOWN == null ? 1 : window.SHADOWN; G.shN = (G.shN || 0) + 1; moonLight.shadow.autoUpdate = false; moonLight.shadow.needsUpdate = sn > 0 && G.shN % sn === 0; }   // 陰影每 sn 格才重畫一次(省電)

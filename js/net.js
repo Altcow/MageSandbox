@@ -407,7 +407,11 @@
     joinRoom: joinRoom,
     leave: leave,
     setProfile: setProfile,
-    startGame: startGame
+    startGame: startGame,
+    // 多人對戰(remote.js)用:快照寫入自己的 snap/<座位>、讀取任一座位的快照、讀取本局 round
+    setSnap(s) { return bus && mySeat ? bus.setState('snap/' + mySeat, s) : Promise.resolve(); },
+    snapOf(seat) { const r = root(); return r && r.snap ? r.snap[seat] : undefined; },
+    roundOf() { const r = root(); return r && r.meta && r.meta.round ? r.meta.round : null; }
   };
 
   window.Net = Net;
