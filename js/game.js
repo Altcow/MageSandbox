@@ -200,7 +200,7 @@ addEventListener('blur', () => { G.keys = {}; G.atkHeld = false; if (G.state ===
 addEventListener('contextmenu', e => e.preventDefault());
 const fromTouch = () => performance.now() - G.lastTouch < 800;  // 觸控後瀏覽器會補發假滑鼠事件,忽略
 function doJump() {
-  if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0) return;
+  if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0 || G.rootT > 0) return;   // 定身中不能跳(狀態效果文件 §1-2 #4)
   if (G.sitting) sitBreak('jump');
   if (G.ground || G.coyote > 0) { G.vy = CFG.jumpV; G.ground = false; G.coyote = 0; return; }
   if (G.airJumps > 0) { if (!resUse('sp', CFG.res.airJump)) return; G.airJumps = 0; G.vy = CFG.airJumpV; G.flip = 0; airStepFx(mage.root.position); return; }
@@ -315,6 +315,7 @@ function tryRoll() {
   if (air && G.airRolls <= 0) return;
   if (G.down > 0) return;
   if (!resUse('sp', air ? CFG.res.airRoll : CFG.res.roll)) return;
+  if (G.burnT > 0) G.burnT = Math.max(0, G.burnT - ST.rollBurnCut);   // 翻滾甩掉火焰:灼燒剩餘 -1 s(§1-2 #7)
   if (G.sitting) sitBreak('roll');
   if (G.state === 'charging') cancelCharge();
   G.state = 'ready';
@@ -468,7 +469,8 @@ function release() {
 function updateCasting(dt) {
   for (const k in G.cd) if (G.cd[k] > 0) G.cd[k] = Math.max(0, G.cd[k] - dt);
   if (G.state === 'charging') {
-    G.chargeT += dt; G.charge = Math.min(clamp(G.chargeT / chargeTimeEff(), 0, 1), chargeCap());   // MP / SP 不足時卡在買得起的上限
+    if (!(G.paraJolt > 0)) G.chargeT += dt;   // 麻痺抽搐中暫停集氣進度(不取消,status.js)
+    G.charge = Math.min(clamp(G.chargeT / chargeTimeEff(), 0, 1), chargeCap());   // MP / SP 不足時卡在買得起的上限
     if (G.charge >= .5 && !G.halfFlash) { G.halfFlash = true; burstRing(mage.root.position, auraEl().hex, 1.2); }
     if (G.charge >= 1 && !G.maxFlash) { G.maxFlash = true; G.shake = Math.max(G.shake, .05); burstRing(mage.root.position, 0xffd27a, 2.4); }
     if (G.queued && G.chargeT >= CFG.minHold) release();
@@ -513,7 +515,7 @@ function updatePlayer(dt) {
   const p = mage.root.position, K = G.keys, mc = G.state === 'charging' && moveCharge(), lock = (G.state === 'charging' && !mc) || (G.state === 'cast' && !G.spin), face = lock || mc;
   const mi = moveInput(); let ix = mi.ix, iz = mi.iz, speedN = 0, ty = mage.yaw;
   G.rollCD = Math.max(0, G.rollCD - dt); G.stun = Math.max(0, G.stun - dt);
-  const free = !lock && !G.roll && G.stun <= 0 && G.down <= 0;
+  const free = !lock && !G.roll && G.stun <= 0 && G.down <= 0 && G.rootT <= 0;   // 定身:不能走(仍可施法、集氣、翻滾)
   if (G.sitting && (K.KeyW || K.KeyA || K.KeyS || K.KeyD || G.stick.mag > .3)) sitBreak('move');   // 移動輸入即起身
   mi.run = mi.run && runAllowed(dt, free && !!(ix || iz));   // 跑步:SP 扣與遲滯
   if (G.roll) {
@@ -1037,6 +1039,7 @@ function buildPanel() {
   });
   const b = document.createElement('button'); b.textContent = '還原預設值';
   b.onclick = () => { mergeCfg(CFG, JSON.parse(JSON.stringify(DEFAULT_CFG))); saveCfg(); buildPanel(); }; root.appendChild(b);
+  if (typeof stBuildTestPanel === 'function') stBuildTestPanel(root);   // 狀態測試(status.js)
   const rb = document.createElement('button'); rb.textContent = '重置標靶'; rb.onclick = () => resetWorld(); root.appendChild(rb);
 }
 buildPanel();
@@ -1049,7 +1052,8 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, .05) * (window.TS || 1); last = now; G.time += dt;
   if (window.inputTick && !(window.NETON && window.NET_LOCK)) inputTick(dt);   // 多人開戰倒數中鎖定輸入(remote.js)
   G.px0 = mage.root.position.x; G.pz0 = mage.root.position.z;
-  if (window.NETON) netPlayerTick(dt);   // 多人:擊退、debuff 計時、無敵紀錄(netcombat.js,在 updatePlayer 之前)
+  if (window.NETON) netPlayerTick(dt);   // 多人:擊退、撞牆跌倒、無敵紀錄(netcombat.js,在 updatePlayer 之前)
+  stTick(dt);                            // 狀態效果計時與 DOT(status.js,單人也跑)
   classTick(dt); resTick(dt); updatePlayer(dt); updateAim(dt); updateCasting(dt);
   mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK });
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);

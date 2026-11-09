@@ -332,6 +332,7 @@ class Dummy {
   clearStatus() {
     this.ox = this.oz = this.ovx = this.ovz = 0; this.y = terrainH(this.home.x, this.home.z); this.vy = 0;   // y 為絕對高度(地形上)
     this.slowT = this.slowPct = this.stunT = this.erodeT = this.erodeAcc = this.litT = this.pushT = this.windT = 0;
+    this.rootT = this.paraT = this.paraJolt = this.paraNext = this.silT = this.chillN = this.chillT = this.poisonT = this.poisonN = this.poisonAcc = this.blindT = 0;   // 狀態效果(status.js 同名 API,單人數值)
     if (this.stars) this.stars.forEach(s => s.visible = false);
     if (this.litSpr) this.litSpr.visible = false;
   }
@@ -366,6 +367,14 @@ class Dummy {
   slow(t, pct) { const p = pct == null ? .5 : pct; this.slowT = Math.max(this.slowT, t); this.slowPct = Math.max(this.slowPct, p); }
   erode(t) { this.erodeT = Math.max(this.erodeT, t); }
   light(t) { this.litT = Math.max(this.litT, t); }
+  // 狀態效果(與 RemotePlayer 同名):定身 = 不左右走;麻痺 = 每 0.6 s 抽搐 0.2 s 停步;沉默 / 致盲 = 只計時(外觀由呈現層處理);
+  // 寒意滿 3 層 = 凍結 1.2 s;中毒每層每 0.5 s 4 點(單人數值)
+  root(t) { this.rootT = Math.max(this.rootT, t); }
+  paralyze(t) { if (this.paraT <= 0) this.paraNext = 0; this.paraT = Math.max(this.paraT, Math.min(t, 3)); }
+  silence(t) { this.silT = Math.max(this.silT, t); }
+  chill(n) { if (!n) return; this.burn = 0; this.chillN = Math.min(3, this.chillN + 1); this.chillT = 4; if (this.chillN >= 3) { this.chillN = 0; this.chillT = 0; this.stun(1.2); } }
+  poison(t, n) { this.poisonT = Math.max(this.poisonT, Math.min(t, 6)); this.poisonN = Math.min(3, this.poisonN + (n == null ? 1 : n)); }
+  blind(t) { this.blindT = Math.max(this.blindT, t); }
   die() {
     this.dead = true; this.respawn = 4; this.g.visible = false; this.bar.visible = false;
     for (let i = 0; i < 50; i++) fire.emit(this.x, 1.2 + this.y, this.z, rnd(-4, 4), rnd(1, 7), rnd(-4, 4), rnd(.5, 1), rnd(.2, .5), EL.fire.c0, EL.fire.c1, 1, .4, 8, .5);
@@ -425,8 +434,18 @@ class Dummy {
       for (let i = 0; i < 2; i++) fire.emit(this.x + rnd(-.25, .25), this.y + rnd(.6, 1.8), this.z + rnd(-.25, .25), rnd(-.3, .3), rnd(1, 2.5), rnd(-.3, .3), rnd(.4, .7), rnd(.4, .7), EL.fire.c0, EL.fire.c1, .9, .3, -.5, .5);
     }
     // 4) 左右移動選項:減速時 ×0.5、暈眩時停止
-    this.walkT += dt * (1 - kSl) * (this.stunT > 0 ? 0 : 1);
+    this.walkT += dt * (1 - kSl) * (this.stunT > 0 || this.rootT > 0 || this.paraJolt > 0 ? 0 : 1);
     this.walkX = CFG.dummyMove ? Math.sin(this.walkT * .8) * 1.5 : 0;
+    // 4b) 狀態效果計時(status.js 同名 API):定身 / 麻痺抽搐 / 沉默 / 致盲 / 寒意 / 中毒
+    this.rootT = Math.max(0, this.rootT - dt); this.silT = Math.max(0, this.silT - dt); this.blindT = Math.max(0, this.blindT - dt);
+    this.paraJolt = Math.max(0, this.paraJolt - dt);
+    if (this.paraT > 0) { this.paraT = Math.max(0, this.paraT - dt); this.paraNext -= dt; if (this.paraNext <= 0 && this.paraT > 0) { this.paraNext = .6; this.paraJolt = .2; } }
+    if (this.chillT > 0) { this.chillT -= dt; if (this.chillT <= 0) this.chillN = 0; }
+    if (this.poisonT > 0) {
+      this.poisonT = Math.max(0, this.poisonT - dt); this.poisonAcc += dt;
+      if (this.poisonAcc >= .5) { this.poisonAcc -= .5; this.hit(4 * this.poisonN, 0, 0, 0, 'dark', 'dot'); if (this.dead) return; }
+      if (this.poisonT <= 0) this.poisonN = 0;
+    } else { this.poisonN = 0; this.poisonAcc = 0; }
     // 5) 狀態粒子(每標靶每秒上限 6 顆)
     if (this.slowT > 0) {
       this.pAcc += dt * 6;

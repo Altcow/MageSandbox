@@ -7,7 +7,7 @@
 window.NETON = false;
 window.NET_LOCK = false;
 const REMOTES = {};              // 座位(字串)→ RemotePlayer
-const SNAP_CHARS = 24;           // 快照字元數:142 位元(§9-3 的 137 位元,g 擴為 14 位元)補齊到 144 位元 = 24 個 base64url 字元(協定變更,NET_BUILD 須提升)
+const SNAP_CHARS = 25;           // 快照字元數:150 位元 = 25 個 base64url 字元(142 位元 + 狀態欄 e 8 位元;g 為 14 位元;協定變更,NET_BUILD 須提升)
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const TAU = Math.PI * 2;
 const NAME_COLORS = ['#ffd27a', '#8fd0ff', '#ff8a8a', '#b8f08a', '#ffa8e0', '#a8fff0', '#d0a8ff', '#ffe08a', '#8affb0', '#ff9a5a', '#9ab0ff', '#e0e0e0'];
@@ -26,7 +26,7 @@ const qYaw = v => Math.round((((v % TAU) + TAU) % TAU) / TAU * 256) & 255;
 const dYaw = q => q / 256 * TAU;
 
 // o:{n 序號, tm 送出時間(ms), x y z, r 朝向, m 走跑, c 施法, k 後座, q 集氣, o 翻滾進度(-1 無), p 翻滾方向, f 空翻(-1 無),
-//    s 打坐, d 倒地, g 旗標, hp, sh 護盾, w 法杖 0 / 書 1, tp 傳送計數}
+//    s 打坐, d 倒地, g 旗標, hp, sh 護盾, w 法杖 0 / 書 1, tp 傳送計數, e 狀態欄(3 位元控制碼 + 5 旗標,見 status.js stCode / stFlags)}
 function packSnap(o) {
   const bits = [], put = (v, k) => { for (let i = k - 1; i >= 0; i--) bits.push((v >> i) & 1); };
   put(o.n & 255, 8);
@@ -43,6 +43,7 @@ function packSnap(o) {
   put(clamp(Math.round(o.sh || 0), 0, 63), 6);
   put(o.w ? 1 : 0, 1);
   put((o.tp | 0) & 15, 4);
+  put((o.e | 0) & 255, 8);
   while (bits.length % 6) bits.push(0);
   let s = '';
   for (let i = 0; i < bits.length; i += 6) { let v = 0; for (let j = 0; j < 6; j++) v = v * 2 + bits[i + j]; s += B64[v]; }
@@ -69,6 +70,7 @@ function unpackSnap(str, nowRef) {
   o.hp = get(7); o.sh = get(6);
   o.w = get(1);
   o.tp = get(4);
+  o.e = get(8);
   if (nowRef != null) { let d = (nowRef - tm) % 65536; if (d < 0) d += 65536; if (d >= 32768) d -= 65536; o.t = nowRef - d; }
   else o.t = 0;
   return o;
@@ -88,7 +90,7 @@ function mixPose(a, b, u) {
     t: L(a.t, b.t), x: L(a.x, b.x), y: L(a.y, b.y), z: L(a.z, b.z), r: a.r + angDiff(a.r, b.r) * u,
     m: L(a.m, b.m), c: L(a.c, b.c), k: L(a.k, b.k), q: L(a.q, b.q), s: L(a.s, b.s), d: L(a.d, b.d), sh: L(a.sh, b.sh),
     o: (a.o < 0 || b.o < 0) ? pick.o : L(a.o, b.o), f: (a.f < 0 || b.f < 0) ? pick.f : L(a.f, b.f), p: pick.p,
-    g: pick.g, hp: pick.hp, w: pick.w, tp: pick.tp
+    g: pick.g, hp: pick.hp, w: pick.w, tp: pick.tp, e: pick.e
   };
 }
 // 超過最新一則時依最後兩則速度外插(最多 200 ms),之後停住
@@ -194,7 +196,7 @@ class RemotePlayer {
     if (stale || !p) { this.gf = 0; this.dead = true; this.g.visible = false; this.shadow.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false; return; }
     const g = p.g, stealth = !!(g & 2), away = !!(g & 256), down = !!(g & 64), inv = !!(g & 32);
     this.dead = down || away;
-    this.gf = g; this.guard = !!(g & 512); this.lit = !!(g & 1024); this.unyield = !!(g & 2048); this.stanceB = !!(g & 4096);   // 新旗標欄位(S 批只記值,呈現留給寫手)                                                   // 快照旗標(netcombat.js 的位移招式特效用)
+    this.gf = g; this.stE = p.e | 0; this.guard = !!(g & 512); this.lit = !!(g & 1024); this.unyield = !!(g & 2048); this.stanceB = !!(g & 4096);   // 新旗標欄位(S 批只記值,呈現留給寫手)                                                   // 快照旗標(netcombat.js 的位移招式特效用)
     this.px = p.x; this.py = p.y; this.pz = p.z; this.yaw = p.r;
     this.col.x = p.x; this.col.z = p.z;
     this.hp = p.hp; this.sh = p.sh;
@@ -246,8 +248,15 @@ class RemotePlayer {
     const p = this._pend(); if (!p) return;
     const s = p.fx.sl || (p.fx.sl = [0, 0]); s[0] = Math.max(s[0], t); s[1] = Math.max(s[1], pct == null ? .5 : pct);
   }
-  erode(t) { const p = this._pend(); if (p) p.fx.er = Math.max(p.fx.er || 0, t); }
   light(t) { const p = this._pend(); if (p) p.fx.li = Math.max(p.fx.li || 0, t); }
+  // 狀態效果收件(status.js 的 stApplyFx 讀取;fx 鍵見該檔):定身 ro、麻痺 pa、沉默 si、寒意 ch、中毒 po [秒, 層]、致盲 bl
+  root(t) { const p = this._pend(); if (p) p.fx.ro = Math.max(p.fx.ro || 0, t); }
+  paralyze(t) { const p = this._pend(); if (p) p.fx.pa = Math.max(p.fx.pa || 0, t); }
+  silence(t) { const p = this._pend(); if (p) p.fx.si = Math.max(p.fx.si || 0, t); }
+  chill(n) { const p = this._pend(); if (p) p.fx.ch = (p.fx.ch || 0) + n; }
+  poison(t, n) { const p = this._pend(); if (!p) return; const q = p.fx.po || (p.fx.po = [0, 0]); q[0] = Math.max(q[0], t); q[1] = Math.min(2, q[1] + (n == null ? 1 : n)); }
+  blind(t) { const p = this._pend(); if (p) p.fx.bl = Math.max(p.fx.bl || 0, t); }
+  erode(t) { this.poison(t, 1); }   // 舊侵蝕 = 中毒 1 層
   knockDown(t, dirx, dirz) {
     const p = this._pend(); if (!p) return;
     const d = p.fx.dn || (p.fx.dn = [0, 0, 0]); d[0] = Math.max(d[0], t); d[1] = dirx; d[2] = dirz;
@@ -409,7 +418,8 @@ function sendSnap(now) {
     n: sendSeq, tm: now, x: p.x, y: p.y, z: p.z, r: mage.yaw, m: G.speedN || 0, c: G.cb || 0, k: G.kick || 0,
     q: G.state === 'charging' ? (G.charge || 0) : 0,
     o: roll ? clamp(roll.t / roll.time, 0, 1) : -1, p: roll ? roll.phi : 0, f: G.flip, s: G.sitK || 0, d: G.downK || 0,
-    g: g, hp: Math.ceil(G.hp), sh: Math.ceil(G.shield || 0), w: (G.cls === 'mage' && G.weapon === 'book') ? 1 : 0, tp: G.tp || 0
+    g: g, hp: Math.ceil(G.hp), sh: Math.ceil(G.shield || 0), w: (G.cls === 'mage' && G.weapon === 'book') ? 1 : 0, tp: G.tp || 0,
+    e: typeof stCode === 'function' ? (stCode() | stFlags()) : 0   // 狀態欄(status.js)
   }));
 }
 function countdownTick(left) {

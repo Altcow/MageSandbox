@@ -78,8 +78,9 @@ function playerHurt(n, src) {
   sitBreak('hurt');
   if (rest <= 0) { banner('護盾擋下!', '#ffd27a'); return { blocked: true, dmg: 0, src }; }
   G.hp = Math.max(uny ? 1 : 0, G.hp - rest);
-  if (!uny && !net) { G.stun = .6; G.vy = 5; }   // 單人行為不變
-  else if (!uny && !dot) G.stun = typeof NET_RULES !== 'undefined' ? NET_RULES.hitStun : .2;   // 多人:硬直、不往上彈;DOT 不硬直
+  if (!uny && !net && !dot) { G.stun = Math.max(G.stun, .6); G.vy = 5; }   // 單人:硬直取大(原為覆寫)、往上彈;DOT 不硬直
+  else if (!uny && net && !dot && G.hardImmT <= 0 && G.hitStunCd <= 0) { G.stun = Math.max(G.stun, NET_RULES.hitStun); G.hitStunCd = NET_RULES.hitStunGap; }   // 多人:硬直取大、0.5 s 內只觸發一次、韌性期間不硬直(§1-6)
+  if (G.frzT > 0 && rest >= ST.freezeBreak && G.frzAge >= ST.freezeGrace) stFreezeBreak();   // 凍結碎冰(§1-2 #3)
   crOnHurt(rest);
   if (G.hp <= 0) playerDown(); else if (!uny) banner('致命一擊!', '#ff5050');
   return { blocked: false, dmg: rest, src };
@@ -103,6 +104,7 @@ function playerRevive() {
 // 治癒:倒地中不能治癒;綠字顯示實際回復量(滿血不顯示)
 function playerHeal(n, src) {
   if (G.down > 0) return 0;
+  if (G.poisonT > 0 && G.poisonN > 0) n *= ST.poisonHealK;   // 中毒中受到治癒 ×0.5(§1-2 #8)
   const before = G.hp; G.hp = Math.min(G.hpMax, G.hp + n);
   const d = Math.round(G.hp - before);
   if (d > 0) { G.healUntil = G.time + 1.2; const p = mage.root.position; addDmgText(new V3(p.x, p.y + 2.2, p.z), '+' + d, '#7dff8a'); }
@@ -115,12 +117,18 @@ function playerShield(amount, seconds) {
   const before = G.shield; G.shield = Math.min(60, G.shield + amount); G.shieldT = Math.max(G.shieldT, seconds || 8);
   return Math.round(G.shield - before);
 }
-// 淨化:解除暈眩、虛弱,並給 2 秒區域減速免疫;有清掉東西才回傳 true(熾天使依此播放淨化特效)
+// 淨化(狀態效果文件 §1-4):清除暈眩、凍結、定身、麻痺、沉默、致盲、減速、寒意、灼燒、中毒、照亮、虛弱;不清跌倒(爬起動畫照走)與擊退;
+// 之後 1 s 控制免疫;原有 2 秒區域減速免疫保留。有清掉東西才回傳 true(熾天使依此播放淨化特效)
 function playerCleanse() {
   let c = false;
-  if (G.stun > 0) { G.stun = 0; c = true; }
-  if (G.weak > 0) { G.weak = 0; c = true; }
-  if (typeof zoneSlowAt === 'function') { const p = mage.root.position; if (zoneSlowAt(p.x, p.z, p.y).pct > 0) { G.slowImmT = 2; c = true; } }
+  const hit = (cond) => { if (cond) c = true; };
+  hit(G.stun > 0 || G.hardT > 0 || G.paraT > 0 || G.silT > 0 || G.rootT > 0 || G.frzT > 0 || G.blindT > 0 || G.slowT > 0 || G.chill > 0 || G.burnT > 0 || G.poisonT > 0 || G.litT > 0 || G.weak > 0);
+  G.stun = Math.min(G.stun, G.fallT || 0);   // 跌倒保留,其餘硬直 / 暈眩 / 凍結 / 麻痺抽搐清掉
+  G.hardT = Math.min(G.hardT, G.fallT || 0);
+  G.frzT = 0; G.frzAge = 0; G.paraT = 0; G.paraJolt = 0; G.paraNext = 0; G.silT = 0; G.rootT = 0;
+  G.blindT = 0; G.slowT = 0; G.slowPct = 0; G.chill = 0; G.chillT = 0; G.burnT = 0; G.poisonT = 0; G.poisonN = 0; G.litT = 0; G.weak = 0;
+  G.ccImmT = Math.max(G.ccImmT, ST.cleanseImm);
+  if (typeof zoneSlowAt === 'function') { const p = mage.root.position; if (zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0) { G.slowImmT = 2; c = true; } }
   return c;
 }
 
@@ -167,7 +175,7 @@ function resTick(dt) {
   const R = CFG.res;
   if (G.invulnT > 0) G.invulnT = Math.max(0, G.invulnT - dt);
   if (G.down > 0) { G.down = Math.max(0, G.down - dt); if (G.down <= 0) playerRevive(); }
-  G.downK = damp(G.downK, G.down > 0 ? 1 : 0, 6, dt);   // 倒地動畫值
+  G.downK = damp(G.downK, G.down > 0 || G.fallT > 0 ? 1 : 0, 6, dt);   // 倒地 / 跌倒動畫值(跌倒 = fallT,狀態效果文件 §1-2 #2)
   if (G.invulnT > 0) { mage.setOpacity(.5 + .5 * Math.sin(G.time * 20)); _invFx = true; }   // 復活無敵:角色閃爍
   else if (_invFx) { _invFx = false; mage.setOpacity(mage.opq); }
   G.sitK = clamp(G.sitK + (G.sitting && G.down <= 0 ? dt / .5 : -dt / .3), 0, 1);
@@ -196,24 +204,36 @@ function resBar(id, cur, max, off, txt, noLow) {
   setTxt(rhEl(id + 'n'), txt);
 }
 // 目前狀態圖示列(緩速、暈眩、虛弱、潛行、倒地):只在組合改變時才寫 DOM
-const ST_NAME = { slow: '緩速', stun: '暈眩', weak: '虛弱', stealth: '潛行', down: '倒地', shield: '護盾', heal: '治癒', root: '定身', lit: '照亮', unyield: '不屈' };
-const ST_ICON = { slow: 'st_slow', stun: 'st_stun', weak: 'st_weak', stealth: 'st_stealth', down: 'st_down', shield: 'buff_shield', heal: 'buff_heal', root: 'st_root', lit: 'st_lit', unyield: 'buff_unyield' };
+const ST_NAME = { slow: '緩速', stun: '暈眩', weak: '虛弱', stealth: '潛行', down: '倒地', shield: '護盾', heal: '治癒', root: '定身', lit: '照亮', unyield: '不屈',
+  freeze: '凍結', knock: '跌倒', para: '麻痺', silence: '沉默', burn: '灼燒', poison: '中毒', chill: '寒意', blind: '致盲', ccimm: '控制免疫' };
+const ST_ICON = { slow: 'st_slow', stun: 'st_stun', weak: 'st_weak', stealth: 'st_stealth', down: 'st_down', shield: 'buff_shield', heal: 'buff_heal', root: 'st_root', lit: 'st_lit', unyield: 'buff_unyield',
+  freeze: 'st_freeze', knock: 'st_down', para: 'st_paralysis', silence: 'st_silence', burn: 'st_burn', poison: 'st_poison', chill: 'st_slow', blind: 'st_blind', ccimm: 'st_cleanse' };   // 缺圖時 onerror 退回文字,不報錯
 function updateStatusBar() {
   const sb = rhEl('stBar'); if (!sb) return;
+  // 排序(狀態效果文件 §3-6):控制 → DOT → 減益 → 增益;寒意 / 中毒的層數併入鍵(層數變動時重建)
   const ks = [], p = mage.root.position;
   if (G.down > 0) ks.push('down');
+  if (G.frzT > 0) ks.push('freeze');
+  if (G.stun > 0 && G.frzT <= 0) ks.push('stun');
+  if (G.fallT > 0) ks.push('knock');
+  if (G.paraT > 0) ks.push('para');
+  if (G.silT > 0) ks.push('silence');
+  if (G.rootT > 0) ks.push('root');
+  if (G.burnT > 0) ks.push('burn');
+  if (G.poisonT > 0 && G.poisonN > 0) ks.push('poison' + G.poisonN);
+  if (G.blindT > 0) ks.push('blind');
+  if (G.weak > 0) ks.push('weak');
+  if (G.slowT > 0 || (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0)) ks.push('slow');
+  if (G.chill >= 1) ks.push('chill' + G.chill);
+  if (G.litT > 0) ks.push('lit');
   if (G.shield > 0) ks.push('shield');
   if (G.time < (G.healUntil || 0)) ks.push('heal');
-  if (G.stun > 0) ks.push('stun');
-  if (G.weak > 0) ks.push('weak');
   if (G.stealth) ks.push('stealth');
-  if (G.slowT > 0 && G.slowPct >= 1) ks.push('root');   // 定身 = 減速 100%
-  if (G.litT > 0) ks.push('lit');
   if (G.unyT > 0) ks.push('unyield');
-  if (G.slowT > 0 || (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0)) ks.push('slow');
+  if (G.ccImmT > 0 || G.hardImmT > 0) ks.push('ccimm');
   const k = ks.join(',');
   if (sb._k === k) return; sb._k = k;
-  sb.innerHTML = ks.map(x => '<img src="assets/icons/' + ST_ICON[x] + '.png" alt="' + ST_NAME[x] + '" title="' + ST_NAME[x] + '" onerror="this.replaceWith(document.createTextNode(this.alt))">').join('');
+  sb.innerHTML = ks.map(x => { const b = x.replace(/\d$/, ''); return '<img src="assets/icons/' + ST_ICON[b] + '.png" alt="' + ST_NAME[b] + '" title="' + ST_NAME[b] + '" onerror="this.replaceWith(document.createTextNode(this.alt))">'; }).join('');
 }
 
 function updateResHUD() {
@@ -263,5 +283,6 @@ function resInit() {
   G.runLock = false; G.sitting = false; G.sitK = 0; G.down = 0; G.downK = 0; G.invulnT = 0;
   G.kvx = 0; G.kvz = 0; G.slowT = 0; G.slowPct = 0; G.burnT = 0; G.erodeT = 0; G.litT = 0;
   G.cr = 0; G.crIdle = 0; G.unyT = 0; G.parryT = 0; G.ccLog = [];   // 能量、不屈 / 格擋計時、多人控制紀錄
+  if (typeof stClear === 'function') stClear();   // 狀態效果(status.js);載入時 status.js 尚未載入,由它自己的 stClear 初始化
 }
 resInit();

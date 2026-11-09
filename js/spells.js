@@ -93,6 +93,18 @@ function hitEl(d, dmg, el, sx, sz, fx) {
   if (fx.slow) d.slow(fx.slow, fx.slowPct);
   if (fx.lit) d.light(fx.lit);
   if (fx.erode) d.erode(fx.erode);
+  ctlFx(d, fx, sx, sz);
+}
+// 狀態效果鍵(狀態效果文件 §4 Z0-8):root 定身秒、para 麻痺秒、silence 沉默秒、chill 寒意層、poison [秒, 層]、blind 致盲秒、down 跌倒秒(方向 sx, sz)
+// 只呼叫目標上的同名方法(Dummy / RemotePlayer 都有);不造成傷害
+function ctlFx(d, fx, sx, sz) {
+  if (fx.root && d.root) d.root(fx.root);
+  if (fx.para && d.paralyze) d.paralyze(fx.para);
+  if (fx.silence && d.silence) d.silence(fx.silence);
+  if (fx.chill && d.chill) d.chill(fx.chill);
+  if (fx.poison && d.poison) d.poison(fx.poison[0], fx.poison[1]);
+  if (fx.blind && d.blind) d.blind(fx.blind);
+  if (fx.down && d.knockDown) d.knockDown(fx.down, sx, sz);
 }
 
 // 範圍內活標靶:距離衰減與 damageArea 相同;B 為基礎傷害,實際 = B × P.dmgK;pull 以反向位移實作(向爆心移動)
@@ -158,7 +170,7 @@ function beam(a, b, E, w, life) {
   });
 }
 // 連鎖(C-6 光):從 from 往 CHAIN_R 內最近、這次連鎖還沒打過的活標靶跳,每跳間隔 .06 s、傷害 dmg;找不到就停止
-function chainHop(from, seen, hops, dmg, el) {
+function chainHop(from, seen, hops, dmg, el, fx) {
   if (hops <= 0) return;
   let best = null, bd = CHAIN_R;
   for (const d of DUMMIES) { if (d.dead || seen.has(d)) continue; const dd = Math.hypot(d.x - from.x, d.z - from.z); if (dd < bd) { bd = dd; best = d; } }
@@ -167,10 +179,11 @@ function chainHop(from, seen, hops, dmg, el) {
   after(.06, () => {
     beam(new V3(from.x, from.y + 1.1, from.z), new V3(best.x, best.y + 1.1, best.z), EL[el], .12, .18);
     best.hit(dmg, best.x - from.x, best.z - from.z, 0, el);
-    chainHop(best, seen, hops - 1, dmg, el);
+    if (fx) ctlFx(best, fx, best.x - from.x, best.z - from.z);   // 連鎖的狀態效果(Z2 聖光彈麻痺用)
+    chainHop(best, seen, hops - 1, dmg, el, fx);
   });
 }
-function chainFrom(first, hops, dmg, el) { chainHop(first, new Set([first]), hops, dmg, el); }
+function chainFrom(first, hops, dmg, el, fx) { chainHop(first, new Set([first]), hops, dmg, el, fx); }
 
 /* ---------- 投射(C-4)共用引擎 ---------- */
 // 能量球從杖頭飛向目標(end.y = 目標地面 + endY),弧高 = 距離 × arc,每幀 st.trail,到達後 st.impact(end, P)

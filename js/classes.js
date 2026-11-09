@@ -155,7 +155,11 @@ function aimSpecial(sk, p, charging, q, rs, alpha, E) {
 
 /* ---------- 冷卻 / 狀態查詢(game.js 與 touch.js 使用) ---------- */
 // 不能開始的招式:潛行(虛弱中、照亮中不能進入潛行;潛行中再次施放 = 手動顯形,不在此擋);不屈戰意(鬥氣 < 50 不能開始)
-function skillBlocked(s) { if (s.id === 'stealth') return G.weak > 0 || (G.litT > 0 && !G.stealth); return s.id === 'unyield' && G.cr < 50; }
+function skillBlocked(s) {
+  if (G.silT > 0) { if (G.time - (G._silBanT || -9) >= 1) { G._silBanT = G.time; banner('沉默中', '#c08aff'); } return true; }   // 沉默(status.js):所有招式(含絕技)不能開始,移動 / 翻滾照常
+  if (s.id === 'stealth') return G.weak > 0 || (G.litT > 0 && !G.stealth);
+  return s.id === 'unyield' && G.cr < 50;
+}
 // 架勢切換(非法師;Tab / 手把 X / 手機換裝鈕):只在 ready 生效,冷卻 0.8 s;切換後 1.5 s 內第一招集氣加速(chargeTimeEff 讀 stanceBoostT)
 function toggleStance() {
   const C = CLASSES[G.cls];
@@ -214,7 +218,7 @@ function classTick(dt) {
   if (G.stealth) { G.stealth.left -= dt; if (G.stealth.left <= 0) revealStealth('time'); }
   if (G.dash) dashTick(dt, p);
   if (G.spin) spinTick(dt, p);
-  G.spdK = (G.spin ? .5 : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct : 1) * (G.slowT > 0 ? 1 - G.slowPct : 1) * stanceK();   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
+  G.spdK = (G.spin ? .5 : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (G.rootT > 0 ? 0 : 1) * (G.paraT > 0 ? ST.paraSpd : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct : 1) * (G.slowT > 0 ? 1 - G.slowPct : 1) * stanceK();   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
   if (G.state !== 'charging') AURA.full = false;
   else if (G.charge >= 1 && !AURA.full) { AURA.full = true; auraGather(); }   // 聚能收束:集氣滿時環繞粒子飛向武器尖端
   if (G.stealth || (G.dash && G.dash.kind === 'charge')) auraSpark(dt, p, E);

@@ -130,34 +130,27 @@ function netFxTick(dt) {
    流程:攻擊者端 RemotePlayer.hit 等記入待送 → netCombatTick 每幀合併成一則 hit 事件(有命中的那一幀)→
    受害者端 netApplyHit:去重、否決(倒地 / 無敵 / 衝鋒盾)、扣血(playerHurt,傷害 × NET_RULES.dmgK)、套 debuff、回報 dmg →
    倒下:netOnDown 送 down 事件、房主計分(score/<座位> = "擊倒,死亡")、所有人看到擊殺訊息。 */
-const NET_RULES = { dmgK: .4, hitStun: .2, burnDmg: 5, erodeDmg: 4, cancelDmg: 10, vetoMs: 60, invKeepMs: 1500, scoreWinS: 8, ccCap: 1.5, ccDR: .5, ccWin: 4, bsBack: [2, 2.8], bsStealth: 1.3 };   // §8 預設:傷害倍率、硬直 0.2 s、DOT 每 0.5 s、集氣中斷門檻、否決時間窗、無敵紀錄長度、擊倒歸屬 8 s
+const NET_RULES = { dmgK: .4, hitStun: .2, burnDmg: 2, poisonDmg: 1.2, cancelDmg: 10, vetoMs: 60, invKeepMs: 1500, scoreWinS: 8, ccCap: 1.5, ccDR: .5, ccWin: 4, ccMaxN: 3, ccImm: .5, hitStunGap: .5, slowCap: .65, bsBack: [2, 2.8], bsStealth: 1.3 };   // §8 預設:傷害倍率、硬直 0.2 s(0.5 s 內一次)、DOT 每 0.5 s(灼燒 / 每層中毒,狀態效果文件 §1-7)、集氣中斷門檻、否決時間窗、擊倒歸屬 8 s;控制總則見 status.js
 // 自己的減速區不減速自己(§8 #8):world.js 的 addSlowZone 與 classes.js 的 zoneSlowAt 以 NET_ME 排除自己的區域
 Object.defineProperty(window, 'NET_ME', { get: () => (Net.me || 0), configurable: true });
 const netInputLocked = () => !!(window.NETON && window.NET_LOCK);   // 開戰倒數中,觸控鈕等事件式入口也要擋(§5-1)
-let netHitSeq = 0, netLastK = '', netBurnAcc = 0, netEroAcc = 0;
+let netHitSeq = 0, netLastK = '';
 const NET_HIT_SEEN = new Set(), NET_HIT_Q = [], NET_INV_LOG = [];
 
-// 每幀(game.js frame 在 updatePlayer 之前):無敵紀錄、擊退位移、減速 / 照亮計時、侵蝕與燃燒的每 0.5 s 傷害
+// 每幀(game.js frame 在 updatePlayer 之前):無敵紀錄、擊退位移、撞牆跌倒判定(status.js)。減速 / 灼燒 / 中毒 / 各計時在 status.js 的 stTick
 function netPlayerTick(dt) {
   if (!window.NETON || !Net.me) return;
   const now = Net.now(), p = mage.root.position;
   NET_INV_LOG.push({ t: now, inv: !!(G.invuln || G.invulnT > 0) });
   while (NET_INV_LOG.length && now - NET_INV_LOG[0].t > NET_RULES.invKeepMs) NET_INV_LOG.shift();
+  if (G._kbPend) stKnockCheck(p);   // 上一幀的擊退:實際位移不足預期 → 撞牆跌倒
   if (G.kvx || G.kvz) {   // 擊退:速度衰減(exp(−3.2 dt),總位移 ≈ 距離);碰撞與地形由 updatePlayer 照常處理
+    G._kbPend = true; G._kbX = p.x; G._kbZ = p.z; G._kbSpd = Math.hypot(G.kvx, G.kvz); G._kbExp = G._kbSpd * dt;
     p.x += G.kvx * dt; p.z += G.kvz * dt;
     const k = Math.exp(-3.2 * dt); G.kvx *= k; G.kvz *= k;
     if (Math.abs(G.kvx) < .01) G.kvx = 0;
     if (Math.abs(G.kvz) < .01) G.kvz = 0;
   }
-  if (G.slowT > 0) { G.slowT = Math.max(0, G.slowT - dt); if (G.slowT <= 0) G.slowPct = 0; }
-  if (G.erodeT > 0) {
-    G.erodeT = Math.max(0, G.erodeT - dt); netEroAcc += dt;
-    if (netEroAcc >= .5) { netEroAcc -= .5; playerHurt(NET_RULES.erodeDmg, { by: G.lastHitBy, net: true, dot: true }); }
-  } else netEroAcc = 0;
-  if (G.burnT > 0) {
-    G.burnT = Math.max(0, G.burnT - dt); netBurnAcc += dt;
-    if (netBurnAcc >= .5) { netBurnAcc -= .5; playerHurt(NET_RULES.burnDmg, { by: G.lastHitBy, net: true, dot: true }); }
-  } else netBurnAcc = 0;
 }
 
 // 收到 hit 事件(只處理 to 是自己的):去重 → 否決 → 扣血 → debuff → 回報 dmg
@@ -187,7 +180,7 @@ function netApplyHit(from, m) {
   const res = sum > 0 ? playerHurt(sum, { by: from, net: true }) : { blocked: false, dmg: 0 };
   const dealt = sum > 0 ? res.dmg : 0, absorbed = Math.min(sh0, sum), full = sum > 0 && res.blocked;
   const fx = m.fx || {};
-  if (!full) netApplyFx(fx, m.h || []);   // 護盾全吸收時不套 debuff
+  if (!full) netApplyFx(fx, m.h || [], from);   // 護盾全吸收時不套 debuff
   if (!full && G.state === 'charging' && (sum >= NET_RULES.cancelDmg || fx.st || fx.dn)) cancelCharge();   // §8 #5
   if (dealt > 0) { const f = document.getElementById('flash'); if (f) { f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); } }
   if (!full) hitFx(new V3(p.x, p.y + 1, p.z), 10);
@@ -196,28 +189,17 @@ function netApplyHit(from, m) {
   if (sum > 0) Net.emitEv({ t: 'dmg', by: from, n: Math.round(dealt * 10) / 10, b: Math.round(absorbed * 10) / 10, blk: full ? 'shield' : 0 });
 }
 // 受害者端的控制遞減(§3-3):ccWin 秒內每多一次控制,時間再乘 ccDR(第 2 次 ×0.5、第 3 次 ×0.25);回傳本次倍率並記下這次
+// 第 4 次起(ccMaxN 次在 4 s 內已用完)回傳 0 = 免疫;不寫入紀錄
 function netCcScale() {
   const now = G.time, log = G.ccLog || (G.ccLog = []);
   while (log.length && now - log[0] > NET_RULES.ccWin) log.shift();
+  if (log.length >= NET_RULES.ccMaxN) return 0;
   const k = Math.pow(NET_RULES.ccDR, log.length);
   log.push(now);
   return k;
 }
-// 套用 debuff(§2-7 步驟 4):h 內每筆命中的燃燒秒數取最大;fx 為攻擊者端合併後的效果
-// PvP 控制上限(ccCap)與遞減(netCcScale):暈眩 / 跌倒 / 定身(減速 100%)同一則命中只計一次;不屈戰意中免控(kb / lf / st / dn / pl 跳過)
-function netApplyFx(fx, h) {
-  const p = mage.root.position, uny = G.unyT > 0;
-  for (const x of h) if (x[4] > 0) G.burnT = Math.max(G.burnT, x[4]);
-  const cc = !uny && !!(fx.st || fx.dn || (fx.sl && fx.sl[1] >= 1)), k = cc ? netCcScale() : 1, ccT = t => Math.min(t, NET_RULES.ccCap) * k;
-  if (fx.kb && !uny) { G.kvx += fx.kb[0] * 3.2; G.kvz += fx.kb[1] * 3.2; }
-  if (fx.lf && !uny) { G.vy = Math.max(G.vy, Math.sqrt(2 * 20 * fx.lf)); G.ground = false; }
-  if (fx.st && !uny) G.stun = Math.max(G.stun, ccT(fx.st));
-  if (fx.sl) { G.slowT = Math.max(G.slowT, cc && fx.sl[1] >= 1 ? ccT(fx.sl[0]) : fx.sl[0]); G.slowPct = Math.max(G.slowPct, fx.sl[1]); }
-  if (fx.er) G.erodeT = Math.max(G.erodeT, fx.er);
-  if (fx.li) G.litT = Math.max(G.litT, fx.li);
-  if (fx.dn && !uny) { G.stun = Math.max(G.stun, ccT(fx.dn[0])); G.downK = .6; }   // 跌倒的樣子簡化:借 downK 0.6,之後由 resTick 收回
-  if (fx.pl && !uny) { const x0 = p.x, z0 = p.z; p.x += fx.pl[0]; p.z += fx.pl[1]; terrainMove(p, x0, z0); }
-}
+// 套用 debuff(§2-7 步驟 4):實作在 status.js 的 stApplyFx(控制總則、DOT、寒意 / 中毒 / 致盲等)
+function netApplyFx(fx, h, from) { stApplyFx(fx, h, from); }
 
 // 攻擊者端:合併本幀的待送命中(每個目標一則);吸引位移每 100 ms 送一次;小計分板更新
 function netCombatTick(dt) {
@@ -285,8 +267,8 @@ function netRespawn() {
   if (G.state === 'charging') cancelCharge();
 }
 function netClearDebuffs() {
-  G.kvx = G.kvz = 0; G.slowT = G.slowPct = 0; G.burnT = 0; G.erodeT = 0; G.litT = 0; G.stun = 0; G.weak = 0; G.downK = 0;
-  netBurnAcc = netEroAcc = 0;
+  G.kvx = G.kvz = 0; G.litT = 0; G.stun = 0; G.weak = 0; G.downK = 0; G.fallT = 0;
+  stClear();   // 減速 / 灼燒 / 中毒 / 寒意 / 致盲 / 控制計時與韌性(status.js)
 }
 // 離開對戰(remote.js clearRemotes):清 debuff、HP 回滿、關擊殺訊息與小計分板
 function netOnClear() {
