@@ -34,7 +34,7 @@ const myOwner = () => (typeof NET_ME === 'number' ? NET_ME : 0);
 function inOwnSmoke() { const p = mage.root.position; return SMOKES.some(S => S.owner === myOwner() && Math.hypot(p.x - S.x, p.z - S.z) <= S.r); }
 
 /* ---------- 暗影步(B-1) ---------- */
-// 集氣 0.3 s:落點 P.r 內最近的標靶身後 1.2 m、面向它(沿用 G.dash 'blink' + G.tp++);沒有標靶就往落點方向瞬移最多 6 m。
+// 集氣 0.3 s:落點 P.r 內最近的標靶身後 1.2 m、面向它(沿用 G.dash 'blink' + G.tp++);沒有標靶就往落點方向瞬移最多 5 m。
 // 成功 +1 連擊點;1.5 s 內的下一刀視為背後(G.shadowT,背刺 / 割喉消耗)。netFx 'blink':遠端只播殘影,位置由快照 tp 跳過去
 function castShadowStep(P, orb) {
   const E = casterAura(P), cfg = CFG.skills.shadowStep;
@@ -46,7 +46,7 @@ function castShadowStep(P, orb) {
   let tx, tz;
   if (best) { tx = best.x - Math.sin(best.yaw) * 1.2; tz = best.z - Math.cos(best.yaw) * 1.2; }
   else {
-    const dx = P.target.x - p.x, dz = P.target.z - p.z, d = Math.hypot(dx, dz) || 1, L = Math.min(d, 6);
+    const dx = P.target.x - p.x, dz = P.target.z - p.z, d = Math.hypot(dx, dz) || 1, L = Math.min(d, 5);
     tx = p.x + dx / d * L; tz = p.z + dz / d * L;
   }
   const dx = tx - p.x, dz = tz - p.z, L = Math.hypot(dx, dz);

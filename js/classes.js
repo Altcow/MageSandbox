@@ -39,7 +39,7 @@ const CLASSES = {
       mkSkill('arrowRain', '箭雨', '🌧️', { img: 'assets/icons/archer_rain.png', kind: 'sky', chant: '箭矢升空……', shout: '箭雨!', cast: castArrowRain, preview: q => '箭 ' + CHG.count(40, q) + ' 支', exCost: 60, exFn: q => archerExFn(q, 60) }),
       // 游擊架勢 B 列與絕技(定義在 skills_archer.js)
       mkSkill('scatter', '散射', '🎇', { aim: 'line', line: (q, rs) => { const L = CFG.skills.scatter.range; return { len: L, hw: L * Math.sin(rs * CHG.size(q) * Math.PI / 360), off: .6, maxLen: L, maxHw: L * Math.sin(rs * Math.PI / 360) }; }, chant: '箭矢扇開……', shout: '散射!', cast: castScatter, preview: q => '箭 ' + CHG.count(5, q) + ' 支・每支 ' + (.6 * CHG.fx(q)).toFixed(1) + ' m 擊退' }),
-      mkSkill('disengage', '後躍射擊', '🦘', { instant: true, aim: 'none', cd: 7, chant: '', shout: '後躍射擊!', cast: castDisengage, preview: () => '後躍 6 m・纏絆 2 s' }),
+      mkSkill('disengage', '後躍射擊', '🦘', { instant: true, aim: 'none', cd: 7, chant: '', shout: '後躍射擊!', cast: castDisengage, preview: () => '後躍 5 m・纏絆 2 s' }),
       mkSkill('snare', '捕獸夾', '🪤', { aim: 'circle', cd: 4, chant: '機關就位……', shout: '捕獸夾!', cast: castSnare, preview: q => '定身 ' + lerp(.75, 1.5, q).toFixed(2) + ' s・照亮 3 s' }),
       mkSkill('flare', '照明信號箭', '🎆', { aim: 'circle', cd: 15, chant: '信號升空……', shout: '照明信號箭!', cast: castFlare, preview: q => '照亮 ' + lerp(3, 6, q).toFixed(1) + ' s・照明區 4 s' })],
     stances: [{ name: '鷹眼', icon: '🦅', mwc: false, spdK: 1, chgSpdK: 1 }, { name: '游擊', icon: '🍃', mwc: true, spdK: 1, chgSpdK: .6 }],   // 第 1 架勢 = 現有招式;第 2 架勢集氣中可移動、移速 ×0.6
@@ -50,7 +50,7 @@ const CLASSES = {
     skills: [
       mkSkill('powerSlash', '蓄力斬', '⚔️', { img: 'assets/icons/power_slash.png', aim: 'front', exFn: swordExFn, exCost: SW.exCost, chant: '劍氣凝聚……', shout: '蓄力斬!', cast: castPowerSlash, preview: q => '擊退 ' + (1.5 * CHG.fx(q)).toFixed(1) + ' m' }),
       mkSkill('whirlwind', '旋風斬', '🌀', { img: 'assets/icons/whirlwind.png', aim: 'self', netFx: 'spin', chant: '旋身……', shout: '旋風斬!', cast: castWhirlwind, preview: q => '次數 ' + Math.max(2, Math.round(lerp(.6, 1.8, q) / .3)) }),
-      mkSkill('shieldCharge', '衝鋒盾', '🛡️', { img: 'assets/icons/shield_charge.png', aim: 'line', cd: 3, netFx: 'dash', chant: '盾牌在前……', shout: '衝鋒盾!', cast: castShieldCharge, preview: q => '暈眩 ' + (2.5 * CHG.fx(q)).toFixed(1) + ' s' }),
+      mkSkill('shieldCharge', '衝鋒盾', '🛡️', { img: 'assets/icons/shield_charge.png', aim: 'line', cd: 5, netFx: 'dash', chant: '盾牌在前……', shout: '衝鋒盾!', cast: castShieldCharge, preview: q => '暈眩 ' + (2.5 * CHG.fx(q)).toFixed(1) + ' s' }),
       // 盾勢 B 列與絕技(S 批空殼,寫手 B 實作;定義在 skills_sword.js)
       mkSkill('parry', '格擋反擊', '🛡️', { instant: true, netSilent: true, aim: 'none', cd: 6, chant: '', shout: '格擋反擊!', cast: castParry }),
       mkSkill('slam', '震地', '💥', { aim: 'self', cd: 6, chant: '重心下沉……', shout: '震地!', cast: castSlam }),
@@ -62,7 +62,7 @@ const CLASSES = {
     aura: { hex: 0xff3a3a, main: 0xff3a3a, sub: 0xa01010, dark: false } },
   assassin: { name: '刺客', icon: '🗡️', robe: 0x2a2233, weapons: ['daggers'], wpn: '雙匕首', elements: false, moveWhileCharging: true, img: null,
     skills: [
-      mkSkill('backstab', '背刺', '🗡️', { img: 'assets/icons/backstab.png', cd: 1, netFx: 'blink', chant: '身影一閃……', shout: '背刺!', cast: castBackstab, preview: q => '背後 ×' + lerp(2.5, 3.5, q).toFixed(1) }),
+      mkSkill('backstab', '背刺', '🗡️', { img: 'assets/icons/backstab.png', cd: 1.5, netFx: 'blink', chant: '身影一閃……', shout: '背刺!', cast: castBackstab, preview: q => '背後 ×' + lerp(2.5, 3.5, q).toFixed(1) }),
       mkSkill('knives', '飛刀', '🔪', { img: 'assets/icons/knives.png', aim: 'line', chant: '扇形展開……', shout: '飛刀!', cast: castKnives, preview: q => '飛刀 ' + CHG.count(7, q) + ' 把' }),
       mkSkill('stealth', '潛行', '👤', { img: 'assets/icons/stealth.png', aim: 'none', cd: 6, netFx: 'stealth', kind: 'bolt', chant: '隱入暗影……', shout: '潛行!', cast: castStealth, preview: q => '潛行 ' + (10 * CHG.fx(q)).toFixed(1) + ' s' }),
       // 影舞 B 列與絕技(S 批空殼,寫手 C 實作;定義在 skills_assassin.js)

@@ -8,7 +8,7 @@
 const ww_N = { bolt: 5, wall: 4, sky: 3 };                             // 各形狀滿集氣份數(同 COPIES_N)
 const ww_ANG = [0, -6, 6, -12, 12].map(a => a * Math.PI / 180);       // 同 SHOT_ANG
 const ww_TAB = { bolt: .6, wall: .8, sky: .5 };                        // 份數 > 1 時的每份傷害倍率(同 CHG.perK)
-const ww_CUT_V = 26, ww_CUT_LEN = 32;                                  // 風刃切割:波速(m/s)、掃過距離(m)
+const ww_CUT_V = 26, ww_CUT_LEN = 20;                                 // 風刃切割:波速(m/s)、掃過距離(m)
 let ww_R = null, ww_ghostN = 0;
 
 function ww_copies(shape, P) {
@@ -67,7 +67,7 @@ function ww_hitFx(p, E) {
 }
 
 /* ---------- 4. 風刃術:三片新月風刃 ---------- */
-// 每片沿固定軌跡飛行,不追蹤;中刃直線,左右刃 lat = ±1.6·sin(π·s/14)(s = 已飛距離)
+// 每片沿固定軌跡飛行,不追蹤;中刃直線,左右刃 lat = ±1.0·sin(π·s/14)(s = 已飛距離)
 // B 模式多出的直線刃依 ww_ANG 排列,傷害 ×0.6;各片各自判定、命中第一個標靶即消失
 function castWindBolt(P, orb) {
   ww_init();
@@ -81,7 +81,7 @@ function castWindBolt(P, orb) {
 }
 // 一片風刃:b = { a 方向角, side 左 +1 / 右 -1 / 中 0, mul 傷害倍率 }
 function ww_blade(b, mz, o) {
-  const E = o.E, K = Math.PI / 14, sa = Math.sin(b.a), ca = Math.cos(b.a), L = b.side * 1.6;
+  const E = o.E, K = Math.PI / 14, sa = Math.sin(b.a), ca = Math.cos(b.a), L = b.side * 1.0;
   const at = s => { const l = L * Math.sin(K * s); return new V3(mz.x + sa * s + ca * l, mz.y, mz.z + ca * s - sa * l); };
   const tg = s => { const dl = L * K * Math.cos(K * s); return { x: sa + ca * dl, z: ca - sa * dl }; };
   const R = ww_init(), g = new THREE.Group();
@@ -125,7 +125,7 @@ function castWindWall(P, orb) {
   const E = EL.wind, n = ww_copies('wall', P), cfg = pcfg(P), dur = cfg.duration * (P.durK || 1) * 1.25;
   const yaw = P.wallYaw || 0, ax = Math.cos(yaw), az = -Math.sin(yaw), nx = -az, nz = ax;
   const p = casterPos(P), sg = Math.sign(nx * (P.target.x - p.x) + nz * (P.target.z - p.z)) || 1;   // 遠離施法者的方向
-  const depth = 6 * (P.thickK || 1), half = .75 * P.r, gy = P.target.y;
+  const depth = 4 * (P.thickK || 1), half = .75 * P.r, gy = P.target.y;
   const pct = Math.min(.6, .6 * (P.fxK || 1)), dmgK = (P.dmgK || 1) * ww_perK(n, 'wall');
   const launch = () => {
     for (let i = 0; i < n; i++) {
@@ -207,16 +207,16 @@ function ww_inField(d, o) {
 }
 
 /* ---------- 6. 風刃切割:超寬新月衝擊波(只扣血) ---------- */
-// 起點角色前方 1 m、固定 26 m/s 掃過 32 m;寬 = P.r(已含 sizeK)的全寬 2·P.r;不擊退、不擊飛、不搖晃
+// 起點角色前方 1 m、固定 26 m/s 掃過 20 m;寬 = P.r(已含 sizeK)的全寬 P.r(半寬 0.5·P.r);不擊退、不擊飛、不搖晃
 function castWindCut(P, orb) {
   ww_init();
   const E = EL.wind, dir = P.dir || 0, sa = Math.sin(dir), ca = Math.cos(dir), p = casterPos(P);
-  const ox = p.x + sa, oz = p.z + ca, y0 = p.y + 1, n = ww_copies('sky', P), dmg = 130 * (P.dmgK || 1) * ww_perK(n, 'sky');
+  const ox = p.x + sa, oz = p.z + ca, y0 = p.y + 1, n = ww_copies('sky', P), dmg = 100 * (P.dmgK || 1) * ww_perK(n, 'sky');
   if (orb) { orb.position.set(ox, y0 + .4, oz); dissolveOrb(orb, E); }
   flashLight(new V3(ox, y0, oz), E.hex, 6, .4, 22);
   G.shake = Math.max(G.shake, .15 * CFG.shake);
   for (let i = 0; i < n; i++) {
-    const w = { ox, oz, sa, ca, y0, hw: P.r || 4, dmg, lead: i === 0, E, fxK: P.fxK || 1 };
+    const w = { ox, oz, sa, ca, y0, hw: .5 * (P.r || 4), dmg, lead: i === 0, E, fxK: P.fxK || 1 };
     if (i === 0) ww_wave(w); else after(i * .22, () => ww_wave(w));
   }
 }

@@ -137,11 +137,11 @@ function cr_meteor(Pi, size, D, hold, E) {
       // 撞擊
       hit = true; impactT = t;
       scene.remove(mesh); mesh.remove(gs); gs.material.dispose();
-      explode(endP, 1.1 * Rc, 1, { dmg: 150, gy, el: 'fire', mul: Pi.dmgK, fxK: Pi.fxK, burn: 3 * (Pi.fxK || 1) });
+      explode(endP, 1.0 * Rc, 1, { dmg: 110, gy, el: 'fire', mul: Pi.dmgK, fxK: Pi.fxK, burn: 3 * (Pi.fxK || 1) });
       for (const d of DUMMIES) {
         if (d.dead) continue;
         const dx = d.x - tx, dz = d.z - tz, dd = Math.hypot(dx, dz), l = dd || 1;
-        if (dd < 1.1 * Rc) d.lift(1.0 * (Pi.fxK || 1));
+        if (dd < 1.0 * Rc) d.lift(1.0 * (Pi.fxK || 1));
         if (dd < .5 * Rc) d.knockDown(1.0 * (Pi.fxK || 1), dx / l, dz / l);   // 爆心 0.5R 內跌倒 0.5 → 1.0 s
       }
       flashLight(new V3(tx, gy + 2, tz), E.hex, 9, .6, 30);
@@ -173,7 +173,7 @@ function cr_sky(P) {
   const E = EL.fire, Rc = P.r, thickK = P.thickK || 1, gy = P.target.y;
   const size = P.mode === 'B' ? 2.0 : 2.6 * thickK;                 // 7-3:B 固定 2.0;A 為 2.6 × thickK
   const D = clamp(.3 * Rc * Math.sqrt(thickK), .8, 3.0);            // 坑深 0.8~3.0 m
-  const hold = 10 * (P.durK || 1);                                  // 坑存在 10 × durK 秒(9.1~13 s)
+  const hold = 6 * (P.durK || 1);                                   // 坑存在 6 × durK 秒(5.5~7.8 s)
   const n = P.copies || 1, sp = 1.2 * Rc, dirA = P.dir || 0, px = Math.cos(dirA), pz = -Math.sin(dirA);
   cr_rune(P, n, E);
   const place = (Pi, i) => {

@@ -242,11 +242,11 @@ function wd_step(D, dt) {
 function wd_launch(Pi, i, n, ox, oz) {
   const E = EL.water, mode = Pi.mode, sizeK = Pi.sizeK || 1, rs = Pi.r ? Pi.r / sizeK : 4, thk = Pi.thickK || 1;
   const scale = mode === 'B' ? .8 : thk;
-  const hw = 1.6 * (mode === 'A' ? thk : 1);
+  const hw = 1.2 * (mode === 'A' ? thk : 1);
   const base = typeof Pi.dir === 'number' ? Pi.dir : 0;
   const th = base + (n > 1 ? (wd_ANG[i] || 0) : 0) * Math.PI / 180;
   const sn = Math.sin(th), cs = Math.cos(th);
-  const Ld = Math.max(1, wd_arena(ox, oz, sn, cs, 2.5 * rs * sizeK));
+  const Ld = Math.max(1, wd_arena(ox, oz, sn, cs, 3.5 * rs * sizeK));
   const D = {
     Pi, ox, oz, sn, cs, yaw: th - Math.PI / 2, gy: Pi.target.y, Ld, scale, hw,
     fxK: Pi.fxK || 1, dmg: 100 * (Pi.dmgK || 1), phi: prnd(Pi, 0, 6.283),

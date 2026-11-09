@@ -8,9 +8,9 @@
 const ELMOD = {
   water: { chargeMul: 1.0, rangeMul: 1.0, speedMul: 0.9 },
   fire:  { chargeMul: 1.0, rangeMul: 1.0, speedMul: 1.0 },
-  wind:  { chargeMul: 0.8, rangeMul: 1.15, speedMul: 1.5 },
-  earth: { chargeMul: 1.2, rangeMul: 0.85, speedMul: 0.75 },
-  light: { chargeMul: 0.9, rangeMul: 1.1, speedMul: 2.0 },
+  wind:  { chargeMul: 0.8, rangeMul: 1.10, speedMul: 1.5 },
+  earth: { chargeMul: 1.2, rangeMul: 0.90, speedMul: 0.75 },
+  light: { chargeMul: 0.9, rangeMul: 1.05, speedMul: 2.0 },
   dark:  { chargeMul: 1.1, rangeMul: 1.0, speedMul: 0.8 }
 };
 
@@ -21,7 +21,7 @@ const SPELLS = {
   water: [
     { name: '水彈術', icon: '💧', img: 'assets/icons/sp_water_bolt.png', chant: '清泉之靈,凝於掌心,化為奔流之彈——', shout: '水彈術!', preview: q => '減速 ' + _pct(q) + '%' },
     { name: '水幕術', icon: '🌊', img: 'assets/icons/sp_water_wall.png', chant: '深潭之水,湧泉而起,化作阻敵之幕——', shout: '水幕術!', preview: q => '減速 ' + _pct(q) + '%' },
-    { name: '水龍彈', icon: '🐉', img: 'assets/icons/sp_water_sky.png', chant: '深淵之龍,聽我呼喚,破浪而出——', shout: '水龍彈!', aim: 'line', line: (q, rs, m) => ({ len: 2.5 * rs * CHG.size(q, m), hw: 1.6 * CHG.thick(q, m), off: 2, maxLen: 2.5 * rs * (m === 'B' ? .6 : 1), maxHw: 1.6 * (m === 'A' ? 1.6 : 1) }), unit: 'copies', unitName: '條', preview: q => '減速 ' + _pct(q) + '%' },
+    { name: '水龍彈', icon: '🐉', img: 'assets/icons/sp_water_sky.png', chant: '深淵之龍,聽我呼喚,破浪而出——', shout: '水龍彈!', aim: 'line', line: (q, rs, m) => ({ len: 3.5 * rs * CHG.size(q, m), hw: 1.2 * CHG.thick(q, m), off: 2, maxLen: 3.5 * rs * (m === 'B' ? .6 : 1), maxHw: 1.2 * (m === 'A' ? 1.6 : 1) }), unit: 'copies', unitName: '條', preview: q => '減速 ' + _pct(q) + '%' },
     { name: '水精靈', icon: '🧚', img: 'assets/icons/summon_water.png', chant: '清泉之靈,應我之約,現身吧——', shout: '水精靈!', preview: q => '減速 ' + Math.round(30 * CHG.fx(q)) + '%' }
   ],
   fire: [
@@ -33,13 +33,13 @@ const SPELLS = {
   wind: [
     { name: '風刃術', icon: '🌀', img: 'assets/icons/sp_wind_bolt.png', chant: '疾風之刃,隨我意行,斬裂虛空——', shout: '風刃術!', preview: q => '擊退 ' + _m(5, q) + ' m' },
     { name: '颶風牆', icon: '🍃', img: 'assets/icons/sp_wind_wall.png', chant: '流轉之風,環繞成壁,拒敵於外——', shout: '風壁術!', preview: q => '推出 ' + _m(2.5, q) + ' m' },
-    { name: '風刃切割', icon: '🌬️', img: 'assets/icons/sp_wind_sky.png', chant: '天穹之風,化為千刃,斬斷前路——', shout: '風刃切割!', aim: 'line', line: (q, rs, m) => ({ len: 32, hw: rs * CHG.size(q, m), off: 1, maxLen: 32, maxHw: rs * (m === 'B' ? .6 : 1) }), unit: 'copies', unitName: '波', preview: q => '傷害 ' + Math.round(130 * CHG.dmg(q)) },
+    { name: '風刃切割', icon: '🌬️', img: 'assets/icons/sp_wind_sky.png', chant: '天穹之風,化為千刃,斬斷前路——', shout: '風刃切割!', aim: 'line', line: (q, rs, m) => ({ len: 20, hw: .5 * rs * CHG.size(q, m), off: 1, maxLen: 20, maxHw: .5 * rs * (m === 'B' ? .6 : 1) }), unit: 'copies', unitName: '波', preview: q => '傷害 ' + Math.round(100 * CHG.dmg(q)) },
     { name: '鎌鼬', icon: '🦦', img: 'assets/icons/summon_wind.png', chant: '疾風之子,藏刃於風,來去無蹤——', shout: '鎌鼬!', preview: q => '真空刃 ' + Math.round(80 * CHG.dmg(q)) }
   ],
   earth: [
     { name: '岩彈術', icon: '🪨', img: 'assets/icons/sp_earth_bolt.png', chant: '沉眠之岩,醒於我手,化為重擊之石——', shout: '岩彈術!', preview: q => '擊飛 ' + _m(1.2, q) + ' m' },
     { name: '石牆術', icon: '🗿', img: 'assets/icons/sp_earth_wall.png', chant: '大地之骨,拔地而起,築我屏障——', shout: '石牆術!', preview: q => '擊飛 ' + _m(1, q) + ' m' },
-    { name: '土龍術', icon: '🐉', img: 'assets/icons/sp_earth_sky.png', chant: '大地之龍,破土而出,裂地千里——', shout: '土龍術!', aim: 'line', line: (q, rs, m) => ({ off: 1.5, len: 21.6 + 14.4 * q, hw: Math.max(1, rs * .5), maxLen: 36, maxHw: 6 }), unit: 'count', cntN: 3, unitName: '道', preview: q => '緩速 65% ・ 3 s' },
+    { name: '土龍術', icon: '🐉', img: 'assets/icons/sp_earth_sky.png', chant: '大地之龍,破土而出,裂地千里——', shout: '土龍術!', aim: 'line', line: (q, rs, m) => ({ off: 1.5, len: 12 + 8 * q, hw: Math.max(.8, .3 * rs), maxLen: 20, maxHw: 1.8 }), unit: 'count', cntN: 3, unitName: '道', preview: q => '緩速 65% ・ 3 s' },
     { name: '石頭人', icon: '🗿', img: 'assets/icons/summon_earth.png', chant: '大地之骨,化為巨像,為我而戰——', shout: '石頭人!', preview: q => '暈眩 ' + _m(.4, q) + ' s' }
   ],
   light: [
@@ -51,7 +51,7 @@ const SPELLS = {
   dark: [
     { name: '暗影彈', icon: '🟣', img: 'assets/icons/sp_dark_bolt.png', chant: '幽冥之影,聚於指尖,吞噬光明——', shout: '暗影彈!', preview: q => '吸引 ' + _m(1.5, q) + ' m' },
     { name: '暗影幕', icon: '🌫️', img: 'assets/icons/sp_dark_wall.png', chant: '無光之幕,自深淵升起,束縛來者——', shout: '暗影幕!', preview: q => '吸向中線 ' + _m(3, q) + ' m/s' },
-    { name: '黑洞', icon: '🕳️', img: 'assets/icons/sp_dark_sky.png', chant: '虛無之核,吞星噬月,萬物歸一——', shout: '黑洞!', preview: q => '吸引 ' + _m(6, q) + ' m/s' },
+    { name: '黑洞', icon: '🕳️', img: 'assets/icons/sp_dark_sky.png', chant: '虛無之核,吞星噬月,萬物歸一——', shout: '黑洞!', preview: q => '吸引 ' + _m(4, q) + ' m/s' },
     { name: '暗影', icon: '👤', img: 'assets/icons/summon_dark.png', chant: '影中之影,自我足下,甦醒吧——', shout: '暗影!', preview: q => '侵蝕 ' + _m(4, q) + ' s' }
   ]
 };
@@ -119,7 +119,7 @@ function areaEl(pos, R, B, el, P, fx) {
     if (Math.abs(pos.y - d.y) > R + 1.5) continue;
     const dx = d.x - pos.x, dz = d.z - pos.z, dist = Math.hypot(dx, dz);
     if (dist >= R + .4) continue;
-    const dmg = B * (P.dmgK || 1) * (1 - clamp(dist / (R + .4), 0, 1) * .5) * rnd(.9, 1.1), l = dist || 1;
+    const dmg = B * (P.dmgK || 1) * (1 - clamp(dist / (R + .4), 0, 1) * .7) * rnd(.9, 1.1), l = dist || 1;
     if (pull) d.knock(-dx / l, -dz / l, pull);
     hitEl(d, dmg, el, dx / l, dz / l, f);
   }
@@ -133,7 +133,7 @@ function areaEl(pos, R, B, el, P, fx) {
 // 爆炸焦痕色(explode 讀取):RGB 乘數,焦痕貼圖本身很暗所以需要 >1 才看得出棕 / 紫;null = 不留焦痕
 const EL_SCORCH = { fire: [1, 1, 1], water: null, wind: null, earth: [3, 2, 1.2], light: null, dark: [6, 2.5, 9] };
 const BOLT_SPEED = 32;                       // 火球基準速度(m/s),各屬性 × ELMOD[el].speedMul
-const CHAIN_R = 6, BEAM_MAX = 16;            // 連鎖跳躍範圍(m)、同時存在的連鎖光束上限
+const CHAIN_R = 4.5, BEAM_MAX = 16;            // 連鎖跳躍範圍(m)、同時存在的連鎖光束上限
 const LEAF0 = [.6, .75, .45], LEAF1 = [.35, .3, .15];
 const BEAM_GEO = new THREE.BoxGeometry(1, 1, 1), MOON_GEO = new THREE.RingGeometry(.6, .75, 24, 1, 0, Math.PI);
 const ROCK_GEO = new THREE.IcosahedronGeometry(.1, 0), SPIKE_GEO = new THREE.ConeGeometry(.45, 2.2, 5), BOX_GEO = new THREE.BoxGeometry(1, 2, 1);
@@ -636,12 +636,12 @@ function castHolyPillar(P, orb) {
   const small = () => {
     const ang = prnd(P, 0, 6.283), rr = Math.sqrt(prnd(P, 0, 1)) * Math.max(1.4, R * .25), x = P.target.x + Math.cos(ang) * rr, z = P.target.z + Math.sin(ang) * rr;
     pillar(x, z, .35 * P.thickK, false);
-    areaEl(new V3(x, gy, z), 1.4 * P.thickK, 45, 'light', P, {});
+    areaEl(new V3(x, gy, z), 1.0 * P.thickK, 45, 'light', P, {});
     const first = nearestDummy(x, z, 1.8);
     if (first) chainFrom(first, 1, 45 * P.dmgK * .5, 'light');
   };
   const big = () => {
-    const rr = R * .7, x = P.target.x, z = P.target.z;
+    const rr = R * .8, x = P.target.x, z = P.target.z;
     pillar(x, z, .8, true);
     areaEl(new V3(x, gy, z), rr, 110, 'light', P, { blind: 2.5 * P.fxK });   // 大光柱致盲 1.25 → 2.5 s
     const first = nearestDummy(x, z, rr + .4);
@@ -718,7 +718,7 @@ function blackPlace(Pi, i) {
   Pi.target = new V3(x, surfaceY(x, z, Pi.target.y + 1), z);
 }
 function blackHoleOne(P, orb) {
-  const E = EL.dark, gy = P.target.y, R = P.r, pullR = R * 1.4, attr = 2.4 + P.q, ground0 = new V3(P.target.x, gy, P.target.z), tk = P.thickK;
+  const E = EL.dark, gy = P.target.y, R = P.r, pullR = R * 1.2, attr = 2.4 + P.q, ground0 = new V3(P.target.x, gy, P.target.z), tk = P.thickK;
   orbFly(orb, new V3(P.target.x, gy + 2.5, P.target.z), .3, E, () => {
     scene.remove(orb);
     const C = new V3(P.target.x, gy + 2.5, P.target.z), token = {};
@@ -741,7 +741,7 @@ function blackHoleOne(P, orb) {
           if (d.dead) continue;
           const dist = Math.hypot(d.x - C.x, d.z - C.z);
           if (dist > pullR) continue;
-          d.pull(C.x, C.z, 6 * P.fxK, dt);
+          d.pull(C.x, C.z, 4 * P.fxK, dt);
         }
         if ((ptick += dt) >= 1) {   // 圈內每 1 s 中毒 +1 層(本黑洞上限 2 層,黑洞的吸引已很強,不再另外加傷害)
           ptick = 0;

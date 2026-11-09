@@ -65,19 +65,21 @@
   // ---- 觸控拖曳轉視角 ----
   const cv = renderer.domElement; let cid = null, cx = 0, cy = 0, tapT = -1e9, tapX = 0, tapY = 0;
   cv.addEventListener('pointerdown', e => {
-    if (e.pointerType !== 'touch') return; touchNow(); cid = e.pointerId; cx = e.clientX; cy = e.clientY;
-    const now = performance.now();   // 雙擊畫面 = 鏡頭重置(間隔 < 300 ms、位移 < 12 px)
-    if (now - tapT < 300 && Math.hypot(cx - tapX, cy - tapY) < 12) { resetCam(); tapT = -1e9; } else { tapT = now; tapX = cx; tapY = cy; }
+    if (e.pointerType !== 'touch') return; touchNow();
     try { document.documentElement.requestFullscreen && !document.fullscreenElement && document.documentElement.requestFullscreen().catch(() => { }); } catch (err) { }
+    if (e.clientX < innerWidth * .4) return;   // 左側 40% 留給搖桿,只接受右側 60% 的手指轉視角
+    cid = e.pointerId; cx = e.clientX; cy = e.clientY;
+    const now = performance.now();   // 雙擊畫面 = 鏡頭轉到背後(間隔 < 250 ms、位移 < 10 px,只在右側)
+    if (now - tapT < 250 && Math.hypot(cx - tapX, cy - tapY) < 10) { resetCam(); tapT = -1e9; } else { tapT = now; tapX = cx; tapY = cy; }
   });
   cv.addEventListener('pointermove', e => {
     if (e.pointerId !== cid) return;
-    G.camYaw -= (e.clientX - cx) * CFG.camSens * 1.3; G.camPitch = clamp(G.camPitch + (e.clientY - cy) * CFG.camSens * 1.3, .08, 1.35); cx = e.clientX; cy = e.clientY;
+    addLook(-(e.clientX - cx) * CFG.camSens * CFG.touchSens, (e.clientY - cy) * CFG.camSens * CFG.touchSens); cx = e.clientX; cy = e.clientY;
   });
   ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, e => { if (e.pointerId === cid) cid = null; }));
 
   // ---- 手把 ----
-  let prev = [], padOn = false, minusHold = -1, yHold = -1;
+  let prev = [], padOn = false, minusHold = -1, yHold = -1, padFullT = 0;
   window.inputTick = function (dt) {
     if (window.COVER_ON) return;   // 封面期間不處理手把
     const gps = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -89,10 +91,15 @@
     const any = lx || ly || rx || ry || gp.buttons.some(x => x.pressed);
     if (any) { G.inputMode = 'stick'; padOn = true; document.body.classList.add('pad'); }   // 手把操作時隱藏觸控鈕
     if (padOn) { G.stick.x = lx; G.stick.y = ly; G.stick.mag = Math.min(1, Math.hypot(lx, ly)); }
-    if (G.state === 'charging' && G.skill >= 0) {           // 集氣中:右搖桿上下 = 調範圍;選牆時左右 = 旋轉火牆
+    // 右搖桿視角:圓形死區 .15 + 曲線 ((m-.15)/.85)^1.8;推到 > .92 持續 .3 s 後偏航 ×1.5(設計 §2-7)
+    const rxr = gp.axes[2] || 0, ryr = gp.axes[3] || 0, rm = Math.hypot(rxr, ryr);
+    const rf = rm > .15 ? Math.pow(Math.min(1, (rm - .15) / .85), 1.8) : 0, rux = rm ? rxr / rm : 0, ruy = rm ? ryr / rm : 0;
+    padFullT = rm > .92 ? padFullT + dt : 0;
+    const padYaw = -rux * rf * 3.2 * CFG.padSens * (padFullT > .3 ? 1.5 : 1) * dt, padPitch = ruy * rf * 1.8 * CFG.padSens * dt;
+    if (G.state === 'charging' && G.skill >= 0) {           // 集氣中:右搖桿上下 = 調範圍;選牆時左右 = 旋轉火牆,其他招式左右 = 轉鏡頭
       const c = sc(G.skill); setRad(G.skill, clamp(getRad(G.skill) - ry * dt * (c.rMax - c.rMin) * .7, c.rMin, c.rMax));
-      if (curSkill(G.skill).shape === 'wall') G.wallOff -= rx * dt * 2.2;
-    } else { G.camYaw -= rx * dt * 2.6; G.camPitch = clamp(G.camPitch + ry * dt * 1.6, .08, 1.35); }
+      if (curSkill(G.skill).shape === 'wall') G.wallOff -= rx * dt * 2.2; else addLook(padYaw, 0);
+    } else addLook(padYaw, padPitch);
     // ZR / RT 按住集氣、放開施放(按住狀態 G.atkHeld 供僵直結束後接續集氣)
     G.atkHeld = b(7);
     if (edge(7)) startCharge();

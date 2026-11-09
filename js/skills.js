@@ -19,7 +19,7 @@ function areaHit(cx, cy, cz, R, dmg, knock, kx, kz) {
     if (d.dead || Math.abs(cy - d.y) > R + 1.5) continue;
     const dx = d.x - cx, dz = d.z - cz, dist = Math.hypot(dx, dz);
     if (dist >= R + .4) continue;
-    d.hit(dmg * (1 - clamp(dist / (R + .4), 0, 1) * .5) * rnd(.9, 1.1), dx, dz, 0, null);
+    d.hit(dmg * (1 - clamp(dist / (R + .4), 0, 1) * .7) * rnd(.9, 1.1), dx, dz, 0, null);
     if (knock) { const ex = d.x - ox, ez = d.z - oz, l = Math.hypot(ex, ez) || 1; d.knock(ex / l, ez / l, knock); }
   }
 }
@@ -89,18 +89,18 @@ function flyProjectile(from, to, speed, o) {
 
 /* ---------- 弓箭手(D2) ---------- */
 // 瞄準射擊:一支箭直線飛向落點,速度 45 → 70 m/s;命中第一個碰到的標靶,沒碰到就落地
-// 穿雲箭(P.ex = 1,集氣 MAX 且專注 ≥ 40):速度 90 m/s、穿透、傷害 ×1.5(52.5)、命中照亮 2 s。命中專注 +6(skills_archer.js)
+// 穿雲箭(P.ex = 1,集氣 MAX 且專注 ≥ 40):速度 90 m/s、穿透、傷害 ×1.5(60)、命中照亮 2 s。命中專注 +6(skills_archer.js)
 function castQuickShot(P, orb) {
   const E = casterAura(P), from = casterTip(P, new V3()), ex = P.ex | 0, rmt = archRemote(P), seen = new Set();
   if (orb) dissolveOrb(orb, E);
-  const L = Math.hypot(P.target.x - from.x, P.target.z - from.z) || 1, reach = P.range || 30;
+  const L = Math.hypot(P.target.x - from.x, P.target.z - from.z) || 1, reach = P.range || 26;
   const to = ex ? new V3(from.x + (P.target.x - from.x) / L * reach, P.target.y + .4, from.z + (P.target.z - from.z) / L * reach) : new V3(P.target.x, P.target.y + .4, P.target.z);
   flyProjectile(from, to, ex ? 90 : lerp(45, 70, P.q), {
-    mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.5, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1, pierce: !!ex,
+    mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.45, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1, pierce: !!ex,
     onHit: (d, b) => {
       hitFx(b, 14);
       if (rmt) return;
-      d.hit((ex ? 52.5 : 35) * P.dmgK, d.x - from.x, d.z - from.z, 0, null);
+      d.hit((ex ? 60 : 40) * P.dmgK, d.x - from.x, d.z - from.z, 0, null);
       if (ex) { d.light(2); archMark(d, '_archLit', 2); }
       archHitGain(P, d, seen);
     }
@@ -135,7 +135,7 @@ function archRainTick(P, cx, gy, cz, R, ex, seen) {
     if (d.dead || Math.abs(gy - d.y) > R + 1.5) continue;
     const dx = d.x - cx, dz = d.z - cz, dist = Math.hypot(dx, dz);
     if (dist >= R + .4) continue;
-    const v = 9 * P.dmgK * (ex ? 1.25 : 1) * (ex && archSlowed(d) ? 1.3 : 1) * (1 - clamp(dist / (R + .4), 0, 1) * .5) * rnd(.9, 1.1);
+    const v = 9 * P.dmgK * (ex ? 1.25 : 1) * (ex && archSlowed(d) ? 1.3 : 1) * (1 - clamp(dist / (R + .4), 0, 1) * .7) * rnd(.9, 1.1);
     d.hit(v, dx, dz, 0, null);
     d.slow(1, .25); archMark(d, '_archSl', 1);
     archHitGain(P, d, seen);
@@ -200,7 +200,7 @@ function arcSlash(center, R, th, hex, life) {
   });
 }
 
-// 蓄力斬:圓心固定在角色前方 cfg.range(1.6 m);圓內標靶受傷並沿離開角色的方向擊退
+// 蓄力斬:圓心固定在角色前方 cfg.range(1.2 m);圓內標靶受傷並沿離開角色的方向擊退
 function castPowerSlash(P, orb) {
   const E = casterAura(P), p = casterPos(P), cfg = CFG.skills.powerSlash;
   if (orb) dissolveOrb(orb, E);

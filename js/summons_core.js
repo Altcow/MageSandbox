@@ -22,13 +22,13 @@
 // ---------- 數值表(S-2;scale = 1、q = 1 之前的基準,傷害另乘 P.dmgK) ----------
 // move:'walk' 地面 | 'hover' 浮空(hoverH 公尺);ai:'melee' | 'slam' | 'ranged' | 'caster' | 'support'
 const SUMMON_DEF = {
-  water: { name: '水精靈',     hp: 140, speed: 3.6, move: 'hover', hoverH: .8, ai: 'ranged',  range: 12, keep: [8, 12],  atk: 32, interval: 1.6, dur: 20, size: 1.3 },
-  fire:  { name: '多頭火蛇',   hp: 160, speed: 4.0, move: 'walk',               ai: 'ranged',  range: 5,  keep: [3.5, 5], atk: 14, interval: .35, dur: 16, size: 1.4 },
+  water: { name: '水精靈',     hp: 140, speed: 3.6, move: 'hover', hoverH: .8, ai: 'ranged',  range: 9, keep: [6, 9],  atk: 32, interval: 1.6, dur: 20, size: 1.3 },
+  fire:  { name: '多頭火蛇',   hp: 160, speed: 4.0, move: 'walk',               ai: 'ranged',  range: 4,  keep: [3, 3.8], atk: 14, interval: .35, dur: 16, size: 1.4 },
   earth: { name: '石頭人',     hp: 520, speed: 1.8, move: 'walk',               ai: 'slam',    range: 3.5,              atk: 20, interval: 4.5, dur: 22, size: 3.4,
-           slam: { radius: 5.5, walls: 6, wallsTouch: 4, hMin: 1, hMax: 3, len: [2.0, 3.2], thick: .7, life: 6, slow: .6 } },
-  wind:  { name: '鎌鼬',       hp: 90,  speed: 7.5, move: 'walk',               ai: 'caster',  range: 26, keep: [10, 18], atk: 6,  interval: 2.0, dur: 18, size: 1.0, skill: { dmg: 80, cd: 3.6, speed: 36 } },
-  light: { name: '六翼熾天使', hp: 320, speed: 2.0, move: 'hover', hoverH: 1.2, ai: 'support', range: 2.2,              atk: 60, interval: 2.4, dur: 20, size: 2.6, aid: { follow: 3, guard: 8, heal: 12, healInt: 2, shield: 30, shieldInt: 8, cleanseInt: 6 } },
-  dark:  { name: '暗影',       hp: 110, speed: 3.0, move: 'hover', hoverH: .15, ai: 'ranged', range: 22, keep: [14, 20], atk: 120, interval: 7.5, dur: 18, size: 1.9, dot: 4 }
+           slam: { radius: 3.5, walls: 6, wallsTouch: 4, hMin: 1, hMax: 3, len: [2.0, 3.2], thick: .7, life: 6, slow: .6 } },
+  wind:  { name: '鎌鼬',       hp: 90,  speed: 7.5, move: 'walk',               ai: 'caster',  range: 15, keep: [8, 12], atk: 6,  interval: 2.0, dur: 18, size: 1.0, skill: { dmg: 80, cd: 3.6, speed: 36 } },
+  light: { name: '六翼熾天使', hp: 320, speed: 2.0, move: 'hover', hoverH: 1.2, ai: 'support', range: 2.2,              atk: 60, interval: 2.4, dur: 20, size: 2.6, aid: { follow: 3, guard: 6, heal: 12, healInt: 2, shield: 30, shieldInt: 8, cleanseInt: 6 } },
+  dark:  { name: '暗影',       hp: 110, speed: 3.0, move: 'hover', hoverH: .15, ai: 'ranged', range: 13, keep: [9, 12], atk: 120, interval: 7.5, dur: 18, size: 1.9, dot: 4 }
 };
 const SUMMON_KINDS = {};
 const SUMMONS = [];          // 活著的召喚物(上限 SM_MAX)
@@ -528,7 +528,7 @@ function summonsHitArea(pos, R, dmg) {
   for (const u of SUMMONS.slice()) {
     if (u.dead || u.spawnT > 0 || Math.abs(pos.y - u.y) > R + 1.5) continue;
     const dist = Math.hypot(u.x - pos.x, u.z - pos.z);
-    if (dist < R + .4) u.hurt(dmg * (1 - clamp(dist / (R + .4), 0, 1) * .5));
+    if (dist < R + .4) u.hurt(dmg * (1 - clamp(dist / (R + .4), 0, 1) * .7));
   }
 }
 // 玩家資源掛點(設計_玩家資源HPMPSP.md §4):10 m 內有活的熾天使 → MP / SP 恢復 ×1.25

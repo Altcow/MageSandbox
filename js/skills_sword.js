@@ -8,11 +8,11 @@
 //       classes.js 的 classTick 呼叫 swordTick(dt)。
 
 const SW = {
-  parryWin: .5, parryOkCd: 1, parryFull: .6, parryGain: 20, parryRange: 3.5, parryDeg: 75,   // 格擋窗 / 成功後格擋冷卻 / 成功後下一招瞬間滿的窗 / 鬥氣獎勵 / 反擊距離 / 正面半角
+  parryWin: .5, parryOkCd: 1, parryFull: .6, parryGain: 20, parryRange: 3, parryDeg: 75,   // 格擋窗 / 成功後格擋冷卻 / 成功後下一招瞬間滿的窗 / 鬥氣獎勵 / 反擊距離 / 正面半角
   parryDmg: 30, parryStun: .6,                                                                 // 反擊盾擊原始傷害(× CHG.dmg(1))、暈眩秒數
   slamDmg: 30, slamLift: 1, slamDown: .5,                                                       // 震地:原始傷害、擊飛高度 × fxK、跌倒秒數
   leapT: .55, leapH: 3, leapDmg: 40, leapStun: .8, leapKnock: 1.5,                              // 躍擊:飛行時間、最高點、落地傷害 / 暈眩上限 / 擊退
-  waveDmg: 45, waveLen: 9,                                                                      // 破空斬劍氣:原始傷害、射程
+  waveDmg: 45, waveLen: 8,                                                                     // 破空斬劍氣:原始傷害、射程
   exCost: 30, exMin: .999,                                                                      // 破空斬:鬥氣門檻 / 集氣 MAX 判定
   unyMin: 50, unyBase: 2, unyPer: 25, unyWeak: 2,                                               // 不屈:最低鬥氣、基礎秒數 + 鬥氣 / 25、結束後虛弱秒數
   comboK: .4, comboT: 1,                                                                        // 盾擊後 1 s 內下一招集氣 ×0.4
@@ -113,7 +113,7 @@ function castSlam(P, orb) {
     const dx = d.x - p.x, dz = d.z - p.z, dist = Math.hypot(dx, dz);
     if (dist >= R + .4) continue;
     const l = dist || 1;
-    d.hit(SW.slamDmg * P.dmgK * (1 - clamp(dist / (R + .4), 0, 1) * .5), dx, dz, 0, null);
+    d.hit(SW.slamDmg * P.dmgK * (1 - clamp(dist / (R + .4), 0, 1) * .7), dx, dz, 0, null);
     d.lift(SW.slamLift * P.fxK); d.knockDown(SW.slamDown, dx / l, dz / l);
   }
 }
@@ -152,7 +152,7 @@ function leapLand(L) {
     const dx = d.x - x, dz = d.z - z, dist = Math.hypot(dx, dz);
     if (dist >= R + .4) continue;
     const l = dist || 1;
-    d.hit(SW.leapDmg * P.dmgK * (1 - clamp(dist / (R + .4), 0, 1) * .5), dx, dz, 0, null);
+    d.hit(SW.leapDmg * P.dmgK * (1 - clamp(dist / (R + .4), 0, 1) * .7), dx, dz, 0, null);
     d.stun(SW.leapStun * P.fxK); d.knock(dx / l, dz / l, SW.leapKnock * P.fxK);
   }
 }
