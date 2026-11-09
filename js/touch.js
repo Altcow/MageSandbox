@@ -78,6 +78,7 @@
   // ---- 手把 ----
   let prev = [], padOn = false, minusHold = -1, yHold = -1;
   window.inputTick = function (dt) {
+    if (window.COVER_ON) return;   // 封面期間不處理手把
     const gps = navigator.getGamepads ? navigator.getGamepads() : [];
     let gp = null; for (const g of gps) if (g && g.connected) { gp = g; break; }
     if (!gp) return;

@@ -135,9 +135,130 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 #panel .row input[type=range]{flex:1}
 #panel .row span{flex:0 0 38px;text-align:right;color:#aaa}
 #panel button{margin-top:8px;padding:4px 10px}
+/* ===== 封面 / 房間 / 大廳(cv-) ===== */
+body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.cover #sceneBar,body.cover #clsBar,body.cover #elBar,body.cover #modeTag,body.cover #btnMode,body.cover #pRes,body.cover #stBar,body.cover #touchUI,body.cover #gear,body.cover #panel,body.cover #chargeBox,body.cover #chant,body.cover #banner,body.cover #dmgLayer{display:none !important}
+.cv-root{position:fixed;inset:0;z-index:60;overflow:hidden;font-family:"Microsoft JhengHei","PingFang TC",system-ui,sans-serif;color:#e8ecf6;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.cv-root.gone{display:none}
+.cv-root [hidden]{display:none !important}
+.cv-root :focus-visible{outline:2px solid #7fd0ff;outline-offset:3px}
+.cv-fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.cv-shade{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 44%,rgba(7,11,26,.18) 0%,rgba(7,11,26,.66) 58%,rgba(3,5,14,.95) 100%),linear-gradient(180deg,rgba(9,16,40,.5),rgba(7,11,26,.2) 40%,rgba(7,11,26,.72))}
+.cv-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;box-sizing:border-box;padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.cv-brand{flex:0 0 auto;text-align:center;margin-top:clamp(6px,7vh,60px);transition:margin-top .6s cubic-bezier(.2,.8,.2,1)}
+.cv-root.is-small .cv-brand{margin-top:0}
+.cv-title{margin:0;font-weight:800;font-size:min(clamp(44px,9.5vw,112px),17vh);line-height:1.15;letter-spacing:.28em;text-indent:.28em;white-space:nowrap;background-image:linear-gradient(105deg,rgba(255,255,255,0) 40%,rgba(255,255,255,.95) 50%,rgba(255,255,255,0) 60%),linear-gradient(180deg,#ffffff 0%,#dfe4f0 36%,#8f97ad 50%,#f2f4fa 62%,#aab2c8 100%);background-size:260% 100%,100% 100%;background-repeat:no-repeat;background-position:150% 0,0 0;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 14px rgba(150,190,255,.35)) drop-shadow(0 2px 6px rgba(0,0,0,.6));animation:cvSweep 5.2s ease-in-out infinite;transition:font-size .6s cubic-bezier(.2,.8,.2,1),letter-spacing .6s}
+.cv-root.is-small .cv-title{font-size:min(clamp(24px,4.4vw,40px),9vh);letter-spacing:.22em;text-indent:.22em}
+@keyframes cvSweep{0%{background-position:150% 0,0 0}60%,100%{background-position:-60% 0,0 0}}
+.cv-sub{font-size:clamp(10px,1.2vw,13px);letter-spacing:.6em;text-indent:.6em;color:rgba(200,204,216,.6);margin-top:2px}
+.cv-root.is-small .cv-sub{display:none}
+.cv-orn{display:block;width:min(360px,70vw);height:18px;margin:8px auto;overflow:visible}
+.cv-root.is-small .cv-orn{height:12px;margin:4px auto;width:min(240px,50vw)}
+.cv-body{position:relative;flex:1 1 auto;width:100%;max-width:960px;min-height:0}
+.cv-view{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transform:translateY(16px) scale(.985);pointer-events:none;transition:opacity .45s ease,transform .45s cubic-bezier(.2,.8,.2,1),visibility 0s linear .45s}
+.cv-view.on{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:opacity .45s ease,transform .45s cubic-bezier(.2,.8,.2,1),visibility 0s}
+.cv-enter{position:relative;cursor:pointer;font-size:clamp(15px,2.2vw,21px);letter-spacing:.42em;text-indent:.42em;color:#d8dce8;text-shadow:0 0 12px rgba(200,220,255,.5);padding:18px 24px;animation:cvBlink 1.8s ease-in-out infinite}
+@keyframes cvBlink{0%,100%{opacity:.25}50%{opacity:.95}}
+#cvV_menu{align-items:flex-end;padding-bottom:max(8vh,36px)}   /* 按鈕靠下,不蓋住中央的角色 */
+.cv-menu{display:flex;flex-direction:column;align-items:center;gap:14px}
+.cv-menu-row{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+.cv-btn{position:relative;font:inherit;font-size:17px;letter-spacing:.2em;color:#e8ecf6;min-height:50px;padding:0 26px;border-radius:14px;border:1px solid rgba(200,204,216,.5);background:linear-gradient(180deg,rgba(48,62,106,.6),rgba(12,18,40,.6));backdrop-filter:blur(10px) saturate(130%);-webkit-backdrop-filter:blur(10px) saturate(130%);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 30px rgba(0,0,0,.35);cursor:pointer;touch-action:manipulation;transition:transform .18s,box-shadow .25s,border-color .25s,opacity .25s}
+.cv-btn:hover{transform:translateY(-2px) scale(1.02);border-color:#dfe6f5;box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 0 26px rgba(127,208,255,.35),0 10px 30px rgba(0,0,0,.4)}
+.cv-btn:active{transform:scale(.97)}
+.cv-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.cv-big{min-width:220px;min-height:60px;font-size:19px}
+.cv-small{min-height:38px;padding:0 16px;font-size:14px;letter-spacing:.1em}
+.cv-primary{border-color:rgba(255,210,122,.75);background:linear-gradient(180deg,rgba(150,108,44,.6),rgba(42,30,12,.6));color:#fff6dc}
+.cv-ghost{opacity:.85}
+.cv-link{background:none;border:0;color:#aab3c8;font:inherit;font-size:14px;letter-spacing:.12em;text-decoration:underline;text-underline-offset:4px;min-height:44px;padding:8px 14px;cursor:pointer}
+.cv-link:hover{color:#e8ecf6}
+.cv-card{position:relative;box-sizing:border-box;width:min(560px,100%);max-height:100%;overflow:auto;border-radius:20px;padding:clamp(14px,2.6vh,26px) clamp(16px,3vw,30px);background:linear-gradient(180deg,rgba(22,30,62,.66),rgba(10,14,34,.62));border:1px solid rgba(200,204,216,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 0 40px rgba(127,208,255,.05),0 24px 70px rgba(0,0,0,.5);backdrop-filter:blur(14px) saturate(125%);-webkit-backdrop-filter:blur(14px) saturate(125%);-webkit-overflow-scrolling:touch}
+.cv-card h2{margin:0 0 clamp(8px,1.6vh,14px);font-size:clamp(18px,2.4vw,24px);letter-spacing:.3em;text-indent:.3em;text-align:center;color:#fff;font-weight:700}
+.cv-card h2::after{content:"";display:block;width:64px;height:1px;margin:10px auto 0;background:linear-gradient(90deg,transparent,#ffd27a,transparent)}
+.cv-field{display:flex;flex-direction:column;gap:6px;margin:clamp(6px,1.2vh,12px) 0}
+.cv-field>span,.cv-row>span{font-size:12px;color:#c8ccd8;letter-spacing:.12em}
+.cv-row{display:flex;align-items:center;justify-content:space-between;margin:clamp(6px,1.2vh,12px) 0}
+.cv-input{width:100%;box-sizing:border-box;height:44px;border-radius:12px;border:1px solid rgba(200,204,216,.35);background:rgba(4,8,22,.55);color:#fff;padding:0 12px;font:inherit;font-size:16px;outline:none;transition:border-color .2s,box-shadow .2s}
+.cv-input:focus{border-color:#7fd0ff;box-shadow:0 0 0 3px rgba(127,208,255,.2)}
+.cv-input.code{font-family:Consolas,"Courier New",monospace;font-size:26px;letter-spacing:.5em;text-indent:.5em;text-align:center;text-transform:uppercase;height:58px}
+.cv-scenes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cv-scene{position:relative;height:clamp(54px,9vh,76px);border-radius:12px;border:1px solid rgba(200,204,216,.3);padding:0;overflow:hidden;cursor:pointer;color:#fff;font:inherit;transition:transform .2s,box-shadow .3s,border-color .3s}
+.cv-scene:hover{transform:translateY(-2px)}
+.cv-scene span{position:absolute;left:0;right:0;bottom:0;padding:4px 2px;font-size:11px;text-align:center;background:linear-gradient(transparent,rgba(0,0,0,.65));text-shadow:0 1px 2px #000}
+.cv-scene.on{border-color:#ffd27a;box-shadow:0 0 0 1px #ffd27a,0 0 22px rgba(255,210,122,.45)}
+.sc-night{background:radial-gradient(circle at 78% 24%,#fff8dc 0 6%,transparent 6.6%),linear-gradient(170deg,#0b1640,#1d2f6b 60%,#0a0f26)}
+.sc-rome{background:radial-gradient(ellipse at 50% 125%,#f2c98a 0 32%,transparent 33%),linear-gradient(170deg,#e0b070,#8a5a2b 60%,#3a2412)}
+.sc-hall{background:linear-gradient(90deg,transparent 0 46%,rgba(255,220,150,.38) 46% 50%,transparent 50%),linear-gradient(170deg,#cdb68c,#6e5a3c 60%,#2a2118)}
+.sc-jungle{background:radial-gradient(circle at 20% 92%,#3f8a4a 0 24%,transparent 25%),linear-gradient(170deg,#2f6b3a,#143a22 60%,#0a1f12)}
+.cv-seg{display:flex;gap:8px}
+.cv-seg button{flex:1;height:42px;border-radius:12px;border:1px solid rgba(200,204,216,.35);background:rgba(4,8,22,.5);color:#d8dce8;font:inherit;font-size:15px;cursor:pointer;transition:border-color .2s,box-shadow .25s,background .25s}
+.cv-seg button.on{border-color:#7fd0ff;box-shadow:0 0 16px rgba(127,208,255,.35);background:rgba(20,40,80,.6);color:#fff}
+.cv-switch{position:relative;width:54px;height:30px;padding:0;border-radius:999px;border:1px solid rgba(200,204,216,.5);background:rgba(10,14,30,.6);cursor:pointer;flex:0 0 auto;transition:background .25s,border-color .25s}
+.cv-switch i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#c8ccd8;transition:transform .25s,background .25s}
+.cv-switch[aria-checked="true"]{background:rgba(127,208,255,.3);border-color:#7fd0ff}
+.cv-switch[aria-checked="true"] i{transform:translateX(24px);background:#fff}
+.cv-pwbox{display:none;margin:4px 0 0}
+.cv-pwbox.on{display:block;animation:cvDrop .35s ease both}
+.cv-pwwrap{display:flex;gap:8px}
+.cv-pwwrap .cv-input{flex:1}
+.cv-eye{min-width:62px;height:44px;border-radius:12px;border:1px solid rgba(200,204,216,.35);background:rgba(4,8,22,.55);color:#d8dce8;font:inherit;font-size:13px;cursor:pointer}
+.cv-step2{display:none;flex-direction:column}
+.cv-step2.on{display:flex;animation:cvDrop .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes cvDrop{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.cv-err{min-height:20px;margin:8px 0 0;color:#ff8a8a;font-size:13px;text-align:center;text-shadow:0 0 6px rgba(0,0,0,.7)}
+.cv-err.shake{animation:cvShake .4s}
+@keyframes cvShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.cv-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.cv-lobby{width:min(860px,100%);display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:720px){.cv-lobby{grid-template-columns:250px 1fr;gap:24px}}
+.cv-lobby-l{display:flex;flex-direction:column;align-items:center;gap:10px}
+.cv-lobby-r{display:flex;flex-direction:column;min-width:0}
+.cv-roomhead{display:flex;flex-direction:column;align-items:center;gap:2px}
+.cv-roomhead>span{font-size:12px;letter-spacing:.3em;color:#c8ccd8}
+#cvRoomCode{font-family:Consolas,"Courier New",monospace;font-size:clamp(28px,4.6vw,42px);letter-spacing:.3em;text-indent:.3em;color:#ffe3b0;text-shadow:0 0 14px rgba(255,190,90,.45)}
+.cv-lockwrap{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#ffd27a}
+.cv-lock{width:14px;height:14px}
+.cv-qrbox{width:clamp(120px,24vh,176px);background:#fff;border-radius:14px;padding:8px;box-sizing:border-box;box-shadow:0 8px 26px rgba(0,0,0,.45)}
+.cv-qrsvg{display:block;width:100%;height:auto}
+.cv-qrfail{color:#333;font-size:12px;padding:10px;text-align:center;word-break:break-all}
+.cv-scene-tag{font-size:12px;color:#c8ccd8;letter-spacing:.1em}
+.cv-idle{font-size:13px;color:#ffd27a;text-align:center;line-height:1.6}
+.cv-idle b{font-family:Consolas,"Courier New",monospace;font-size:16px}
+.cv-players{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cv-players.many{grid-template-columns:repeat(3,1fr);gap:6px}
+.cv-players.many .cv-slot{min-height:44px;padding:5px 7px;gap:6px}
+.cv-players.many .cv-av{width:30px;height:30px;flex-basis:30px}
+.cv-players.many .cv-av img{width:24px;height:24px}
+.cv-players.many .cv-pname{font-size:12px}
+.cv-players.many .cv-psub{display:none}
+.cv-slot{display:flex;align-items:center;gap:10px;padding:10px;min-height:62px;box-sizing:border-box;border-radius:14px;background:rgba(4,8,22,.45);border:1px solid rgba(200,204,216,.18);transition:border-color .3s,box-shadow .3s}
+.cv-slot.rdy{border-color:rgba(127,208,255,.6);box-shadow:0 0 16px rgba(127,208,255,.2)}
+.cv-slot.empty{opacity:.45;border-style:dashed}
+.cv-av{width:44px;height:44px;flex:0 0 44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%,rgba(127,208,255,.25),rgba(10,14,34,.8));border:1px solid rgba(200,204,216,.3);box-sizing:border-box}
+.cv-av img{width:34px;height:34px;object-fit:contain}
+.cv-av-empty{font-size:22px;color:#aab3c8}
+.cv-pinfo{min-width:0}
+.cv-pname{font-size:14px;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv-crown{width:14px;height:10px;flex:0 0 14px}
+.cv-psub{font-size:11px;color:#aab3c8;margin-top:2px}
+.cv-pick{margin-top:12px}
+.cv-pick-t{font-size:12px;letter-spacing:.2em;color:#c8ccd8;margin-bottom:6px}
+.cv-clsrow,.cv-elrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.cv-pick-btn{display:flex;flex-direction:column;align-items:center;gap:3px;width:76px;padding:6px 4px;border-radius:14px;background:rgba(4,8,22,.45);border:1px solid rgba(200,204,216,.25);color:#e8ecf6;font:inherit;font-size:12px;cursor:pointer;transition:border-color .25s,box-shadow .25s,background .25s,transform .18s}
+.cv-pick-btn img{width:36px;height:36px;object-fit:contain}
+.cv-pick-btn:hover{transform:translateY(-1px)}
+.cv-pick-btn.on{border-color:#ffd27a;box-shadow:0 0 16px rgba(255,210,122,.5);background:rgba(60,44,14,.5)}
+.cv-el-btn{width:44px;height:44px;padding:4px;border-radius:50%;border:1px solid rgba(200,204,216,.3);background:rgba(4,8,22,.5);cursor:pointer;transition:border-color .25s,box-shadow .25s}
+.cv-el-btn img{display:block;width:100%;height:100%;object-fit:contain}
+.cv-el-btn.on{border-color:#7fd0ff;box-shadow:0 0 16px rgba(127,208,255,.6)}
+.cv-hint{min-height:18px;font-size:12px;color:#ffd27a;text-align:center;margin-top:6px}
+.cv-notice{width:min(440px,100%);text-align:center}
+.cv-notice p{color:#c8ccd8;line-height:1.7;margin:0}
+@media (max-width:480px){.cv-scenes{grid-template-columns:repeat(2,1fr)}.cv-menu-row{gap:12px}.cv-big{min-width:0;width:100%;max-width:300px}}
+@media (max-height:460px){.cv-slot{min-height:48px;padding:6px 8px}.cv-av{width:34px;height:34px;flex-basis:34px}.cv-av img{width:26px;height:26px}.cv-pick-btn{width:62px}.cv-pick-btn img{width:26px;height:26px}.cv-card h2{margin-bottom:6px}.cv-field{margin:4px 0}.cv-actions{margin-top:8px}}
+@media (prefers-reduced-motion:reduce){.cv-root *,.cv-root *::before,.cv-root *::after{animation:none !important;transition-duration:.01ms !important}.cv-enter{opacity:.9}}
 </style>
 </head>
-<body>
+<body class="cover">
 <button id="hintBtn" title="操作說明 (H)">?</button>
 <div id="hint">
 <b>WASD</b> 移動 ・ <b>Shift</b> 跑<br>
@@ -181,6 +302,83 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <div id="stealthFx"></div>
 <div id="gear" title="參數面板 (P)">⚙</div>
 <div id="panel"></div>
+<div id="cvRoot" class="cv-root" role="dialog" aria-label="職業大亂鬥">
+  <canvas id="cvFx" class="cv-fx" aria-hidden="true"></canvas>
+  <div class="cv-shade" aria-hidden="true"></div>
+  <div class="cv-stage">
+    <header class="cv-brand">
+      <svg class="cv-orn" viewBox="0 0 360 18" aria-hidden="true"><defs><linearGradient id="cvOgA" x1="0" x2="1"><stop offset="0" stop-color="#c8ccd8" stop-opacity="0"/><stop offset="1" stop-color="#e8ecf6"/></linearGradient></defs><line x1="0" y1="9" x2="150" y2="9" stroke="url(#cvOgA)" stroke-width="1.2"/><path d="M180 1 L189 9 L180 17 L171 9 Z" fill="none" stroke="#e6c27a" stroke-width="1.2"/><circle cx="180" cy="9" r="2" fill="#7fd0ff"/><line x1="210" y1="9" x2="360" y2="9" stroke="#c8ccd8" stroke-opacity=".55" stroke-width="1.2"/></svg>
+      <h1 class="cv-title">職業大亂鬥</h1>
+      <div class="cv-sub">CLASS BRAWL</div>
+      <svg class="cv-orn" viewBox="0 0 360 18" aria-hidden="true"><line x1="0" y1="9" x2="150" y2="9" stroke="#c8ccd8" stroke-opacity=".55" stroke-width="1.2"/><path d="M180 1 L189 9 L180 17 L171 9 Z" fill="none" stroke="#e6c27a" stroke-width="1.2"/><circle cx="180" cy="9" r="2" fill="#7fd0ff"/><line x1="210" y1="9" x2="360" y2="9" stroke="#c8ccd8" stroke-opacity=".55" stroke-width="1.2"/></svg>
+    </header>
+    <div class="cv-body">
+      <section class="cv-view on" id="cvV_title" aria-hidden="false">
+        <div class="cv-enter" id="cvEnter">進入遊戲</div>
+      </section>
+      <section class="cv-view" id="cvV_menu" aria-hidden="true">
+        <div class="cv-menu">
+          <div class="cv-menu-row">
+            <button class="cv-btn cv-big" id="cvBtnCreate" type="button">創建房間</button>
+            <button class="cv-btn cv-big" id="cvBtnJoin" type="button">進入房間</button>
+          </div>
+          <button class="cv-link" id="cvBtnSolo" type="button">單人練習</button>
+        </div>
+      </section>
+      <section class="cv-view" id="cvV_create" aria-hidden="true">
+        <div class="cv-card">
+          <h2>創建房間</h2>
+          <label class="cv-field"><span>暱稱(最多 8 字)</span><input class="cv-input" id="cvCName" maxlength="8" autocomplete="off"></label>
+          <div class="cv-field"><span>場地</span><div class="cv-scenes" id="cvScenes"></div></div>
+          <div class="cv-field"><span>人數上限</span><div class="cv-seg" id="cvMax"><button type="button" data-n="6">6 人</button><button type="button" data-n="8">8 人</button><button type="button" data-n="10">10 人</button><button type="button" data-n="12">12 人</button></div></div>
+          <div class="cv-row"><span>設定密碼</span><button class="cv-switch" id="cvPwSwitch" type="button" role="switch" aria-checked="false" aria-label="設定房間密碼"><i></i></button></div>
+          <div class="cv-pwbox" id="cvPwBox"><div class="cv-pwwrap"><input class="cv-input" id="cvPw" type="password" maxlength="8" placeholder="4~8 個字" autocomplete="new-password"><button class="cv-eye" id="cvPwEye" type="button">顯示</button></div></div>
+          <div class="cv-err" id="cvCErr" role="alert"></div>
+          <div class="cv-actions"><button class="cv-btn cv-primary" id="cvCreateGo" type="button">建立房間</button><button class="cv-btn cv-ghost" data-back type="button">返回</button></div>
+        </div>
+      </section>
+      <section class="cv-view" id="cvV_join" aria-hidden="true">
+        <div class="cv-card">
+          <h2>進入房間</h2>
+          <label class="cv-field"><span>暱稱</span><input class="cv-input" id="cvJName" maxlength="8" autocomplete="off"></label>
+          <label class="cv-field"><span>房號(4 碼)</span><input class="cv-input code" id="cvJCode" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD"></label>
+          <div class="cv-step2" id="cvJStep2"><label class="cv-field"><span>房間密碼</span><input class="cv-input" id="cvJPw" type="password" maxlength="8" autocomplete="off"></label></div>
+          <div class="cv-err" id="cvJErr" role="alert"></div>
+          <div class="cv-actions"><button class="cv-btn cv-primary" id="cvJoinGo" type="button">加入</button><button class="cv-btn cv-ghost" data-back type="button">返回</button></div>
+        </div>
+      </section>
+      <section class="cv-view" id="cvV_lobby" aria-hidden="true">
+        <div class="cv-card cv-lobby">
+          <div class="cv-lobby-l">
+            <div class="cv-roomhead"><span>房號</span><b id="cvRoomCode">----</b><span class="cv-lockwrap" id="cvLock" hidden><svg class="cv-lock" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="9" width="12" height="9" rx="2" fill="#ffd27a"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9" fill="none" stroke="#ffd27a" stroke-width="1.8"/></svg>需要密碼</span></div>
+            <div class="cv-qrbox" id="cvQR"></div>
+            <div class="cv-scene-tag" id="cvSceneName"></div>
+            <button class="cv-btn cv-small" id="cvCopy" type="button">複製連結</button>
+            <div class="cv-idle" id="cvIdle" hidden>房間將在 <b id="cvIdleTime">05:00</b> 後自動關閉</div>
+          </div>
+          <div class="cv-lobby-r">
+            <div class="cv-players" id="cvPlayers"></div>
+            <div class="cv-pick"><div class="cv-pick-t">職業</div><div class="cv-clsrow" id="cvCls"></div></div>
+            <div class="cv-pick" id="cvElWrap"><div class="cv-pick-t">法師屬性</div><div class="cv-elrow" id="cvEl"></div></div>
+            <div class="cv-hint" id="cvStartHint"></div>
+            <div class="cv-actions">
+              <button class="cv-btn" id="cvReady" type="button">準備</button>
+              <button class="cv-btn cv-primary" id="cvStart" type="button">開始遊戲</button>
+              <button class="cv-btn cv-ghost" id="cvLeave" type="button">離開房間</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="cv-view" id="cvV_closed" aria-hidden="true">
+        <div class="cv-card cv-notice">
+          <h2>房間已關閉</h2>
+          <p id="cvNoticeP"></p>
+          <div class="cv-actions"><button class="cv-btn cv-primary" id="cvNoticeOk" type="button">回首頁</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
 
 <script src="lib/three.min.js"></script>
 <script src="lib/CopyShader.js"></script>
@@ -214,6 +412,8 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <script src="js/resources.js"></script>
 <script src="js/classes.js"></script>
 <script src="js/touch.js"></script>
+<script src="js/qr.js"></script>
+<script src="js/cover.js"></script>
 <script>if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});</script>
 <script>
 (function(){var h=document.getElementById('hint'),b=document.getElementById('hintBtn');

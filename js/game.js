@@ -147,6 +147,7 @@ addEventListener('resize', onResize); onResize();
 
 /* ================= 輸入 ================= */
 addEventListener('keydown', e => {
+  if (window.COVER_ON) return;   // 封面期間不處理遊戲輸入
   if (e.target.tagName === 'INPUT') return;
   if (['Tab', 'Space'].includes(e.code)) e.preventDefault();
   if (e.ctrlKey && ['Equal', 'Minus', 'Digit0', 'NumpadAdd', 'NumpadSubtract', 'Numpad0'].includes(e.code)) { e.preventDefault(); if (e.code === 'Digit0' || e.code === 'Numpad0') G.zoom = 1; return; }
@@ -196,6 +197,7 @@ addEventListener('mousemove', e => {
   if (G.rmb) { G.camYaw -= e.movementX * CFG.camSens; G.camPitch = clamp(G.camPitch + e.movementY * CFG.camSens, 0.08, 1.35); }
 });
 addEventListener('mousedown', e => {
+  if (window.COVER_ON) return;
   if (e.target.tagName !== 'CANVAS' || fromTouch()) return;
   G.inputMode = 'mouse';
   if (e.button === 2) G.rmb = true;
@@ -208,6 +210,7 @@ addEventListener('mouseup', e => {
   if (e.button === 0 && G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
 });
 addEventListener('wheel', e => {
+  if (window.COVER_ON) return;
   if (e.ctrlKey) e.preventDefault();   // 擋瀏覽器頁面縮放(Ctrl+滾輪)
   if (e.target.tagName !== 'CANVAS') return;
   e.preventDefault();

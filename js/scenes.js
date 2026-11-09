@@ -395,7 +395,7 @@
   const bar = document.createElement('div'); bar.id = 'sceneBar';
   SCENES.forEach((s, k) => { const b = document.createElement('button'); b.textContent = s.name; b.onclick = () => setScene(k); bar.appendChild(b); });
   document.body.appendChild(bar);
-  addEventListener('keydown', e => { if (e.code === 'KeyN' && !e.ctrlKey && !e.repeat && e.target.tagName !== 'INPUT') setScene(cur + 1); });
+  addEventListener('keydown', e => { if (window.COVER_ON) return; if (e.code === 'KeyN' && !e.ctrlKey && !e.repeat && e.target.tagName !== 'INPUT') setScene(cur + 1); });
 
   // ---- 畫質:0 低 / 1 中 / 2 高(存 localStorage mageSandbox.q)----
   const QN = ['低', '中', '高'];
