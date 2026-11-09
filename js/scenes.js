@@ -361,6 +361,7 @@
   }
   function buildScene(i) {
     const S = SCENES[i];
+    if (typeof clearSummons === 'function') clearSummons();
     clearDeco();
     if (groundTex && groundTex !== nightGround) groundTex.dispose();
     scene.fog.color.setHex(S.fog[0]); scene.fog.near = S.fog[1]; scene.fog.far = S.fog[2];

@@ -140,7 +140,7 @@ class Mage {
   setClassLook(cls) {
     const look = this.looks[cls] ? cls : 'mage';
     for (const c in this.looks) this.looks[c].forEach(g => { g.visible = c === look; });
-    const k = { mage: 1, archer: .92, swordsman: 1.12, assassin: .85 }[look];
+    const k = { mage: 1, archer: .92, swordsman: 1.12, assassin: .85 }[look]; this.torsoK = k;
     this.torso.forEach(m => { m.scale.x = m.userData.bx * k; m.scale.z = m.userData.bz * k; });
     this.robeLow.visible = this.hemRing.visible = look === 'mage' || look === 'swordsman';
   }
@@ -157,6 +157,37 @@ class Mage {
     });
   }
 
+  // 打坐 / 倒地姿勢(sit、dn 為 0~1,resources.js 每幀給值)。打坐:身體下沉 .55、上身挺直並呼吸、盤腿、袍子攤開、雙手放膝;倒地:往後躺
+  // 身體整體下沉,腳與袍子的 y 補回(腳底約 .06 m、袍底約 .02 m);武器座標為「站立座標 + .55」
+  sitPose(sit, dn, t) {
+    const b = this.body, k = this.torsoK || 1;
+    b.rotation.x = lerp(lerp(b.rotation.x, 0, sit), -1.45, dn);
+    b.position.y += lerp(0, -.55, sit) + Math.sin(t * 1.2) * .015 * sit;
+    this.feet.forEach((f, i) => {
+      f.position.x = lerp(i ? .15 : -.15, i ? .16 : -.16, sit);
+      f.position.z = lerp(f.position.z, .22, sit);
+      f.position.y = lerp(f.position.y, .61, sit);
+      f.rotation.y = lerp(f.rotation.y, i ? -1.1 : 1.1, sit);
+    });
+    [this.robeLow, this.hemRing].forEach(m => { const w = lerp(1, 1.25, sit); m.scale.x = m.userData.bx * k * w; m.scale.z = m.userData.bz * k * w; });
+    this.robeLow.scale.y = lerp(1, .55, sit); this.robeLow.position.y = lerp(.7, .83, sit); this.hemRing.position.y = lerp(.24, .57, sit);
+    [[this.armL, 1], [this.armR, -1]].forEach(([a, sg]) => {
+      a.sh.rotation.x = lerp(lerp(a.sh.rotation.x, -.55, sit), -.3, dn);
+      a.sh.rotation.z = lerp(lerp(a.sh.rotation.z, -sg * .28, sit), sg * 1.2, dn);
+      a.el.rotation.x = lerp(lerp(a.el.rotation.x, -1.25, sit), 0, dn);
+    });
+    this.head.rotation.x = lerp(this.head.rotation.x, .12, sit);
+  }
+  // 打坐時武器擺放:以本幀的手位置為起點,lerp 到坐姿位置(sit = 0 時不改)
+  sitWeapon(sit, t) {
+    const P = (o, x, y, z) => o.position.set(lerp(o.position.x, x, sit), lerp(o.position.y, y, sit), lerp(o.position.z, z, sit));
+    const w = this.weapon;
+    if (w === 'staff') { P(this.staff, .42, .5, .2); this.staff.rotation.x = lerp(this.staff.rotation.x, 0, sit); this.staff.rotation.z = lerp(this.staff.rotation.z, -.08, sit); }
+    else if (w === 'book') { P(this.book, 0, 1.5 + Math.sin(t * 1.5) * .03, .35); this.book.rotation.z = lerp(this.book.rotation.z, 0, sit); }
+    else if (w === 'bow') { P(this.bow, 0, 1.1, .3); this.bow.rotation.z = lerp(this.bow.rotation.z, Math.PI / 2, sit); }
+    else if (w === 'swordShield') { P(this.sword, 0, .45, .55); this.sword.rotation.x = lerp(this.sword.rotation.x, 0, sit); P(this.shield, -.45, .65, .1); this.shield.rotation.z = lerp(this.shield.rotation.z, .3, sit); }
+    else [[this.daggers[0], -.18, 1.15, .25, .6], [this.daggers[1], .18, 1.15, .25, -.6]].forEach(([g, x, y, z, rz]) => { P(g, x, y, z); g.rotation.set(lerp(g.rotation.x, -1.2, sit), 0, lerp(g.rotation.z, rz, sit)); });
+  }
   // anim: {move, cast(0..1), kick(0..1), charge(0..1), t}
   update(dt, s) {
     this.root.rotation.y = this.yaw;
@@ -194,6 +225,9 @@ class Mage {
       this.body.position.copy(c).sub(c.clone().applyQuaternion(this.body.quaternion));
       this.body.position.y += .25 * Math.sin(Math.PI * rp);
     }
+    const sit = s.sit || 0, dn = s.down || 0, hasPose = sit > 0 || dn > 0 || !!this._sitWas;   // 打坐 / 倒地姿勢;都為 0 且先前也沒有時不動既有動畫
+    this._sitWas = sit > 0 || dn > 0;
+    if (hasPose) this.sitPose(sit, dn, s.t);
     this.root.updateMatrixWorld(true);
     const v = new V3(), v2 = new V3();
     const hp = (h, o) => { h.getWorldPosition(o); this.body.worldToLocal(o); return o; };
@@ -207,7 +241,7 @@ class Mage {
       const rest = v.clone().add(new V3(-.05, .12, .1)), mid = v.clone().add(v2).multiplyScalar(.5).add(new V3(0, .12, .12));
       this.book.position.lerpVectors(rest, mid, c);
       this.book.rotation.set(lerp(0, -.3, c), lerp(0, 0, c), lerp(-.25, 0, c)); this.book.scale.setScalar(pop);
-      const th = lerp(1.5, .4, c); this.halves[0].rotation.y = -th; this.halves[1].rotation.y = th;
+      const th = lerp(lerp(1.5, .4, c), .4, sit); this.halves[0].rotation.y = -th; this.halves[1].rotation.y = th;
       if (c > .6) { this.flip = (this.flip + dt * (.8 + s.charge * 2.2)) % 1; } else this.flip = 0;
       const f = this.flip < .5 ? this.flip * 2 : 0;
       this.flipGrp.rotation.y = lerp(-th + .05, th - .05, f); this.flipGrp.visible = c > .6;
@@ -217,6 +251,7 @@ class Mage {
       else if (this.weapon === 'swordShield') { this.sword.position.copy(v2); this.sword.rotation.set(lerp(-.2, -.9, c), 0, 0); this.shield.position.copy(v).add(new V3(0, .02, .14)); this.shield.rotation.set(0, 0, 0); }
       else { this.daggers[0].position.copy(v); this.daggers[1].position.copy(v2); this.daggers[0].rotation.set(lerp(0, -.6, c), 0, lerp(0, .5, c)); this.daggers[1].rotation.set(lerp(0, -.6, c), 0, lerp(0, -.5, c)); }
     }
+    if (hasPose) this.sitWeapon(sit, s.t);
     const g = this.glow;
     this.gemMat.emissiveIntensity = .6 + g * 3; this.staffGlow.material.opacity = g * .9; this.staffGlow.scale.setScalar(.5 + g * 1.4);
     this.bookGlow.material.opacity = g * .9; this.bookGlow.scale.setScalar(.6 + g * 1.5);

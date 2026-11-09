@@ -31,13 +31,35 @@ canvas{display:block}
 #elBar.busy{opacity:.25;pointer-events:none}
 #modeTag{position:fixed;bottom:18px;right:calc(50% + 175px);width:52px;height:40px;border-radius:10px;background:rgba(14,16,40,.75);border:2px solid rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;line-height:1.1;cursor:pointer;user-select:none;z-index:4}
 #modeTag small{font-size:10px}
-#pHP{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);width:200px;height:8px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden;pointer-events:none;z-index:3}
-#pHPfg{position:absolute;left:0;top:0;bottom:0;background:#e0463a}
-#pHPsh{position:absolute;right:0;top:0;bottom:0;background:#bfe9ff;opacity:.85;width:0}
+#pRes{position:fixed;left:16px;bottom:16px;width:230px;z-index:3;pointer-events:none;--sit:#ffffff}
+#pRes.down{opacity:.5}
+#pDownTx{font-size:12px;color:#ff6a6a;text-shadow:0 0 4px #000;margin:0 0 2px}
+.rr{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.rb{position:relative;flex:1;height:12px;border-radius:4px;background:rgba(0,0,0,.55);overflow:hidden}
+.rb i{position:absolute;left:0;top:0;bottom:0;width:100%;transform-origin:left center}
+.rb.mp,.rb.sp{height:8px}
+#pHPfg{background:#e04040}
+#pMPfg{background:#3a7bff}
+#pSPfg{background:#f0c030}
+#pShield{background:#bfe9ff;opacity:.85}
+.rb.low .fg{animation:resLow 1s ease-in-out infinite}
+@keyframes resLow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.9)}}
+.rb.deny{animation:resDeny .4s 2}
+@keyframes resDeny{0%,100%{box-shadow:0 0 0 0 #ff3030}50%{box-shadow:0 0 0 2px #ff3030}}
+.rb.off{opacity:.4}
+.rb.off .fg{background:#556 !important}
+#pRes.sit .rb{box-shadow:0 0 8px var(--sit)}
+.rn{flex:0 0 52px;font-size:11px;text-align:right;color:#ddd;text-shadow:0 0 3px #000;white-space:nowrap}
+#chargeBar.hide{display:none}
+.slot.poor .ic{filter:grayscale(.8) brightness(.7)}
+body.touch #pRes{left:calc(12px + env(safe-area-inset-left));top:6px;bottom:auto;width:150px}
+body.touch .rb{height:5px}
+body.touch .rb.hp{height:8px}
+body.touch .rn{display:none}
 #btnMode{display:none;left:calc(40px + env(safe-area-inset-left));bottom:calc(185px + env(safe-area-inset-bottom))}
 body.touch #btnMode{display:flex}
 body.touch #modeTag{display:none}
-body.touch #pHP{bottom:auto;top:58px}
+body.touch #info{top:58px}
 .elc{position:relative;width:40px;height:40px;border-radius:10px;background:rgba(14,16,40,.75);border:2px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;user-select:none}
 .elc b{position:absolute;left:3px;top:1px;font-size:10px;color:#ffc46b}
 .elc.sel{box-shadow:0 0 12px rgba(255,255,255,.4)}
@@ -92,6 +114,8 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 #btnJump{right:calc(48px + env(safe-area-inset-right));bottom:calc(158px + env(safe-area-inset-bottom))}
 #btnWeap{right:calc(130px + env(safe-area-inset-right));bottom:calc(130px + env(safe-area-inset-bottom))}
 #btnHit{right:calc(200px + env(safe-area-inset-right));bottom:calc(110px + env(safe-area-inset-bottom))}
+#btnSit{right:calc(250px + env(safe-area-inset-right));bottom:calc(34px + env(safe-area-inset-bottom))}
+#btnSit.on{border-color:#9fe8ff;box-shadow:0 0 14px #6fd0ff}
 @media (orientation:portrait){body.touch #portraitMsg{display:flex;position:fixed;inset:0;background:#0b1030;z-index:99;align-items:center;justify-content:center;font-size:22px}}
 #gear{position:fixed;right:12px;bottom:14px;width:40px;height:40px;border-radius:50%;background:rgba(14,16,40,.75);border:1px solid rgba(255,255,255,.25);font-size:20px;text-align:center;line-height:40px;cursor:pointer}
 #panel{position:fixed;right:12px;bottom:62px;width:290px;max-height:70vh;overflow:auto;background:rgba(10,12,30,.88);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:10px 12px;font-size:12px;display:none}
@@ -115,15 +139,21 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <b>Space</b> 跳 / 空中再按一次二段跳 ・ <b>F</b> 翻滾(翻滾中短暫無敵,空中可側翻一次)<br>
 <b>T</b> 腳下來襲測試(紅圈預告後爆炸)・ <b>Y</b> 自動來襲<br>
 <b>G</b> 切換集氣模式(A 變大 / B 變多)・<b>~</b> 召喚(第 4 格)<br>
-<b>N</b> 換場景 ・ <b>K</b> 切職業 ・ <b>C</b> 鏡頭重置 ・ <b>P</b> 參數面板 ・ <b>R</b> 重置標靶與計數 ・ <b>H</b> 隱藏說明
+<b>N</b> 換場景 ・ <b>K</b> 切職業 ・ <b>C</b> 鏡頭重置 ・ <b>P</b> 參數面板 ・ <b>R</b> 重置標靶與計數 ・ <b>H</b> 隱藏說明<br>
+<b>M</b> 打坐(加速恢復 MP / SP)
 </div>
 <div id="info"></div>
 <div id="chant"></div>
-<div id="chargeBox"><div id="chargeBar"><i id="chargeFill"></i><i class="tk" style="left:50%"></i><i class="tk" style="left:calc(100% - 1px)"></i></div><span id="chargeTxt"></span></div>
+<div id="chargeBox"><div id="chargeBar"><i id="chargeFill"></i><i class="tk" style="left:50%"></i><i class="tk" style="left:calc(100% - 1px)"></i><i class="tk" id="capTick" style="display:none;background:#ff3030;width:2px"></i></div><span id="chargeTxt"></span></div>
 <div id="hotbar"></div>
 <div id="elBar"></div>
 <div id="modeTag" title="集氣模式(G)"></div>
-<div id="pHP"><i id="pHPfg"></i><i id="pHPsh"></i></div>
+<div id="pRes">
+  <div id="pDownTx"></div>
+  <div class="rr"><div class="rb hp" id="pHP"><i class="fg" id="pHPfg"></i><i id="pShield"></i></div><span class="rn" id="pHPn"></span></div>
+  <div class="rr"><div class="rb mp" id="pMP"><i class="fg" id="pMPfg"></i></div><span class="rn" id="pMPn"></span></div>
+  <div class="rr"><div class="rb sp" id="pSP"><i class="fg" id="pSPfg"></i></div><span class="rn" id="pSPn"></span></div>
+</div>
 <div id="dmgLayer"></div>
 <div id="touchUI">
   <div id="stickBase"><div id="stickKnob"></div></div>
@@ -133,6 +163,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
   <div class="tb sm" id="btnWeap">換裝</div>
   <div class="tb sm" id="btnHit">來襲</div>
   <div class="tb sm" id="btnMode">A 大</div>
+  <div class="tb sm" id="btnSit">打坐</div>
 </div>
 <div id="portraitMsg">請把手機轉成橫向</div>
 <div id="banner"></div>
@@ -162,6 +193,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <script src="js/sp_fire_crater.js"></script>
 <script src="js/sp_earth_dragon.js"></script>
 <script src="js/summons.js"></script>
+<script src="js/summons_core.js"></script>
 <script src="js/summon_fire.js"></script>
 <script src="js/summon_water.js"></script>
 <script src="js/summon_earth.js"></script>
@@ -169,6 +201,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 <script src="js/summon_light.js"></script>
 <script src="js/summon_dark.js"></script>
 <script src="js/skills.js"></script>
+<script src="js/resources.js"></script>
 <script src="js/classes.js"></script>
 <script src="js/touch.js"></script>
 <script>if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(function(){});</script>

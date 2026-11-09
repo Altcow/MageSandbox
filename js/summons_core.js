@@ -165,7 +165,8 @@ function smCaster(u, dt, t) {
     const base = Math.atan2(u.x - t.x, u.z - t.z) + rnd(-1.047, 1.047), r = rnd(S.keep[0], S.keep[1]);
     u.wpX = t.x + Math.sin(base) * r; u.wpZ = t.z + Math.cos(base) * r; u.wpT = 1.5;
   }
-  if ((u.skT <= 0 && d <= S.range && smLOS(u, t)) || d <= SM_MELEE_R) { u.state = 'attack'; smFace(u, dt, t.x, t.z, 10); return; }
+  // 站定只在:技能可放(kind 處理前搖),或貼身且普攻好了(普攻後繼續跑,不會黏在目標身上)
+  if ((u.skT <= 0 && d <= S.range && smLOS(u, t)) || (d <= SM_MELEE_R && u.atkT <= 0)) { u.state = 'attack'; smFace(u, dt, t.x, t.z, 10); return; }
   u.state = 'seek'; smSteer(u, dt, u.wpX, u.wpZ, S.speed, 10);
 }
 // 熾天使:跟隨玩家(距離 > follow 時去玩家身後 2 m);玩家 8 m 內有標靶就去打(只在 range 內攻擊)
@@ -536,7 +537,7 @@ function summonRegenK() {
 }
 // 換職業 / 換場景時呼叫:全部立即移除(含土牆、平台、減速區)
 function clearSummons() {
-  for (const u of SUMMONS.splice(0)) { u.dead = true; smDispose(u); }
+  for (const u of SUMMONS.splice(0)) { try { const k = SUMMON_KINDS[u.el]; if (k && typeof k.onDeath === 'function') k.onDeath(u); } catch (e) { console.warn('[summon] onDeath', e); } u.dead = true; smDispose(u); }
   for (const u of SM_FADING.splice(0)) smDispose(u);
   for (let i = SLABS.length - 1; i >= 0; i--) removePlatform(SLABS[i].plat);
   SLABS.length = 0; smWriteSlabs();

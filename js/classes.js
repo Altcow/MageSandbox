@@ -195,8 +195,9 @@ function syncElBar() { const eb = document.getElementById('elBar'); if (eb) eb.s
 
 /* ---------- 切換職業 ---------- */
 function setClass(c) {
-  if (G.state !== 'ready' || !CLASS_ORDER.includes(c) || c === G.cls) return;
+  if (G.state !== 'ready' || G.down > 0 || !CLASS_ORDER.includes(c) || c === G.cls) return;
   const C = CLASSES[c];
+  sitBreak('class'); if (typeof clearSummons === 'function') clearSummons();
   if (G.stealth) revealStealth('class');   // 切職業顯形,不進入虛弱
   G.cls = c; try { localStorage.setItem('mageSandbox.cls', c); } catch (e) { }
   mage.setWeapon(c === 'mage' ? G.weapon : C.weapons[0]); mage.setRobeColor(C.robe); applyElColors();

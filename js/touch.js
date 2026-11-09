@@ -49,6 +49,7 @@
   const press = (id, fn) => $(id).addEventListener('pointerdown', e => { e.preventDefault(); touchNow(); fn(); });
   press('btnJump', doJump);
   press('btnRoll', tryRoll);
+  press('btnSit', toggleSit);   // 手機:打坐 / 起身
   press('btnMode', toggleChgMode);   // 手機:集氣模式 A / B
   press('btnWeap', () => { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); });   // 集氣中此鈕變「取消」
   // 來襲鈕:短按 = 來襲測試;按住滿 0.6 s = 切換自動來襲
@@ -75,7 +76,7 @@
   ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, e => { if (e.pointerId === cid) cid = null; }));
 
   // ---- 手把 ----
-  let prev = [], padOn = false, minusHold = -1;
+  let prev = [], padOn = false, minusHold = -1, yHold = -1;
   window.inputTick = function (dt) {
     const gps = navigator.getGamepads ? navigator.getGamepads() : [];
     let gp = null; for (const g of gps) if (g && g.connected) { gp = g; break; }
@@ -96,14 +97,14 @@
     if (!b(7) && prev[7] && G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
     if (edge(0)) doJump();                                   // B:跳 / 二段跳
     if (edge(1)) tryRoll();                                  // A:翻滾 / 空中側翻
-    if (edge(2)) strike();                                   // Y:來襲測試
+    if (edge(2)) yHold = 0; if (yHold >= 0 && b(2)) { yHold += dt; if (yHold >= .6) { yHold = -2; toggleAuto(); } } if (prev[2] && !b(2)) { if (yHold >= 0) strike(); yHold = -1; }                                   // Y:短按來襲測試、長按 0.6 s 切換自動來襲
     if (edge(3)) { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); }   // X:換裝;集氣中為取消
     if (edge(4)) cycleSkill(-1);                             // L:上一個法術
     if (edge(5)) cycleSkill(1);                              // R:下一個法術
     if (edge(6)) { if (G.state === 'charging') cancelCharge(); else if (G.state === 'ready') G.skill = -1; }   // ZL:取消集氣 / 取消選法術
     if (edge(8)) minusHold = 0; if (minusHold >= 0 && b(8)) { minusHold += dt; if (minusHold >= .6) { minusHold = -2; nextScene(); } } if (prev[8] && !b(8)) { if (minusHold >= 0) cycleClass(1); minusHold = -1; }                                // −:換場景
     if (edge(9)) document.getElementById('panel').classList.toggle('on');   // +:參數面板
-    if (edge(10)) toggleAuto();                              // 左搖桿按下:自動來襲
+    if (edge(10)) toggleSit();                              // 左搖桿按下:打坐 / 起身
     if (edge(11)) resetCam();                                // 右搖桿按下:鏡頭重置
     if (edge(12)) toggleChgMode();      // 十字上:切換集氣模式
     if (edge(13)) { const ZS = [1, .8, 1.3]; G.zoom = ZS[(ZS.findIndex(z => Math.abs(z - G.zoom) < .01) + 1) % 3]; }     // 十字下:縮放循環 1.0 → 0.8 → 1.3
