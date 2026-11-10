@@ -77,6 +77,7 @@ function playerHurt(n, src) {
   if (G.shield > 0) { const a = Math.min(G.shield, rest); G.shield -= a; rest -= a; if (G.shield <= 0) { G.shield = 0; G.shieldT = 0; } }
   sitBreak('hurt');
   if (rest <= 0) { banner('護盾擋下!', '#ffd27a'); return { blocked: true, dmg: 0, src }; }
+  sfx.play('hurt');
   G.hp = Math.max(uny ? 1 : 0, G.hp - rest);
   if (!uny && !net && !dot) { G.stun = Math.max(G.stun, .6); G.vy = 5; }   // 單人:硬直取大(原為覆寫)、往上彈;DOT 不硬直
   else if (!uny && net && !dot && G.hardImmT <= 0 && G.hitStunCd <= 0) { G.stun = Math.max(G.stun, NET_RULES.hitStun); G.hitStunCd = NET_RULES.hitStunGap; }   // 多人:硬直取大、0.5 s 內只觸發一次、韌性期間不硬直(§1-6)
@@ -128,7 +129,7 @@ function playerCleanse() {
   G.frzT = 0; G.frzAge = 0; G.paraT = 0; G.paraJolt = 0; G.paraNext = 0; G.silT = 0; G.rootT = 0;
   G.blindT = 0; G.slowT = 0; G.slowPct = 0; G.chill = 0; G.chillT = 0; G.burnT = 0; G.poisonT = 0; G.poisonN = 0; G.litT = 0; G.weak = 0;
   G.ccImmT = Math.max(G.ccImmT, ST.cleanseImm);
-  if (typeof zoneSlowAt === 'function') { const p = mage.root.position; if (zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0) { G.slowImmT = 2; c = true; } }
+  if (typeof zoneSlowAt === 'function') { const p = mage.root.position; if (zoneSlowAt(p.x, p.z, p.y, NET_ME).pct > 0) { G.slowImmT = 2; c = true; } }
   return c;
 }
 
@@ -223,7 +224,7 @@ function updateStatusBar() {
   if (G.burnT > 0) ks.push('burn');
   if (G.poisonT > 0 && G.poisonN > 0) ks.push('poison' + G.poisonN);
   if (G.blindT > 0) ks.push('blind');
-  if (G.slowT > 0 || (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0)) ks.push('slow');
+  if (G.slowT > 0 || (typeof zoneSlowAt === 'function' && CFG.slowSelf && !(G.slowImmT > 0) && zoneSlowAt(p.x, p.z, p.y, NET_ME).pct > 0)) ks.push('slow');
   if (G.chill >= 1) ks.push('chill' + G.chill);
   if (G.litT > 0) ks.push('lit');
   if (G.weak > 0) ks.push('weak');

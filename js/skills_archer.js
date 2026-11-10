@@ -12,10 +12,11 @@
 // 遠端重現(P.net 有值):只播視覺,不改本機 G / mage、不扣專注、不對目標下任何效果
 const archRemote = P => P.net != null;
 // 記號:本機施加在目標身上的定身 / 減速 / 照亮時限(遠端角色的 slowT 不在本機寫入,靠這個判斷暴雨加成與衝擊跌倒加成)
+// 他人施加者:遠端角色的快照旗標(remote.js:stE 的 128 減速、lit 照亮)也計入
 function archMark(d, k, t) { d[k] = Math.max(d[k] || 0, G.time + t); }
 function archOn(d, k) { return (d[k] || 0) > G.time; }
-function archSlowed(d) { return d.rootT > 0 || d.slowT > 0 || archOn(d, '_archSl'); }
-function archLit(d) { return d.litT > 0 || archOn(d, '_archLit'); }
+function archSlowed(d) { return d.rootT > 0 || d.slowT > 0 || archOn(d, '_archSl') || ((d.stE | 0) & 128) !== 0; }
+function archLit(d) { return d.litT > 0 || archOn(d, '_archLit') || d.lit === true; }
 // 專注:命中 +6;同一次施放對同一目標只算一次(seen 為該次施放的 Set);遠端重現不加
 function archHitGain(P, d, seen) { if (archRemote(P) || seen.has(d)) return; seen.add(d); gainEnergy(6); }
 // 捕獸夾同時存在的上限與時間

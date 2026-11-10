@@ -127,17 +127,28 @@ function castLeap(P, orb) {
   P.recover = .14 + SW.leapT + cfg.recover;   // 跳躍期間鎖住移動(updatePlayer 的 cast 鎖定)
   if (P.net) { after(SW.leapT, () => burstRing(new V3(P.target.x, P.target.y, P.target.z), E.hex, P.r)); return; }
   const p = mage.root.position;
-  G.leap = { t: 0, x0: p.x, z0: p.z, y0: p.y, x1: P.target.x, z1: P.target.z, P: P, E: E };
+  G.leap = { t: 0, x0: p.x, z0: p.z, y0: p.y, x1: P.target.x, z1: P.target.z, px: p.x, pz: p.z, P: P, E: E };
   burstRing(new V3(p.x, p.y, p.z), E.hex, 1);
 }
 // 每幀(swordTick):拋物線位置;落地(t ≥ leapT)時結算落點範圍
+// 躍擊撞牆:水平落點進入碰撞體或平台側面(判定同 updatePlayer 的推出)就停在撞點(上一個不重疊的點),並立即以撞點結算落地
+function leapBlocked(x, z, y) {
+  for (const c of COLLIDERS) { if (c.ref && c.ref.dead) continue; if (Math.hypot(x - c.x, z - c.z) < c.r + .4) return true; }
+  for (const H of PLATFORMS) {
+    if (platTop(H, x, z) <= y + (H.kind === 'ramp' ? RAMP_UP : STEP_UP) || (H.bottom != null && y + PLAYER_H < H.bottom)) continue;
+    if (platContains(H, x, z, PLAYER_R)) return true;
+  }
+  return false;
+}
 function leapTick(dt) {
   const L = G.leap, p = mage.root.position;
   L.t += dt;
   const u = Math.min(1, L.t / SW.leapT);
-  p.x = L.x0 + (L.x1 - L.x0) * u; p.z = L.z0 + (L.z1 - L.z0) * u;
-  const gy = terrainH(p.x, p.z);
-  p.y = L.y0 + (gy - L.y0) * u + 4 * SW.leapH * u * (1 - u);
+  const nx = L.x0 + (L.x1 - L.x0) * u, nz = L.z0 + (L.z1 - L.z0) * u;
+  const ny = L.y0 + (terrainH(nx, nz) - L.y0) * u + 4 * SW.leapH * u * (1 - u);
+  if (leapBlocked(nx, nz, ny)) { L.x1 = L.px; L.z1 = L.pz; G.leap = null; G.vy = 0; G.ground = false; leapLand(L); return; }
+  L.px = nx; L.pz = nz;
+  p.x = nx; p.z = nz; p.y = ny;
   G.vy = 0; G.ground = false;
   fire.emit(p.x, p.y + .2, p.z, rnd(-.5, .5), rnd(0, .5), rnd(-.5, .5), .3, rnd(.08, .14), L.E.c0, L.E.c1, .9, .3, 0, .5);
   if (u >= 1) { G.leap = null; leapLand(L); }

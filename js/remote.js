@@ -79,10 +79,23 @@ window.packSnap = packSnap;
 window.unpackSnap = unpackSnap;
 
 /* ================= 送出與內插的共用參數 ================= */
-// 2~4 人 10 Hz、5 人以上 8 Hz(§2-2、§9-2)
-const sendHz = () => (Object.keys(REMOTES).length + 1 >= 5 ? 8 : 10);
-// 內插緩衝:10 Hz → 150 ms、8 Hz → 200 ms(§2-2)
-const interpDelay = () => (sendHz() === 8 ? 200 : 150);
+// 送出頻率分級(12 人效能,派工單 C-①):2~4 人固定 10 Hz(維持現況);5 人以上依「離我最近的遠端」距離分級:
+//   < 20 m 10 Hz、20~40 m 5 Hz、> 40 m 2.5 Hz。距離對稱,本端取最近者的頻率即涵蓋所有收端的需要。分級有 2 m 滯後,避免邊界來回切換。
+// 內插緩衝改由各收端依對方的實測送出間隔決定(RemotePlayer.delayMs),不再全域共用。
+const NET_TIER = { near: 20, mid: 40, hyst: 2, hz: [8, 5, 2.5], lodFar: 40, nameFade: [30, 45] };
+let netTierLv = 0;
+function sendHz() {
+  if (Object.keys(REMOTES).length + 1 <= 4) return 10;
+  const me = mage.root.position;
+  let d = Infinity;
+  for (const k in REMOTES) { const rp = REMOTES[k], dd = Math.hypot(rp.px - me.x, rp.pz - me.z); if (dd < d) d = dd; }
+  const edge = [NET_TIER.near, NET_TIER.mid];
+  let lv = netTierLv;
+  while (lv < 2 && d >= edge[lv] + NET_TIER.hyst) lv++;
+  while (lv > 0 && d < edge[lv - 1] - NET_TIER.hyst) lv--;
+  netTierLv = lv;
+  return NET_TIER.hz[lv];
+}
 
 function mixPose(a, b, u) {
   const L = (p, q) => p + (q - p) * u, pick = u < .5 ? a : b;
@@ -161,6 +174,8 @@ class RemotePlayer {
     this.mage.root.position.set(this.px, this.py, this.pz); this.mage.yaw = this.yaw;
     this.g.visible = false; this.shadow.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false;
   }
+  // 內插緩衝 = 1.5 × 對方送出間隔(10 Hz → 150 ms,2.5 Hz → 600 ms)
+  delayMs() { return clamp(Math.round((this._iv || 100) * 1.5), 150, 600); }
   get x() { return this.px; }
   get y() { return this.py; }
   get z() { return this.pz; }
@@ -177,6 +192,7 @@ class RemotePlayer {
     else { const d = (o.n - this.lastN) & 255; if (d === 0 || d >= 128) return; }   // 亂序或重複的舊快照丟棄
     this.lastN = o.n; this.lastRecv = now;
     const prev = this.buf.length ? this.buf[this.buf.length - 1] : null;
+    if (prev) { const dn = (o.n - prev.n) & 255; if (dn > 0 && dn < 64) { const sm = clamp((o.t - prev.t) / dn, 60, 1000); this._iv = this._iv ? this._iv + (sm - this._iv) * .2 : sm; } }   // 對方實測送出間隔(序號差 × 時間差)
     if (prev && prev.tp !== o.tp) this.buf.length = 0;                       // 傳送 / 瞬移:不內插,直接跳過去
     this.buf.push(o);
     if (this.buf.length > 12) this.buf.shift();
@@ -188,7 +204,7 @@ class RemotePlayer {
     const stale = !have || now - this.lastRecv > 3000;
     let p = null;
     if (have) {
-      const rt = now - interpDelay(), L = B.length, last = B[L - 1];
+      const rt = now - this.delayMs(), L = B.length, last = B[L - 1];
       if (rt >= last.t) p = extrapPose(last, L >= 2 ? B[L - 2] : null, Math.min(rt - last.t, 200));
       else if (rt <= B[0].t) p = B[0];
       else { let j = 1; while (B[j].t < rt) j++; const a = B[j - 1], b = B[j]; p = mixPose(a, b, (rt - a.t) / ((b.t - a.t) || 1)); }
@@ -212,7 +228,13 @@ class RemotePlayer {
     this.mage.root.position.set(p.x, p.y, p.z); this.mage.yaw = p.r;
     if (this.cls === 'mage') { const w = p.w ? 'book' : 'staff'; if (this.mage.weapon !== w) this.mage.setWeapon(w, false); }
     this.mage.shieldUp = ((g & 4) || (g & 512)) ? 1 : 0;   // 衝鋒盾(4)或格擋窗(512 GUARD)舉盾
-    this.mage.update(dt, { move: p.m, cast: p.c, kick: p.k, charge: p.q, t: G.time, hover: 0, roll: p.o, rollPhi: p.p, flip: p.f, sit: p.s, down: p.d });
+    // LOD(派工單 C-③):> 40 m 的遠端每 3 格才更新一次動畫(累積 dt)、武器細節隱藏;回到近距離時還原武器
+    const far = Math.hypot(p.x - me.x, p.z - me.z) > NET_TIER.lodFar;
+    this._lodAcc = (this._lodAcc || 0) + dt;
+    this._lodN = ((this._lodN || 0) + 1) % 3;
+    if (!far || this._lodN === 0) { this.mage.update(this._lodAcc, { move: p.m, cast: p.c, kick: p.k, charge: p.q, t: G.time, hover: 0, roll: p.o, rollPhi: p.p, flip: p.f, sit: p.s, down: p.d }); this._lodAcc = 0; }
+    if (far) { const M = this.mage; [M.staff, M.book, M.bow, M.sword, M.shield].concat(M.daggers).forEach(g => { g.visible = false; }); this._wpnHid = true; }
+    else if (this._wpnHid) { this._wpnHid = false; this.mage.setWeapon(this.mage.weapon, true); }
     // 顯示:無敵閃爍、潛行隱藏名牌 / 血條 / 假影
     const blink = inv && Math.floor(now / 120) % 2 === 0;
     this.g.visible = !blink && !hid;
@@ -220,7 +242,9 @@ class RemotePlayer {
     this.nameSpr.position.set(p.x, p.y + 2.6, p.z);
     if (away !== this._away) { this._away = away; this.nameSpr.material.map = away ? this._awayTex() : this.nameTex; this.nameSpr.material.needsUpdate = true; }
     const blindFar = (G.blindT > 0 && mage.root.position.distanceTo(this.nameSpr.position) > 8) || ((fogAt(p.x, p.z) || fogAt(me.x, me.z)) && me.distanceTo(this.nameSpr.position) > 10);   // 致盲:8 m 外隱藏名牌與血條(§3-3);霧中(設計 §4-4):10 m 外同樣隱藏
-    this.nameSpr.visible = vis && !blindFar && camera.position.distanceTo(this.nameSpr.position) < 45;
+    const cd = camera.position.distanceTo(this.nameSpr.position), fa = clamp((NET_TIER.nameFade[1] - cd) / (NET_TIER.nameFade[1] - NET_TIER.nameFade[0]), 0, 1);   // 名牌距離淡出(30→45 m)
+    this.nameSpr.material.opacity = fa;
+    this.nameSpr.visible = vis && !blindFar && fa > 0;
     this.bar.visible = vis && !blindFar;
     this.bar.position.set(p.x, p.y + 2.2, p.z); this.bar.quaternion.copy(camera.quaternion);
     const r = clamp(this.hp / this.max, 0, 1);
@@ -458,7 +482,7 @@ function countdownTick(left) {
     cdEl.style.cssText = 'position:fixed;left:0;right:0;top:34%;text-align:center;font:700 72px sans-serif;color:#ffe3b0;text-shadow:0 0 12px #000;pointer-events:none;z-index:15;display:none';
     document.body.appendChild(cdEl);
   }
-  if (txt !== cdLast) { cdLast = txt; cdEl.textContent = txt; cdEl.style.display = txt ? '' : 'none'; }
+  if (txt !== cdLast) { cdLast = txt; cdEl.textContent = txt; cdEl.style.display = txt ? '' : 'none'; if (txt) sfx.play('count', { go: txt === '開戰!' }); }
 }
 function netTick(dt) {
   if (!window.NETON || !Net.me) return;

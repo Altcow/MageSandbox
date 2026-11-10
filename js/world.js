@@ -254,7 +254,7 @@ function rayTerrain(o, d, tMax) {
 function checkTerrain(zone) {   // zone:平地檢查矩形 [x0, z0, x1, z1](省略 = [-28, -6, 28, 48])
   if (TER.flat) return;
   const w = (m, x, z) => console.warn('[terrain] ' + m + ' @' + x.toFixed(1) + ',' + z.toFixed(1) + ' h=' + terrainH(x, z).toFixed(2));
-  DUMMIES.forEach(d => { if (Math.abs(terrainH(d.home.x, d.home.z)) > .01) w('dummy', d.home.x, d.home.z); });
+  DUMMIES.forEach(d => { if (Math.abs(terrainH(d.home.x, d.home.z)) > .02) w('dummy', d.home.x, d.home.z); });   // 稻草人 home.y 固定 0,地形 ≤ 2 cm 肉眼不可見,門檻放寬到 .02(叢林 (-5.66,5.66) 為 .0149)
   PLATFORMS.forEach(P => { if (P.kind !== 'bridge' && P.kind !== 'ramp' && !P.onHill && !P.tmp && P.bottom == null && Math.abs(terrainH(P.x, P.z)) > .05) w('platform', P.x, P.z); });
   COLLIDERS.forEach(c => { if (c.deco && Math.abs(terrainH(c.x, c.z)) > .3) w('collider', c.x, c.z); });
   const Z = zone || [-28, -6, 28, 48];
@@ -307,7 +307,7 @@ function removeSlowZone(o) { const i = SLOW_ZONES.indexOf(o); if (i >= 0) SLOW_Z
 function zoneSlowAt(x, z, y, ignoreOwner) {   // ignoreOwner:多人時傳 NET_ME,自己的區域不減速自己(§8 #8);單人不傳
   let best = null;
   for (const Z of SLOW_ZONES) {
-    if (ignoreOwner != null && Z.owner === ignoreOwner) continue;
+    if (ignoreOwner != null && Z.owner === ignoreOwner && (Z.noSelf === true || window.NETON)) continue;   // noSelf(煙霧彈):單人也不減速施放者;其餘區域單人照常(slowSelf)
     if (Z.ground === true && y != null && y - terrainH(x, z) > 2.5) continue;   // 地面走廊區:站在高台/土牆頂的單位不受影響
     let inside;
     if (Z.kind === 'circle') inside = Math.hypot(x - Z.x, z - Z.z) <= Z.r;

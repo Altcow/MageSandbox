@@ -51,7 +51,7 @@
     }
     inst(new THREE.CylinderGeometry(.3, .4, 2, 6), mat(0x4a3322, { roughness: 1 }), trunks, false);
     inst(new THREE.ConeGeometry(1, 1, 8), mat(0x1e3a33, { roughness: 1 }), cones, false);
-    const braz = [[-18, -6], [20, -10], [-24, 18], [26, 14], [0, 36], [-20, -24], [24, -28]];
+    const braz = [[-18, -6], [20, -6], [-24, 18], [26, 14], [0, 36], [-14, -24], [24, -30]];
     inst(new THREE.CylinderGeometry(.5, .7, 2.2, 8), mat(0x777c92), braz.map(p => [p[0], terrainH(p[0], p[1]) + 1.1, p[1]]));
     braz.forEach(p => { col(p[0], p[1], .8); BRAZIERS.push({ x: p[0], y: terrainH(p[0], p[1]) + 2.3, z: p[1] }); });
   }
@@ -426,6 +426,7 @@
     applyBloomScene();
     SCORCH.forEach(s => { scene.remove(s.m); s.m.material.dispose(); }); SCORCH.length = 0;
     [...document.querySelectorAll('#sceneBar button')].forEach((b, k) => b.classList.toggle('on', k === i));
+    sfx.setScene(i);
     try { localStorage.setItem('mageSandbox.scene', i); } catch (e) { }
     if (window.banner && window.G) window.banner(S.name, '#ffe3b0');
   }

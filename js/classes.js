@@ -161,9 +161,20 @@ function skillBlocked(s) {
   return s.id === 'unyield' && G.cr < 50;
 }
 // 架勢切換(非法師;Tab / 手把 X / 手機換裝鈕):只在 ready 生效,冷卻 0.8 s;切換後 1.5 s 內第一招集氣加速(chargeTimeEff 讀 stanceBoostT)
+// 架勢取消僵直(設計 C-6,派工單④):劍士 / 刺客出招後僵直剩餘 > 0.15 s、已出手,切架勢 → 取消剩餘僵直,花 SP 5;仍受架勢冷卻 0.8 s
+const STANCE_CANCEL = { cls: ['swordsman', 'assassin'], minLeft: .15, sp: 5 };
+function stanceCancelRecover() {
+  const P = G.pending, left = P ? P.recover - G.castT : 0;
+  if (!STANCE_CANCEL.cls.includes(G.cls) || !G.launched || left <= STANCE_CANCEL.minLeft) return false;
+  if (!resUse('sp', STANCE_CANCEL.sp)) return false;
+  G.state = 'ready'; G.pending = null; G.castT = 0;
+  return true;
+}
 function toggleStance() {
   const C = CLASSES[G.cls];
-  if (G.cls === 'mage' || !C.stances || G.state !== 'ready' || G.stanceCd > 0) return;
+  if (G.cls === 'mage' || !C.stances || G.stanceCd > 0) return;
+  if (G.state === 'cast') { if (!stanceCancelRecover()) return; }
+  else if (G.state !== 'ready') return;
   G.stance = (G.stance + 1) % C.stances.length; G.stanceCd = .8; G.stanceBoostT = 1.5;
   refreshHotbar();
   const E = auraEl(), st = C.stances[G.stance];
@@ -220,7 +231,7 @@ function classTick(dt) {
   if (G.cls === 'assassin') assassinTick(dt);   // 連擊點流失、暗影步背後計時(skills_assassin.js)
   if (G.dash) dashTick(dt, p);
   if (G.spin) spinTick(dt, p);
-  G.spdK = (G.spin ? .5 : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (G.rootT > 0 ? 0 : 1) * (G.paraT > 0 ? ST.paraSpd : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct : 1) * (G.slowT > 0 ? 1 - G.slowPct : 1) * stanceK();   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
+  G.spdK = (G.spin ? .5 : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (G.rootT > 0 ? 0 : 1) * (G.paraT > 0 ? ST.paraSpd : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z, p.y, NET_ME).pct : 1) * (G.slowT > 0 ? 1 - G.slowPct : 1) * stanceK() * (G.perfT > 0 ? PERF.spdK : 1);   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
   if (G.state !== 'charging') AURA.full = false;
   else if (G.charge >= 1 && !AURA.full) { AURA.full = true; auraGather(); }   // 聚能收束:集氣滿時環繞粒子飛向武器尖端
   if (G.stealth || (G.dash && G.dash.kind === 'charge')) auraSpark(dt, p, E);

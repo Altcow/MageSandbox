@@ -83,6 +83,7 @@ function netReplayCast(seat, m) {
   const sk = netSkill(cls, el, m.ix | 0);
   const target = vIn(m.T);
   if (!sk || !target || typeof m.sd !== 'number' || sk.netSilent) return;
+  sfx.play('cast', { cls, el, d: Math.hypot(rp.px - mage.root.position.x, rp.pz - mage.root.position.z) });
   const sp = netSpell(cls, el, m.ix | 0) || {};
   if (sk.netFx) { netFxPlay(sk.netFx, rp, sp, m); return; }   // 位移招式:只播簡化特效,不呼叫原函式(§2-9)
   const aura = auraOf(cls, el), tip = vIn(m.tip) || rp.g.position.clone();
@@ -171,7 +172,7 @@ function netApplyHit(from, m) {
   else if (typeof parryOn === 'function' && parryOn(from, rt)) blk = 'parry';   // 格擋否決(skills_sword.js,寫手 B 實作)
   else if (shieldOn()) blk = 'shield';
   if (blk) {
-    if (blk === 'dodge') banner('閃避!', '#8fe8ff'); else banner(blk === 'parry' ? '格擋!' : '盾擋!', '#ffd27a');
+    if (blk === 'dodge') { if (!perfectDodge()) banner('閃避!', '#8fe8ff'); } else banner(blk === 'parry' ? '格擋!' : '盾擋!', '#ffd27a');   // 翻滾窗內的閃避 = 完美閃避(game.js)
     Net.emitEv({ t: 'dmg', by: from, n: 0, b: 0, blk: blk });
     if (blk === 'parry' && typeof onParry === 'function') onParry(from);   // 擋下後的反擊(skills_sword.js)
     return;
@@ -188,7 +189,7 @@ function netApplyHit(from, m) {
   if (!full && G.state === 'charging' && (sum >= NET_RULES.cancelDmg || fx.st || fx.dn)) cancelCharge();   // §8 #5
   if (dealt > 0) { const f = document.getElementById('flash'); if (f) { f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); } }
   if (!full) hitFx(new V3(p.x, p.y + 1, p.z), 10);
-  if (dealt > 0) addDmgText(new V3(p.x, p.y + 2.2, p.z), '-' + Math.round(dealt), '#ff6b6b');
+  if (dealt > 0) { addDmgText(new V3(p.x, p.y + 2.2, p.z), '-' + Math.round(dealt), '#ff6b6b'); const ar = REMOTES[String(from)]; if (ar) showHurtDir(ar.px, ar.pz); }   // 受擊方向指向攻擊者(game.js showHurtDir)
   else if (full) addDmgText(new V3(p.x, p.y + 2.2, p.z), '護盾', '#ffd27a');
   if (sum > 0) Net.emitEv({ t: 'dmg', by: from, n: Math.round(dealt * 10) / 10, b: Math.round(absorbed * 10) / 10, blk: full ? 'shield' : 0 });
 }
@@ -223,7 +224,7 @@ function netCombatTick(dt) {
 function netSendHit(rp, p, now) {
   // 來源標記(N7):h 第 6 欄為召喚物名;整則都來自召喚物時 k 記召喚物名(擊殺訊息用),sm:1 表示含召喚物傷害
   const smK = p.h.length && p.h.every(x => x[5]) ? p.h[p.h.length - 1][5] : null;
-  Net.emitEv({ t: 'hit', to: rp.seat, hq: ++netHitSeq, rt: Math.round(now - interpDelay()), k: smK || netLastK, sm: p.h.some(x => x[5]) ? 1 : 0, h: p.h, fx: p.fx });
+  Net.emitEv({ t: 'hit', to: rp.seat, hq: ++netHitSeq, rt: Math.round(now - rp.delayMs()), k: smK || netLastK, sm: p.h.some(x => x[5]) ? 1 : 0, h: p.h, fx: p.fx });
 }
 
 // 受害者回報的傷害數字:所有看得到對方的人都在對方頭上顯示(自己的數字由 netApplyHit 直接顯示)
@@ -235,6 +236,7 @@ function netShowDmg(seat, d) {
   else if (d.blk === 'dodge') addDmgText(pos, '閃避', '#8fe8ff');
   else if (d.blk === 'shield') addDmgText(pos, '護盾', '#ffd27a');
   else if (+d.n > 0) addDmgText(pos, '-' + Math.round(+d.n), '#ffd35a');
+  if (+d.n > 0) sfx.play('hit', { d: Math.hypot(rp.px - mage.root.position.x, rp.pz - mage.root.position.z) });
 }
 
 // 倒下(本機):送 down 事件、房主計分、本機也顯示擊殺訊息。by 為 8 s 內最後攻擊者,否則 0(無人得分)
@@ -316,6 +318,7 @@ function netKillMsg(by, victim, k) {
   const txt = !by ? vn + ' 倒下了' : Net.nameOf(by) + (k ? ' 以 ' + k : '') + ' 擊倒 ' + vn;
   const col = victim === me ? '#ff8a8a' : (by === me ? '#b8f08a' : '#ffe3b0');
   netKillAdd(txt, col);
+  sfx.play('kill');
 }
 // 6 人以內全部列出;7 人以上列前 5 名加自己(§5-2)。內容只在變動時重建
 function netBoardTick(now) {
@@ -412,7 +415,7 @@ function netResult(mode) {
   if (mode == null) { if (netResEl && netResEl.style.display !== 'none') { netResEl.style.display = 'none'; netResKey = ''; } return; }
   if (!netResEl) netResEl = netUiBox('netResult', 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,10,24,.82);z-index:40;font:15px sans-serif;color:#ffe3b0');
   const key = (Net.isHost ? 'h' : 'g') + mode;
-  if (key !== netResKey) { netResKey = key; netFillResult(mode); }
+  if (key !== netResKey) { netResKey = key; netFillResult(mode); if (mode) sfx.play('result'); }
   netResEl.style.display = 'flex';
 }
 function netCell(t, head, me) {

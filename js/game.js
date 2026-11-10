@@ -33,6 +33,7 @@ const DEFAULT_CFG = {
     eviscerate: { chargeTime: 0.5, range: 1.2, rMin: 1.2, rMax: 1.6, recover: 0.35 },
     decoy: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.15 }
   },
+  sfx: { on: true, music: false, vol: .6, mvol: .4 },   // 音效 / 音樂(sfx.js):音效開關、音樂開關、音量 0~1
   res: { infinite: false, mpRegen: 6, spRegen: 15, mpDelay: 1.5, spDelay: 1.0, sitMp: 4, sitSp: 3, runCost: 12, airJump: 20, roll: 20, airRoll: 15, reviveHP: 100, downTime: 3 }   // 資源系統(resources.js),隨 CFG 存 localStorage
 };
 const CFG = JSON.parse(JSON.stringify(DEFAULT_CFG));
@@ -160,6 +161,7 @@ function setupComposer() {
 }
 setupComposer();
 const aimCam = camera.clone();   // 瞄準用相機(不加震動、不進 scene;updateCamera 每格同步姿態)
+const CAM_FOV0 = camera.fov, ADS_FOV_K = .12;   // 基準 FOV(world.js 58)與弓箭手集氣滿時縮小比例(派工單未給數字,待確認)
 function onResize() {
   renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); aimCam.aspect = camera.aspect; aimCam.updateProjectionMatrix();
   if (composer) { composer.setSize(innerWidth, innerHeight); }
@@ -205,8 +207,8 @@ const fromTouch = () => performance.now() - G.lastTouch < 800;  // 觸控後瀏�
 function doJump() {
   if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0 || G.rootT > 0) return;   // 定身中不能跳(狀態效果文件 §1-2 #4)
   if (G.sitting) sitBreak('jump');
-  if (G.ground || G.coyote > 0) { G.vy = CFG.jumpV; G.ground = false; G.coyote = 0; return; }
-  if (G.airJumps > 0) { if (!resUse('sp', CFG.res.airJump)) return; G.airJumps = 0; G.vy = CFG.airJumpV; G.flip = 0; airStepFx(mage.root.position); return; }
+  if (G.ground || G.coyote > 0) { sfx.play('jump'); G.vy = CFG.jumpV; G.ground = false; G.coyote = 0; return; }
+  if (G.airJumps > 0) { if (!resUse('sp', CFG.res.airJump)) return; sfx.play('jump'); G.airJumps = 0; G.vy = CFG.airJumpV; G.flip = 0; airStepFx(mage.root.position); return; }
   G.jumpBuf = 0.12;
 }
 function moveInput() {
@@ -356,11 +358,30 @@ function tryRoll() {
   if (air) { G.airRolls = 0; G.vy = 0; }
   { const ch = G.time - (G.rollAt || -9) < 1.6 ? Math.min(3, (G.rollChain | 0) + 1) : 0; G.rollChain = ch; G.rollAt = G.time; G.rollWinK = [1, .6, .35, .2][ch]; }   // 連續翻滾:閃避窗逐次縮短(防狂翻滾)
   G.roll = { t: 0, dx, dz, phi: angDiff(mage.yaw, Math.atan2(dx, dz)), dist: air ? CFG.airRollDist : CFG.rollDist, time: air ? CFG.airRollTime : CFG.rollTime, air, dance: !air && danceOn() };
+  sfx.play('roll');
   if (G.roll.dance) G.danceT = .8;   // 影舞翻滾:0.8 s 內的下一刀(背刺 / 割喉)×1.2(skills.js / skills_assassin.js)
   if (!G.stealth) for (let i = 0; i < 6; i++) smoke.emit(p.x + rnd(-.3, .3), p.y + .15, p.z + rnd(-.3, .3), rnd(-1, 1), rnd(.3, 1), rnd(-1, 1), rnd(.5, .9), rnd(.8, 1.4), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5);
 }
 function banner(txt, color) {
+  sfx.play('banner', { txt });
   const b = document.getElementById('banner'); b.textContent = txt; b.style.color = color; b.style.opacity = 1; b._t = 1.2;
+}
+// 完美閃避(設計_縮範圍與第一人稱 C-3,派工單①):翻滾無敵窗內閃掉來襲 → SP 回復、0.3 s 小幅加速、橫幅;同一次翻滾只給一次獎勵
+// 數值為派工單指定(設計文件為 SP 10 與下一招集氣 ×1.3 速 1.5 s,待確認)
+const PERF = { sp: 8, t: .3, spdK: 1.15 };
+function perfectDodge() {
+  if (!G.roll || G.invulnT > 0) return false;   // 只認翻滾窗;復活無敵不算
+  if (G.roll.pd) return true;
+  G.roll.pd = true; G.perfT = PERF.t; G.sp = Math.min(G.spMax, G.sp + PERF.sp);
+  banner('完美閃避!', '#ffe27a'); return true;
+}
+// 受擊方向(設計 C-9,派工單②):來源座標換算成相對視線的角度(0° = 正前、順時針),#hurtDir 旋轉後顯示一道紅弧
+function showHurtDir(x, z) {
+  const p = mage.root.position, dx = x - p.x, dz = z - p.z, s = Math.sin(G.camYaw), c = Math.cos(G.camYaw);
+  const el = document.getElementById('hurtDir'); if (!el || (dx === 0 && dz === 0)) return;
+  const fwd = -s * dx - c * dz, rgt = c * dx - s * dz;   // 視線前方 (-sin, -cos)、右方 (cos, -sin)
+  el.style.setProperty('--hd', (Math.atan2(rgt, fwd) * 180 / Math.PI).toFixed(1) + 'deg');
+  el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
 }
 function strike() {
   if (window.NETON) return;   // 多人:來襲是本機測試用,會直接扣自己血、不經過攻擊者判定,對戰中停用(T / Y / 來襲鈕 / 手把 Y)
@@ -373,7 +394,7 @@ function strike() {
     if (typeof summonsHitArea === 'function') summonsHitArea(pos, R, 30);   // 召喚物也會被來襲打到
     const q = mage.root.position, inside = Math.hypot(q.x - pos.x, q.z - pos.z) < R && Math.abs(q.y - pos.y) < 3;
     if (inside && q.y - pos.y >= 1.2) { G.dodged++; banner('跳躍閃避!', '#8fe8ff'); }
-    else if (inside && G.invuln) { G.dodged++; banner('翻滾閃避!', '#8fe8ff'); }
+    else if (inside && G.invuln) { G.dodged++; if (!perfectDodge()) banner('翻滾閃避!', '#8fe8ff'); }
     else if (inside && (G.invulnT > 0 || G.down > 0)) { G.dodged++; if (G.invulnT > 0) banner('復活無敵!', '#8fe8ff'); }
     else if (inside && typeof swParryStrike === 'function' && swParryStrike(pos.x, pos.z)) { G.dodged++; banner('格擋!', '#ffd27a'); }   // 劍士格擋窗(skills_sword.js)
     else if (inside && shieldOn()) { G.dodged++; banner('盾擋!', '#ffd27a'); }
@@ -381,7 +402,7 @@ function strike() {
     else {
       if (G.stealth) revealStealth('hit');   // 潛行中被紅圈炸到:顯形
       G.hits++;
-      if (!playerHurt(30 * swHitK(q.x - pos.x, q.z - pos.z), 'strike').blocked) { /* 盾勢正面 ×0.7(swHitK) */ const f = document.getElementById('flash'); f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); }
+      if (!playerHurt(30 * swHitK(q.x - pos.x, q.z - pos.z), 'strike').blocked) { /* 盾勢正面 ×0.7(swHitK) */ const f = document.getElementById('flash'); f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); showHurtDir(pos.x, pos.z); }
       if (G.state === 'charging') cancelCharge();
     }
     return false;
@@ -455,6 +476,7 @@ function startCharge() {
   { const c = skillCost(G.skill); if (!resCan(c.kind, costAt(c.base, 0))) { resDeny(c.kind); return; } }   // MP / SP 不夠 → 不進入集氣
   if (G.sitting) sitBreak('cast');
   G.state = 'charging'; G.chargeT = 0; G.charge = 0; G.queued = false; G.maxFlash = false; G.halfFlash = false;
+  sfx.loop('charge', true);
   { const p = mage.root.position, x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z); }
   G.orb = makeOrb(auraEl()); scene.add(G.orb);
 }
@@ -473,6 +495,7 @@ function castInstant(i) {
 }
 function cancelCharge() {
   if (G.state !== 'charging') return;
+  sfx.loop('charge', false);
   dissolveOrb(G.orb, auraEl()); G.orb = null; G.state = 'ready'; G.chargeT = 0; G.queued = false;
   document.getElementById('chant').style.opacity = 0;
 }
@@ -487,6 +510,7 @@ function dissolveOrb(orb, E) {
 function release() {
   const cs = skillCost(G.skill);
   if (!resUse(cs.kind, costAt(cs.base, G.charge))) { cancelCharge(); return; }   // 花費在施放當下扣(chargeCap 已保證夠)
+  sfx.loop('charge', false); sfx.play('cast', { cls: G.cls, el: G.el });
   if (G.stealth && G.stealth.shadow) revealStealth('cast');   // 影遁中出招即解除(skills_assassin.js 影分身)
   const sk = curSkill(G.skill), sp = spellOf(G.skill), p = mage.root.position, q = G.charge, mode = curMode();
   const dir = Math.atan2(G.target.x - p.x, G.target.z - p.z), sizeK = CHG.size(q, mode);
@@ -750,7 +774,7 @@ function damageArea(pos, R, dmg, burn, el) {
     if (d.dead) continue;
     if (Math.abs(pos.y - d.y) > R + 1.5) continue;   // 標靶高度用目前的 y(可能被擊飛到空中)
     const dx = d.x - pos.x, dz = d.z - pos.z, dist = Math.hypot(dx, dz);
-    if (dist < R + .2) d.hit(dmg * (1 - clamp(dist / (R + .2), 0, 1) * .7) * rnd(.9, 1.1), dx, dz, burn, el);
+    if (dist < R + .2) { d.hit(dmg * (1 - clamp(dist / (R + .2), 0, 1) * .7) * rnd(.9, 1.1), dx, dz, burn, el); if (dmg > 0) sfx.play(d.dead ? 'kill' : 'hit'); }
   }
 }
 
@@ -986,6 +1010,9 @@ function updateCamera(dt) {
   let liftT = 0;
   if (!lk && sampleK(...camAt(G.camPitch)) < .7) for (const dp of [.25, .5]) { const pit = Math.min(G.camPitch + dp, CAM_PITCH_MAX); if (sampleK(...camAt(pit)) >= .85) { liftT = pit - G.camPitch; break; } }
   G.camLift = damp(G.camLift, liftT, 4, dt);
+  // 弓箭手集氣:FOV 隨 q 微縮(設計 C-5,派工單③);aimCam 維持基準 FOV,瞄準不變;放箭後 q 歸零即恢復
+  G.adsK = damp(G.adsK || 0, G.state === 'charging' && G.cls === 'archer' ? G.charge : 0, 6, dt);
+  camera.fov = CAM_FOV0 * (1 - ADS_FOV_K * G.adsK); camera.updateProjectionMatrix();
   let [cx, cy, cz] = camAt(G.camPitch + G.camLift);
   const k = sampleK(cx, cy, cz);
   G.camK = k < G.camK ? k : damp(G.camK, k, 3, dt);   // 被擋時立刻拉近、離開後慢慢退回
@@ -1069,7 +1096,7 @@ function updateHUD() {
   t += '<br>' + (G.ground ? '跳躍 ● ●' : (G.airJumps > 0 ? '空中步 ●' : '空中步 ○')) + ' ・ 高度 ' + mage.root.position.y.toFixed(1) + 'm';
   t += '<br>閃避 ' + G.dodged + ' ・ 被擊中 ' + G.hits + (G.autoStrike ? ' ・ 自動來襲 ON' : '');
   t += '<br>HP ' + Math.ceil(G.hp) + '/' + G.hpMax + (G.shield > 0 ? ' ・ 護盾 ' + Math.ceil(G.shield) : '') + (G.downs ? ' ・ 倒下 ' + G.downs : '');
-  { const zs = CFG.slowSelf && !(G.slowImmT > 0) ? zoneSlowAt(mage.root.position.x, mage.root.position.z, undefined, window.NETON ? NET_ME : undefined).pct : 0; if (zs > 0) t += '<br>減速 ' + Math.round(zs * 100) + '%'; }
+  { const zs = CFG.slowSelf && !(G.slowImmT > 0) ? zoneSlowAt(mage.root.position.x, mage.root.position.z, undefined, NET_ME).pct : 0; if (zs > 0) t += '<br>減速 ' + Math.round(zs * 100) + '%'; }
   t += classInfo();
   if (infoEl._t !== t) { infoEl.innerHTML = t; infoEl._t = t; }
   { const showI = window.NETON ? CFG.showInfoNet : CFG.showInfo; if (infoEl._off !== !showI) { infoEl._off = !showI; infoEl.classList.toggle('off', !showI); const hb = document.getElementById('hint'); if (hb && window.NETON) hb.style.display = showI ? '' : 'none'; else if (hb && hb.style.display) hb.style.display = ''; }
@@ -1095,7 +1122,8 @@ const PANEL = [
   ['牆類(火牆等)'], ['skills.firewall.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.firewall.range', '最大射程', 8, 45, 1], ['skills.firewall.rMin', '最短長度', 2, 10, .5], ['skills.firewall.rMax', '最長長度', 6, 30, .5], ['skills.firewall.thick', '牆厚度', .5, 4, .1], ['skills.firewall.duration', '持續時間(秒)', 2, 20, .5], ['skills.firewall.recover', '施法後僵直(秒)', 0, 2, .05],
   ['大招類(隕石等)'], ['skills.meteor.chargeTime', '集氣時間(秒)', .3, 5, .1], ['skills.meteor.range', '最大射程', 8, 50, 1], ['skills.meteor.rMin', '最小半徑', 2, 10, .5], ['skills.meteor.rMax', '最大半徑', 4, 20, .5], ['skills.meteor.recover', '施法後僵直(秒)', 0, 3, .05],
   ['召喚類(第 4 格)'], ['skills.summon.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.summon.range', '射程', 4, 30, 1], ['skills.summon.recover', '施法後僵直(秒)', 0, 2, .05],
-  ['資源(測試 / 手感)'], ['res.infinite', '無限資源', 'bool'], ['res.mpRegen', 'MP 自然恢復 / 秒', 0, 30, 1], ['res.spRegen', 'SP 自然恢復 / 秒', 0, 60, 1], ['res.sitMp', '打坐 MP 倍率', 1, 10, .5], ['res.sitSp', '打坐 SP 倍率', 1, 10, .5], ['res.runCost', '跑步 SP 消耗 / 秒', 0, 40, 1]
+  ['資源(測試 / 手感)'], ['res.infinite', '無限資源', 'bool'], ['res.mpRegen', 'MP 自然恢復 / 秒', 0, 30, 1], ['res.spRegen', 'SP 自然恢復 / 秒', 0, 60, 1], ['res.sitMp', '打坐 MP 倍率', 1, 10, .5], ['res.sitSp', '打坐 SP 倍率', 1, 10, .5], ['res.runCost', '跑步 SP 消耗 / 秒', 0, 40, 1],
+  ['音效與音樂'], ['sfx.on', '音效', 'bool'], ['sfx.vol', '音效音量', 0, 1, .05], ['sfx.music', '音樂(場地氛圍)', 'bool'], ['sfx.mvol', '音樂音量', 0, 1, .05]
 ];
 function getPath(o, p) { return p.split('.').reduce((a, k) => a[k], o); }
 function setPath(o, p, v) { const ks = p.split('.'), l = ks.pop(); ks.reduce((a, k) => a[k], o)[l] = v; }
@@ -1105,10 +1133,10 @@ function buildPanel() {
     if (r.length === 1) { const h = document.createElement('h4'); h.textContent = r[0]; root.appendChild(h); return; }
     const row = document.createElement('div'); row.className = 'row'; const lab = document.createElement('label'); lab.textContent = r[1]; row.appendChild(lab);
     const inp = document.createElement('input'), val = document.createElement('span');
-    if (r[2] === 'bool') { inp.type = 'checkbox'; inp.checked = !!getPath(CFG, r[0]); inp.onchange = () => { setPath(CFG, r[0], inp.checked); saveCfg(); if (r[0] === 'camLock' && !inp.checked && isLocked()) document.exitPointerLock(); }; row.appendChild(inp); }
+    if (r[2] === 'bool') { inp.type = 'checkbox'; inp.checked = !!getPath(CFG, r[0]); inp.onchange = () => { setPath(CFG, r[0], inp.checked); saveCfg(); if (r[0] === 'camLock' && !inp.checked && isLocked()) document.exitPointerLock(); sfx.sync(); }; row.appendChild(inp); }
     else {
       inp.type = 'range'; inp.min = r[2]; inp.max = r[3]; inp.step = r[4]; inp.value = getPath(CFG, r[0]); val.textContent = inp.value;
-      inp.oninput = () => { const v = parseFloat(inp.value); setPath(CFG, r[0], v); val.textContent = v; if (r[0] === 'bloomStrength' && bloom) bloom.strength = v; saveCfgSoon(); };
+      inp.oninput = () => { const v = parseFloat(inp.value); setPath(CFG, r[0], v); val.textContent = v; if (r[0] === 'bloomStrength' && bloom) bloom.strength = v; saveCfgSoon(); sfx.sync(); };
       row.appendChild(inp); row.appendChild(val);
     }
     root.appendChild(row);
@@ -1130,6 +1158,7 @@ function frame(now) {
   G.px0 = mage.root.position.x; G.pz0 = mage.root.position.z; G.py0 = mage.root.position.y;
   if (window.NETON) netPlayerTick(dt);   // 多人:擊退、撞牆跌倒、無敵紀錄(netcombat.js,在 updatePlayer 之前)
   stTick(dt);                            // 狀態效果計時與 DOT(status.js,單人也跑)
+  if (G.perfT > 0) G.perfT = Math.max(0, G.perfT - dt);   // 完美閃避加速計時(perfectDodge / classTick 的 spdK)
   classTick(dt); resTick(dt); updatePlayer(dt); if (window.sceneTick) sceneTick(dt); updateAim(dt); updateCasting(dt);
   mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK });
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);

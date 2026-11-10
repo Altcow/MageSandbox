@@ -63,7 +63,7 @@ function castShadowStep(P, orb) {
 function castSmoke(P, orb) {
   const E = casterAura(P), cx = P.target.x, cz = P.target.z, R = P.r, T = 5 * P.durK, cy = P.target.y;
   if (orb) dissolveOrb(orb, E);
-  const zone = addSlowZone({ kind: 'circle', x: cx, z: cz, r: R, pct: .25, hex: E.hex, fx: { blind: 1 } });
+  const zone = addSlowZone({ kind: 'circle', x: cx, z: cz, r: R, pct: .25, hex: E.hex, fx: { blind: 1 }, noSelf: true });
   SMOKES.push(zone);
   const disc = new THREE.Mesh(new THREE.CircleGeometry(R, 28), new THREE.MeshBasicMaterial({ color: 0x3a2a4a, transparent: true, opacity: .5, depthWrite: false }));
   disc.rotation.x = -Math.PI / 2; disc.position.set(cx, surfaceY(cx, cz, cy + 1) + .1, cz); scene.add(disc);

@@ -216,7 +216,7 @@ function stFlags() {
   if (G.chill >= 1) f |= 32;
   if (G.blindT > 0) f |= 64;
   const p = mage.root.position;
-  const zone = CFG.slowSelf && typeof zoneSlowAt === 'function' && zoneSlowAt(p.x, p.z, p.y, window.NETON ? NET_ME : undefined).pct > 0;
+  const zone = CFG.slowSelf && typeof zoneSlowAt === 'function' && zoneSlowAt(p.x, p.z, p.y, NET_ME).pct > 0;
   if ((G.slowT > 0 && G.slowPct > 0) || zone) f |= 128;
   return f;
 }
@@ -288,6 +288,12 @@ function stSelfFx(code, flags, host) {
   const sil = !!host.sil;
   if (STV.silOn !== sil) { STV.silOn = sil; if (typeof slots !== 'undefined') slots.forEach(el => el.classList.toggle('sil', sil)); }
 }
+// 麻痺抖動:本機 mage / 遠端 RemotePlayer.mage 的頭部 ±0.03 m render offset;稻草人沒有 mage,略過
+function stJit(host, on) {
+  const M = host.self ? mage : host.mage;
+  if (!M || !M.head) return;
+  M.head.position.x = on ? rnd(-.03, .03) : 0; M.head.position.z = on ? rnd(-.03, .03) : 0;
+}
 function stVis(host, code, flags, dt) {
   const s = stHost(host), px = host.x, py = host.y, pz = host.z, mob = IS_TOUCH, t = dt > 0 ? dt : 0, sh = stShared(), yaw = host.yaw || 0;
   // 頭上圖示(1 個 Sprite,y + 3.0)
@@ -349,6 +355,7 @@ function stVis(host, code, flags, dt) {
   });
   stRate(s, 'pa', code === 4 ? (mob ? 5 : 10) : 0, t, () =>   // 麻痺:金白電火花
     fire.emit(px + rnd(-.5, .5), py + rnd(1.2, 2.2), pz + rnd(-.5, .5), rnd(-1, 1), rnd(-1, 1), rnd(-1, 1), .3, rnd(.08, .14), [1, 1, .7], [1, .85, .2], 1, 1, 0, 0));
+  if (code === 4 || s.jit) { stJit(host, code === 4); s.jit = code === 4; }
   s.code = code;
   if (host.self) stSelfFx(code, flags, host);
 }
@@ -357,6 +364,7 @@ function stVisHide(host) {
   const s = host.stV; if (!s) return;
   s.objs.forEach(o => { o.visible = false; });
   s.ringT = 0; s.acc = {}; s.code = 0;
+  if (s.jit) { stJit(host, false); s.jit = false; }
 }
 // 移出場景並釋放獨有材質(RemotePlayer.destroy 用);共用幾何 / 材質不釋放
 function stVisDispose(host) {

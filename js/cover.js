@@ -46,6 +46,14 @@
   }
 
   const root = $('cvRoot');
+  /* 音效 / 音樂開關(設定區,存 CFG.sfx;預設音效開、音樂關;首次互動後才啟動 AudioContext) */
+  const sfxBar = mk('div'); sfxBar.style.cssText = 'position:absolute;right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));z-index:6;display:flex;gap:8px';
+  const sfxBtn = (label, key) => {
+    const b = mk('button', 'cv-btn cv-small cv-ghost'), paint = () => { const on = !!CFG.sfx[key]; b.textContent = label + (on ? ' 開' : ' 關'); b.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    b.type = 'button'; b.onclick = () => { CFG.sfx[key] = !CFG.sfx[key]; saveCfg(); sfx.sync(); paint(); }; paint(); sfxBar.appendChild(b);
+  };
+  sfxBtn('音效', 'on'); sfxBtn('音樂', 'music');
+  root.appendChild(sfxBar);
   const st = {
     view: 'title', cls: 'mage', el: (window.G && G.el) || 'fire', ready: false, room: null, isHost: false, myId: null,
     max: 6, hasPassword: false, sceneIdx: 1, players: [], link: '', createScene: 1, createMax: 6, createPw: false
@@ -82,13 +90,15 @@
   }
 
   /* 封面 3D 背景迴圈:鏡頭緩慢環繞角色 */
-  let coverOn = false, raf = 0, lastT = 0;
+  let coverOn = false, raf = 0, lastT = 0, fxDt = 0;
   function loop(t) {
     if (!coverOn) return;
     const dt = Math.min(0.05, Math.max(0, (t - lastT) / 1000)); lastT = t;
-    G.camYaw += dt * (RM ? 0.04 : 0.12);
-    G.camPitch = 0.24; G.zoom = 1.35; G.skill = -1;
-    drawFx(t, dt);
+    if (CoverBG.isActive()) CoverBG.update(t, dt);
+    else { G.camYaw += dt * (RM ? 0.04 : 0.12); G.camPitch = 0.24; G.zoom = 1.35; }   // 3D 背景失敗時沿用舊的鏡頭行為
+    G.skill = -1;
+    fxDt += dt;
+    if (!IS_TOUCH || fxDt >= 1 / 30) { drawFx(t, fxDt); fxDt = 0; }   // 手機 2D 粒子降到 30 Hz
     raf = requestAnimationFrame(loop);
   }
   function startCover() {
@@ -96,6 +106,8 @@
     coverOn = true; window.COVER_ON = true;
     if (typeof DUMMIES !== 'undefined') DUMMIES.forEach(d => { d.g.visible = false; if (d.bar) d.bar.visible = false; });   // 封面背景不要稻草人
     root.classList.remove('gone');
+    try { CoverBG.start(); root.classList.remove('sc-night'); }
+    catch (e) { console.warn('封面 3D 背景載入失敗,改用縮圖備援', e); root.classList.add('sc-night'); }   // 備援:沿用場地縮圖的夜色漸層
     sizeFx(); lastT = performance.now(); raf = requestAnimationFrame(loop);
   }
   function stopCover() {
@@ -103,6 +115,7 @@
     window.COVER_ON = false;
     document.body.classList.remove('cover');
     root.classList.add('gone');
+    CoverBG.stop();
     if (G.skill < 0) G.skill = G.lastSkill || 0;
     resetCam();
   }
@@ -354,7 +367,7 @@
   /* 開場 */
   renderCreate();
   renderSelect();
-  setScene(1, true);
+  // 封面背景由 cover_bg.js 負責,不再呼叫 setScene 重建關卡
   startCover();
   if (roomQ) { setView('join'); openJoin(roomQ); } else setView('title');
   // 離開房間回封面(N6):Net.leave 會清掉 REMOTES / 稻草人 / NETON(remote.js),這裡再回到封面畫面
