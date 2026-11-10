@@ -306,6 +306,29 @@ body:not(.touch) #hint{top:104px}
 #info.off{display:none}
 #locTag{position:fixed;right:10px;top:8px;font-size:11px;line-height:1.4;color:#dfe6ff;background:rgba(10,12,30,.3);padding:3px 8px;border-radius:6px;opacity:.7;pointer-events:none;text-align:right;z-index:3}
 body.cover #locTag{display:none}
+body.touch #locTag{right:auto;left:calc(176px + env(safe-area-inset-left));top:6px;font-size:10px;padding:2px 6px}
+body.touch #stBar{bottom:auto;top:34px;left:calc(12px + env(safe-area-inset-left))}
+body.touch #stBar img{width:20px;height:20px}
+/* 手機精簡:按鈕縮小靠邊 */
+body.touch #stickBase{left:calc(14px + env(safe-area-inset-left));bottom:calc(14px + env(safe-area-inset-bottom));width:112px;height:112px;background:rgba(255,255,255,.07);border-width:1px}
+body.touch #stickKnob{width:48px;height:48px}
+body.touch #btnAtk{right:calc(14px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));width:88px;height:88px;font-size:18px;border-width:2px}
+body.touch #btnAtk small{display:none}
+body.touch .tb{width:48px;height:48px;font-size:13px;border-width:1px;background:rgba(30,40,90,.55)}
+body.touch .tb.sm{width:38px;height:38px;font-size:10px}
+body.touch #btnRoll{right:calc(112px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom))}
+body.touch #btnJump{right:calc(30px + env(safe-area-inset-right));bottom:calc(112px + env(safe-area-inset-bottom))}
+body.touch #btnWeap{right:calc(100px + env(safe-area-inset-right));bottom:calc(76px + env(safe-area-inset-bottom))}
+body.touch #btnHit{right:calc(160px + env(safe-area-inset-right));bottom:calc(62px + env(safe-area-inset-bottom))}
+body.touch #btnSit{right:calc(170px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom))}
+body.touch .slot{width:44px;height:44px;border-width:1px;background:rgba(14,16,40,.6)}
+body.touch .slot .ic{font-size:19px;line-height:22px}
+body.touch .slot .nm{display:none}
+body.touch #hotbar{right:calc(8px + env(safe-area-inset-right));top:8px;gap:4px}
+body.touch #gear{top:60px;right:calc(8px + env(safe-area-inset-right));width:28px;height:28px;line-height:28px;font-size:14px}
+body.touch #elBar{top:60px;right:calc(44px + env(safe-area-inset-right))}
+body.touch .elc{width:30px;height:30px;font-size:14px;border-width:1px}
+body.touch #chargeBox{top:66px;width:180px;font-size:11px}
 </style>
 </head>
 <body class="cover">
