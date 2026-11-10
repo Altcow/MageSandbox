@@ -3,7 +3,7 @@
 const GRAV = 20, COYOTE = 0.10;   // 重力加速度;離地後仍可地面跳的時間(s)
 const DEFAULT_CFG = {
   jumpV: 9.5, airJumpV: 10, airRollDist: 3.5, airRollTime: 0.32, airRollGrav: 0.25, rollDist: 5, rollTime: 0.45, rollCD: 0.9, dodgeStart: 0.04, dodgeWin: 0.18,
-  moveSpeed: 5, runMul: 1.7, camDist: 9, camSens: 0.008, camLock: true, camXhair: true, camInvY: false, camSmooth: 0, camShoulder: 0.7, camKeyTurn: 3, touchSens: 1.6, padSens: 1.4, autoFrame: true, shake: 1, bloom: true, bloomStrength: 0.85, minHold: 0.3,
+  moveSpeed: 5, runMul: 1.7, camDist: 9, camSens: 0.008, showInfo: true, showInfoNet: false, camLock: true, camXhair: true, camInvY: false, camSmooth: 0, camShoulder: 0.7, camKeyTurn: 3, touchSens: 1.6, padSens: 1.4, autoFrame: true, shake: 1, bloom: true, bloomStrength: 0.85, minHold: 0.3,
   ver: 3, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
   rad: [1.6, 6, 4, 1.2], radById: {}, fxq: 1, dummyMove: false, slowSelf: true,
   skills: {
@@ -1072,6 +1072,8 @@ function updateHUD() {
   { const zs = CFG.slowSelf && !(G.slowImmT > 0) ? zoneSlowAt(mage.root.position.x, mage.root.position.z, undefined, window.NETON ? NET_ME : undefined).pct : 0; if (zs > 0) t += '<br>減速 ' + Math.round(zs * 100) + '%'; }
   t += classInfo();
   if (infoEl._t !== t) { infoEl.innerHTML = t; infoEl._t = t; }
+  { const showI = window.NETON ? CFG.showInfoNet : CFG.showInfo; if (infoEl._off !== !showI) { infoEl._off = !showI; infoEl.classList.toggle('off', !showI); const hb = document.getElementById('hint'); if (hb && window.NETON) hb.style.display = showI ? '' : 'none'; else if (hb && hb.style.display) hb.style.display = ''; }
+    const lt = document.getElementById('locTag'); if (lt) { const sc = typeof getSceneCfg === 'function' ? getSceneCfg() : null, pp = mage.root.position, lx = '📍 ' + (sc ? sc.name : '') + ' (' + Math.round(pp.x) + ', ' + Math.round(pp.z) + ') 高 ' + pp.y.toFixed(1) + 'm'; if (lt._t !== lx) { lt._t = lx; lt.textContent = lx; } } }
   const air = !G.ground;
   btnJumpEl.classList.toggle('air', air && G.airJumps > 0); btnJumpEl.classList.toggle('spent', air && G.airJumps <= 0);
   btnRollEl.classList.toggle('air', air && G.airRolls > 0); btnRollEl.classList.toggle('spent', air && G.airRolls <= 0);
@@ -1087,7 +1089,7 @@ function updateHUD() {
 const PANEL = [
   ['鏡頭與操作'],
   ['camDist', '鏡頭距離', 4, 18, .5], ['camLock', '滑鼠鎖定(準心模式)', 'bool'], ['camXhair', '顯示準心', 'bool'], ['camSens', '視角靈敏度', .001, .015, .0005], ['camInvY', '反轉上下', 'bool'], ['camSmooth', '鏡頭平滑(0 = 即時)', 0, 1, .05], ['camShoulder', '肩後偏移(m)', 0, 1.5, .1], ['camKeyTurn', 'Q / E 轉向速度', 0, 5, .2], ['touchSens', '觸控靈敏度倍率', .5, 3, .1], ['padSens', '手把靈敏度倍率', .5, 2.5, .1],['autoFrame', '施法自動拉鏡頭', 'bool'], ['shake', '震動強度', 0, 2, .1],
-  ['moveSpeed', '移動速度', 2, 10, .5], ['dodgeWin', '閃避窗(秒)', .05, .45, .01], ['rollCD', '翻滾冷卻', .3, 2, .1], ['jumpV', '跳躍力道', 5, 14, .5], ['airJumpV', '二段跳力道', 5, 12, .5], ['airRollDist', '空中翻滾距離', 1, 6, .5], ['rollDist', '翻滾距離', 2, 10, .5], ['rollTime', '翻滾時間(秒)', .25, .8, .05], ['rollCD', '翻滾冷卻(秒)', 0, 2, .1], ['minHold', '最短集氣(秒)', 0, 1, .05], ['bloom', '泛光特效', 'bool'], ['bloomStrength', '泛光強度', 0, 2, .05],
+  ['moveSpeed', '移動速度', 2, 10, .5], ['showInfo', '單人顯示詳細資訊', 'bool'], ['showInfoNet', '對戰顯示詳細資訊', 'bool'], ['dodgeWin', '閃避窗(秒)', .05, .45, .01], ['rollCD', '翻滾冷卻', .3, 2, .1], ['jumpV', '跳躍力道', 5, 14, .5], ['airJumpV', '二段跳力道', 5, 12, .5], ['airRollDist', '空中翻滾距離', 1, 6, .5], ['rollDist', '翻滾距離', 2, 10, .5], ['rollTime', '翻滾時間(秒)', .25, .8, .05], ['rollCD', '翻滾冷卻(秒)', 0, 2, .1], ['minHold', '最短集氣(秒)', 0, 1, .05], ['bloom', '泛光特效', 'bool'], ['bloomStrength', '泛光強度', 0, 2, .05],
   ['fxq', '特效粒子量(新屬性)', .3, 1, .05], ['dummyMove', '標靶左右移動', 'bool'], ['slowSelf', '風場 / 坑洞減速玩家', 'bool'], ['rangeK', '全域射程係數(測試用)', .5, 1.5, .05], ['radK', '全域半徑係數(測試用)', .5, 1.5, .05],
   ['投射類(火球等)'], ['skills.fireball.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.fireball.range', '最大射程', 8, 45, 1], ['skills.fireball.rMin', '最小半徑', .5, 5, .1], ['skills.fireball.rMax', '最大半徑', 1, 10, .1], ['skills.fireball.recover', '施法後僵直(秒)', 0, 2, .05],
   ['牆類(火牆等)'], ['skills.firewall.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.firewall.range', '最大射程', 8, 45, 1], ['skills.firewall.rMin', '最短長度', 2, 10, .5], ['skills.firewall.rMax', '最長長度', 6, 30, .5], ['skills.firewall.thick', '牆厚度', .5, 4, .1], ['skills.firewall.duration', '持續時間(秒)', 2, 20, .5], ['skills.firewall.recover', '施法後僵直(秒)', 0, 2, .05],

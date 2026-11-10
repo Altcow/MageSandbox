@@ -292,13 +292,20 @@ body:not(.touch) #pRes{left:10px;bottom:10px;width:150px}
 body:not(.touch) #stBar{left:10px;bottom:70px}
 body:not(.touch) #stBar img{width:22px;height:22px}
 body:not(.touch) #hint{left:8px;top:8px;font-size:10px;line-height:1.5;padding:4px 8px;background:rgba(10,12,30,.3);opacity:.5;border-color:transparent}
-body:not(.touch) #info{right:8px;top:8px;font-size:11px;line-height:1.5;padding:4px 8px;background:rgba(10,12,30,.3);opacity:.6;border-color:transparent}
+body:not(.touch) #info{right:8px;top:36px;font-size:11px;line-height:1.5;padding:4px 8px;background:rgba(10,12,30,.3);opacity:.6;border-color:transparent}
 body:not(.touch) #sceneBar{top:4px;opacity:.5}
 body:not(.touch) #clsBar{top:28px;opacity:.5}
 body:not(.touch) #sceneBar:hover,body:not(.touch) #clsBar:hover{opacity:1}
 body:not(.touch) #sceneBar button,body:not(.touch) #clsBar button{padding:2px 7px;font-size:11px}
 body:not(.touch) #gear{width:30px;height:30px;line-height:28px;font-size:16px;right:10px;bottom:10px}
 body:not(.touch) #panel{bottom:46px}
+/* HUD 位置調整:HP/MP/狀態移左上,右上只留地點小標籤,詳細資訊預設對戰關閉 */
+body:not(.touch) #pRes{bottom:auto;top:10px;left:10px;width:170px}
+body:not(.touch) #stBar{bottom:auto;top:78px;left:10px}
+body:not(.touch) #hint{top:104px}
+#info.off{display:none}
+#locTag{position:fixed;right:10px;top:8px;font-size:11px;line-height:1.4;color:#dfe6ff;background:rgba(10,12,30,.3);padding:3px 8px;border-radius:6px;opacity:.7;pointer-events:none;text-align:right;z-index:3}
+body.cover #locTag{display:none}
 </style>
 </head>
 <body class="cover">
@@ -319,6 +326,7 @@ body:not(.touch) #panel{bottom:46px}
 <div id="info"></div>
 <div id="chant"></div>
 <div id="chargeBox"><div id="chargeBar"><i id="chargeFill"></i><i class="tk" style="left:50%"></i><i class="tk" style="left:calc(100% - 1px)"></i><i class="tk" id="capTick" style="display:none;background:#ff3030;width:2px"></i></div><span id="chargeTxt"></span></div>
+<div id="locTag"></div>
 <div id="hotbar"></div>
 <div id="xhair"><i></i><small>最遠</small></div>
 <div id="lockMsg">點擊回到遊戲</div>
