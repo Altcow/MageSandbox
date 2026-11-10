@@ -56,7 +56,7 @@ const CLASSES = {
       mkSkill('slam', '震地', '💥', { aim: 'self', cd: 6, chant: '重心下沉……', shout: '震地!', cast: castSlam }),
       mkSkill('leap', '躍擊', '⤴️', { aim: 'circle', cd: 8, chant: '蹬地躍起……', shout: '躍擊!', cast: castLeap }),
       mkSkill('unyield', '不屈戰意', '🔥', { instant: true, netSilent: true, aim: 'none', cd: 20, chant: '', shout: '不屈戰意!', cast: castUnyield })],
-    stances: [{ name: '劍勢', icon: '⚔️', mwc: true, spdK: 1, chgSpdK: 1 }, { name: '盾勢', icon: '🧱', mwc: true, spdK: .85, chgSpdK: 1 }],
+    stances: [{ name: '劍勢', icon: '⚔️', mwc: true, spdK: 1.2, chgSpdK: 1 }, { name: '盾勢', icon: '🧱', mwc: true, spdK: 1.0, chgSpdK: 1 }],
     bars: [[0, 1, 2, 6], [3, 4, 5, 6]],
     energy: { kind: 'rage', name: '鬥氣', max: 100, css: '#ff3a3a' },
     aura: { hex: 0xff3a3a, main: 0xff3a3a, sub: 0xa01010, dark: false } },
@@ -70,7 +70,7 @@ const CLASSES = {
       mkSkill('smoke', '煙霧彈', '💨', { aim: 'circle', cd: 14, chant: '煙霧在掌心凝聚……', shout: '煙霧彈!', cast: castSmoke }),
       mkSkill('eviscerate', '割喉', '🩸', { aim: 'front', cd: 3, chant: '刀刃貼近……', shout: '割喉!', exFn: eviscerateEx, cast: castEviscerate }),
       mkSkill('decoy', '影分身', '👥', { instant: true, aim: 'none', cd: 18, chant: '', shout: '影分身!', cast: castDecoy })],
-    stances: [{ name: '暗殺', icon: '🗡️', mwc: true, spdK: 1, chgSpdK: 1 }, { name: '影舞', icon: '🌀', mwc: true, spdK: 1, chgSpdK: 1 }],
+    stances: [{ name: '暗殺', icon: '🗡️', mwc: true, spdK: 1.25, chgSpdK: 1 }, { name: '影舞', icon: '🌀', mwc: true, spdK: 1.3, chgSpdK: 1 }],
     bars: [[0, 1, 2, 6], [3, 4, 5, 6]],
     energy: { kind: 'combo', name: '連擊點', max: 5, css: '#9a40ff', seg: 5 },
     aura: { hex: 0x9a40ff, main: 0x3a1a5a, sub: 0x9a40ff, dark: true } }
