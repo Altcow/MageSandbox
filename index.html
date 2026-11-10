@@ -277,6 +277,28 @@ body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.co
 @media (max-width:480px){.cv-scenes{grid-template-columns:repeat(2,1fr)}.cv-menu-row{gap:12px}.cv-big{min-width:0;width:100%;max-width:300px}}
 @media (max-height:460px){.cv-slot{min-height:48px;padding:6px 8px}.cv-av{width:34px;height:34px;flex-basis:34px}.cv-av img{width:26px;height:26px}.cv-pick-btn{width:62px}.cv-pick-btn img{width:26px;height:26px}.cv-card h2{margin-bottom:6px}.cv-field{margin:4px 0}.cv-actions{margin-top:8px}}
 @media (prefers-reduced-motion:reduce){.cv-root *,.cv-root *::before,.cv-root *::after{animation:none !important;transition-duration:.01ms !important}.cv-enter{opacity:.9}}
+/* 精簡介面(桌機):圖示縮小靠邊,中央視野留空 */
+body:not(.touch) #hotbar{left:auto;right:52px;bottom:10px;transform:none;gap:4px}
+body:not(.touch) .slot{width:50px;height:50px;border-radius:8px;border-width:1px;background:rgba(14,16,40,.6)}
+body:not(.touch) .slot b{left:4px;top:2px;font-size:10px}
+body:not(.touch) .slot .ic{font-size:21px;line-height:24px}
+body:not(.touch) .slot .nm{font-size:9px;margin-top:0;opacity:.8}
+body:not(.touch) .slot i{height:3px}
+body:not(.touch) #chargeBox{bottom:64px;width:200px;font-size:11px}
+body:not(.touch) #chargeBar{height:6px}
+body:not(.touch) #elBar{left:auto;right:52px;bottom:66px;gap:4px;transform:scale(.8);transform-origin:right bottom}
+body:not(.touch) #modeTag{right:10px;bottom:48px;width:34px;height:28px;font-size:11px;border-width:1px;background:rgba(14,16,40,.6)}
+body:not(.touch) #pRes{left:10px;bottom:10px;width:150px}
+body:not(.touch) #stBar{left:10px;bottom:70px}
+body:not(.touch) #stBar img{width:22px;height:22px}
+body:not(.touch) #hint{left:8px;top:8px;font-size:10px;line-height:1.5;padding:4px 8px;background:rgba(10,12,30,.3);opacity:.5;border-color:transparent}
+body:not(.touch) #info{right:8px;top:8px;font-size:11px;line-height:1.5;padding:4px 8px;background:rgba(10,12,30,.3);opacity:.6;border-color:transparent}
+body:not(.touch) #sceneBar{top:4px;opacity:.5}
+body:not(.touch) #clsBar{top:28px;opacity:.5}
+body:not(.touch) #sceneBar:hover,body:not(.touch) #clsBar:hover{opacity:1}
+body:not(.touch) #sceneBar button,body:not(.touch) #clsBar button{padding:2px 7px;font-size:11px}
+body:not(.touch) #gear{width:30px;height:30px;line-height:28px;font-size:16px;right:10px;bottom:10px}
+body:not(.touch) #panel{bottom:46px}
 </style>
 </head>
 <body class="cover">

@@ -3,8 +3,8 @@
 const GRAV = 20, COYOTE = 0.10;   // 重力加速度;離地後仍可地面跳的時間(s)
 const DEFAULT_CFG = {
   jumpV: 9.5, airJumpV: 10, airRollDist: 3.5, airRollTime: 0.32, airRollGrav: 0.25, rollDist: 5, rollTime: 0.45, rollCD: 0.6,
-  moveSpeed: 5, runMul: 1.7, camDist: 9, camSens: 0.005, camLock: true, camXhair: true, camInvY: false, camSmooth: 0, camShoulder: 0.7, camKeyTurn: 2.2, touchSens: 1.3, padSens: 1, autoFrame: true, shake: 1, bloom: true, bloomStrength: 0.85, minHold: 0.3,
-  ver: 2, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
+  moveSpeed: 5, runMul: 1.7, camDist: 9, camSens: 0.008, camLock: true, camXhair: true, camInvY: false, camSmooth: 0, camShoulder: 0.7, camKeyTurn: 3, touchSens: 1.6, padSens: 1.4, autoFrame: true, shake: 1, bloom: true, bloomStrength: 0.85, minHold: 0.3,
+  ver: 3, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
   rad: [1.6, 6, 4, 1.2], radById: {}, fxq: 1, dummyMove: false, slowSelf: true,
   skills: {
     fireball: { chargeTime: 1.4, range: 20, rMin: 0.8, rMax: 2.4, recover: 0.45 },
@@ -40,7 +40,7 @@ const CFG_KEY = 'mageSandbox.cfg.v1';
 function mergeCfg(dst, src) { for (const k in src) { if (dst[k] && typeof dst[k] === 'object' && !Array.isArray(dst[k])) mergeCfg(dst[k], src[k]); else if (k in dst) dst[k] = src[k]; } }
 if (IS_TOUCH) CFG.bloom = false;  // 手機預設關泛光(省效能),可在 P 面板打開
 if (IS_TOUCH) CFG.fxq = 0.6;      // 手機預設粒子量 60%(只影響新屬性)
-try { const s = JSON.parse(localStorage.getItem(CFG_KEY)); if (s) { if ((s.ver | 0) < 2) { delete s.skills; delete s.rad; delete s.radById; } mergeCfg(CFG, s); } } catch (e) { }   // ver < 2:舊射程 / 半徑存檔丟棄,改用新預設(B-2 第 6 點)
+try { const s = JSON.parse(localStorage.getItem(CFG_KEY)); if (s) { if ((s.ver | 0) < 2) { delete s.skills; delete s.rad; delete s.radById; } if ((s.ver | 0) < 3) { delete s.camSens; delete s.camKeyTurn; delete s.touchSens; delete s.padSens; } mergeCfg(CFG, s); CFG.ver = 3; } } catch (e) { }   // ver < 2:舊射程 / 半徑存檔丟棄,改用新預設(B-2 第 6 點)
 while (CFG.rad.length < 4) CFG.rad.push(DEFAULT_CFG.rad[CFG.rad.length]);   // 存檔的陣列會整個覆蓋,補回第 4 格(召喚)預設
 function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (e) { } }
 
