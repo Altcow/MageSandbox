@@ -161,20 +161,52 @@ function layFlat(m, x, y, z, span, spin, off) {
 }
 
 const _fall = (d, flat, w) => d <= flat ? 1 : d >= flat + w ? 0 : .5 * (1 + Math.cos(Math.PI * (d - flat) / w));
-// feats:['hill', x, z, Rt, W, H] / ['trench', x0, z0, x1, z1, hw, side, endW, floorY]
+// 地形語法 v2(設計_大面積地形 §2-1):hill / mesa / rim 取最大;noise 相加;basin / trench 依序 blend;path 最後 blend(保證可走)
+const _ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const _tn = (x, z) => .5 * Math.sin(.23 * x + 1.7) * Math.sin(.19 * z + .6) + .3 * Math.sin(.41 * x - .33 * z + 2.1) + .2 * Math.sin(.07 * x + .53 * z);   // 確定性微起伏(禁止亂數,所有客戶端一致)
+// 線段 (x0,z0)→(x1,z1) 的局部量:along 沿線位置、L 長度、across 垂距、ea 超出端點距離;L < 1e-3 退化為點(防呆)
+function _lineM(x, z, x0, z0, x1, z1) {
+  const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz), px = x - x0, pz = z - z0;
+  if (L < 1e-3) return { along: 0, L: 0, across: Math.hypot(px, pz), ea: 0 };
+  const ux = dx / L, uz = dz / L, along = px * ux + pz * uz;
+  return { along, L, across: Math.abs(-px * uz + pz * ux), ea: along < 0 ? -along : (along > L ? along - L : 0) };
+}
+// feats:['hill', x, z, Rt, W, H] / ['mesa', x, z, hx, hz, yaw, W, H] / ['rim', r0, r1, r2, r3, H] / ['noise', amp, rIn, rOut]
+//        ['basin', x, z, R, W, floorY] / ['trench', x0, z0, x1, z1, hw, side, endW, floorY] / ['path', x0, z0, y0, x1, z1, y1, hw, side, noPaint]
 function evalTerrain(feats, x, z) {
-  let h = 0;
-  for (const f of feats) if (f[0] === 'hill') { const v = f[5] * _fall(Math.hypot(x - f[1], z - f[2]), f[3], f[4]); if (v > h) h = v; }
-  for (const f of feats) if (f[0] === 'trench') {
-    const dx = f[3] - f[1], dz = f[4] - f[2], L = Math.hypot(dx, dz) || 1e-6, ux = dx / L, uz = dz / L, px = x - f[1], pz = z - f[2];
-    const along = px * ux + pz * uz, across = Math.abs(-px * uz + pz * ux);
-    const ea = along < 0 ? -along : (along > L ? along - L : 0);
-    const m = _fall(across, f[5], f[6]) * _fall(ea, 0, f[7]);
-    h += (f[8] - h) * m;
+  let h = 0; const r = Math.hypot(x, z);
+  for (const f of feats) {
+    let v;
+    if (f[0] === 'hill') v = f[5] * _fall(Math.hypot(x - f[1], z - f[2]), f[3], f[4]);
+    else if (f[0] === 'mesa') { const c = Math.cos(f[5]), s = Math.sin(f[5]), dx = x - f[1], dz = z - f[2], lx = dx * c - dz * s, lz = dx * s + dz * c; v = f[7] * _fall(Math.hypot(Math.max(Math.abs(lx) - f[3], 0), Math.max(Math.abs(lz) - f[4], 0)), 0, f[6]); }
+    else if (f[0] === 'rim') v = f[5] * _ss(f[1], f[2], r) * (1 - _ss(f[3], f[4], r));
+    else continue;
+    if (v > h) h = v;
+  }
+  for (const f of feats) if (f[0] === 'noise') h += f[1] * _tn(x, z) * _ss(f[2], f[3], r);
+  for (const f of feats) {
+    if (f[0] === 'basin') h += (f[5] - h) * _fall(Math.hypot(x - f[1], z - f[2]), f[3], f[4]);
+    else if (f[0] === 'trench') { const q = _lineM(x, z, f[1], f[2], f[3], f[4]); h += (f[8] - h) * _fall(q.across, f[5], f[6]) * _fall(q.ea, 0, f[7]); }
+  }
+  for (const f of feats) if (f[0] === 'path') {
+    const q = _lineM(x, z, f[1], f[2], f[4], f[5]), fl = f[3] + (f[6] - f[3]) * (q.L ? clamp(q.along / q.L, 0, 1) : 0);
+    h += (fl - h) * _fall(q.across, f[7], f[8]) * _fall(q.ea, 0, f[8]);
   }
   return h;
 }
-// 套用場景地形;look = { cliff: 崖壁色 hex, dark: 谷底變暗比例 }。feats 空 → 完全平地(含隕石坑還原快照)
+// 頂點色用:路徑權重(取最大;noPaint 的 path 不算)
+function pathPaint(feats, x, z) { let w = 0; for (const f of feats) if (f[0] === 'path' && !f[9]) { const q = _lineM(x, z, f[1], f[2], f[4], f[5]); w = Math.max(w, _fall(q.across, f[7] * .8, f[8]) * _fall(q.ea, 0, f[8])); } return w; }
+// 頂點色帶:bands = [[h, hex], …] 依高度線性內插;未設 bands → 白色(= 不影響貼圖)
+const _bcB = new THREE.Color();
+function bandColor(bands, h, out) {
+  if (!bands || !bands.length) return out.setRGB(1, 1, 1);
+  const n = bands.length;
+  if (h <= bands[0][0]) return out.set(bands[0][1]);
+  if (h >= bands[n - 1][0]) return out.set(bands[n - 1][1]);
+  for (let k = 0; k < n - 1; k++) if (h < bands[k + 1][0]) return out.set(bands[k][1]).lerp(_bcB.set(bands[k + 1][1]), (h - bands[k][0]) / (bands[k + 1][0] - bands[k][0]));
+  return out.set(bands[n - 1][1]);
+}
+// 套用場景地形;look = { cliff: 崖壁色 hex, dark: 谷底變暗比例, bands: [[h, hex], …] 高度色帶, path: 路面色 hex }。feats 空 → 完全平地(含隕石坑還原快照)
 function setTerrain(feats, look) {
   clearCraters();                                   // 換場景:坑立即消失(減速區、外觀一併移除)
   feats = feats || []; look = look || {};
@@ -187,10 +219,14 @@ function setTerrain(feats, look) {
   TER.hMin = lo; TER.hMax = hi; TER.flat = hi - lo < 1e-6;
   TER.H0.set(H); TER.hMin0 = lo; TER.hMax0 = hi; TER.flat0 = TER.flat;
   pos.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere();
-  const nrm = geo.attributes.normal, cc = new THREE.Color(look.cliff == null ? 0xffffff : look.cliff), dk = look.dark || 0;
-  for (let k = 0; k < N * N; k++) {
+  const nrm = geo.attributes.normal, cliffC = new THREE.Color(look.cliff == null ? 0xffffff : look.cliff), pathC = new THREE.Color(look.path == null ? 0xffffff : look.path), dk = look.dark || 0, bc = new THREE.Color();
+  const hasPath = feats.some(f => f[0] === 'path' && !f[9]);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const k = j * N + i, x = TER.X0 + i * TER.CELL, z = TER.X0 + j * TER.CELL;
     const st = clamp((.8 - nrm.getY(k)) / .3, 0, 1), sh = 1 - dk * clamp(-H[k] / 4, 0, 1);
-    col.setXYZ(k, lerp(1, cc.r, st) * sh, lerp(1, cc.g, st) * sh, lerp(1, cc.b, st) * sh);
+    bandColor(look.bands, H[k], bc).lerp(cliffC, st);      // 基色(色帶)→ 崖壁
+    if (hasPath) { const pw = pathPaint(feats, x, z) * .85; if (pw > 0) bc.lerp(pathC, pw); }   // 小路
+    col.setXYZ(k, bc.r * sh, bc.g * sh, bc.b * sh);
   }
   col.needsUpdate = true;
   TER.C0.set(col.array);
@@ -219,12 +255,50 @@ function checkTerrain(zone) {   // zone:平地檢查矩形 [x0, z0, x1, z1](省�
   if (TER.flat) return;
   const w = (m, x, z) => console.warn('[terrain] ' + m + ' @' + x.toFixed(1) + ',' + z.toFixed(1) + ' h=' + terrainH(x, z).toFixed(2));
   DUMMIES.forEach(d => { if (Math.abs(terrainH(d.home.x, d.home.z)) > .01) w('dummy', d.home.x, d.home.z); });
-  PLATFORMS.forEach(P => { if (P.kind !== 'bridge' && P.kind !== 'ramp' && !P.onHill && !P.tmp && Math.abs(terrainH(P.x, P.z)) > .05) w('platform', P.x, P.z); });
+  PLATFORMS.forEach(P => { if (P.kind !== 'bridge' && P.kind !== 'ramp' && !P.onHill && !P.tmp && P.bottom == null && Math.abs(terrainH(P.x, P.z)) > .05) w('platform', P.x, P.z); });
   COLLIDERS.forEach(c => { if (c.deco && Math.abs(terrainH(c.x, c.z)) > .3) w('collider', c.x, c.z); });
   const Z = zone || [-28, -6, 28, 48];
   for (let x = Z[0]; x <= Z[2]; x += 2) for (let z = Z[1]; z <= Z[3]; z += 2) if (Math.abs(terrainH(x, z)) > .01) { w('zone F', x, z); return; }
 }
 
+// ?plat=1 稽核(開發用,設計 §4-4):坡度分布、從 (0,0) 的邊坡 ≤ 0.6 BFS 可達性、path 端點接縫
+function terrainAudit(S) {
+  if (TER.flat) { console.info('[terrain] 平地場景,略過稽核'); return; }
+  const N = TER.N, R = ARENA_R, feats = S.terrain || [], edges = [.1, .35, .6, .9, 1.3], bins = [0, 0, 0, 0, 0, 0];
+  const slopeAt = (x, z) => Math.hypot(terrainH(x + 1, z) - terrainH(x - 1, z), terrainH(x, z + 1) - terrainH(x, z - 1)) / 2;
+  for (let x = -R; x <= R; x++) for (let z = -R; z <= R; z++) {
+    if (Math.hypot(x, z) > R) continue;
+    const s = slopeAt(x, z); let b = 0; while (b < 5 && s > edges[b]) b++; bins[b]++;
+  }
+  console.table(['<=.1', '<=.35', '<=.6', '<=.9', '<=1.3', '>1.3'].map((n, i) => ({ slope: n, cells: bins[i] })));
+  const idx = (i, j) => j * N + i, I0 = Math.round(-TER.X0 / TER.CELL), seen = new Uint8Array(N * N), Q = [idx(I0, I0)];
+  seen[Q[0]] = 1;
+  for (let q = 0; q < Q.length; q++) {
+    const k = Q[q], i = k % N, j = (k - i) / N;
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      const ni = i + di, nj = j + dj;
+      if ((!di && !dj) || ni < 0 || nj < 0 || ni >= N || nj >= N) continue;
+      const nk = idx(ni, nj);
+      if (seen[nk] || Math.hypot(TER.X0 + ni * TER.CELL, TER.X0 + nj * TER.CELL) > R - .5) continue;
+      if (Math.abs(TER.H[nk] - TER.H[k]) / Math.hypot(di, dj) > .6) continue;
+      seen[nk] = 1; Q.push(nk);
+    }
+  }
+  (S.terrainProbes || []).forEach(([name, x, z]) => console.log('[terrain] probe ' + name + ' ' + (seen[idx(Math.round(x - TER.X0), Math.round(z - TER.X0))] ? 'reachable' : 'UNREACHABLE')));
+  feats.forEach(f => {
+    if (f[0] !== 'path') return;
+    const rest = feats.filter(g => g !== f), h0 = evalTerrain(rest, f[1], f[2]), h1 = evalTerrain(rest, f[4], f[5]);
+    const warn = Math.abs(h0 - f[3]) > .2 || Math.abs(h1 - f[6]) > .2;
+    console.log('[terrain] path (' + f[1] + ',' + f[2] + ')->(' + f[4] + ',' + f[5] + ') ground ' + h0.toFixed(2) + ' / ' + h1.toFixed(2) + ' vs y0/y1 ' + f[3] + ' / ' + f[6] + (warn ? ' [terrain] WARN: end mismatch' : ''));
+  });
+}
+// 草叢 / 霧區(scenes.js buildJungle 填入,clearDeco 清空);BUSHES[k].mat 由 sceneTick 調透明度
+const BUSHES = [], FOGZ = [];
+function bushAt(x, z, y) {   // 草叢索引或 -1;站在草叢上方(高出地形 ≥ 1 m)的平台不算在草裡
+  for (let k = 0; k < BUSHES.length; k++) { const b = BUSHES[k]; if (Math.hypot(x - b.x, z - b.z) <= b.r - .2 && (y == null || y - terrainH(x, z) < 1)) return k; }
+  return -1;
+}
+function fogAt(x, z) { return FOGZ.some(f => Math.hypot(x - f.x, z - f.z) <= f.r); }
 // 共用減速區(設計 §5-1):玩家、標靶、召喚物都讀這裡;pct 0~1,區內取最大者、不疊加
 // { kind:'circle', x, z, r, pct, hex }  或  { kind:'rect', x, z, hx, hz, c, s, pct, hex }(c,s = cos/sin(yaw),同平台本地座標)
 const SLOW_ZONES = [];

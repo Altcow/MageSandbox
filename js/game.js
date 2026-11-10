@@ -125,7 +125,7 @@ const G = {
   ground: true, groundY: 0, airJumps: 1, airRolls: 1, coyote: 0, jumpBuf: 0, flip: -1, lastSkill: 0,
   roll: null, rollCD: 0, invuln: false, stun: 0, dodged: 0, hits: 0, autoStrike: false, strikeT: 2,
   time: 0, cb: 0, kick: 0, vy: 0, frameT: 0, hover: 0, auraAmt: 0, maxFlash: false, halfFlash: false, shoutT: 0, atkHeld: false,
-  cls: 'mage', cd: {}, stealth: null, weak: 0, dash: null, spin: null, px0: 0, pz0: 0, py0: 0, camK: 1, lookX: 0, lookY: 0, aimFar: false, hurtFrom: null, rmbLock: false, rmbEnd: false, lockErr: false,
+  cls: 'mage', cd: {}, stealth: null, weak: 0, dash: null, spin: null, px0: 0, pz0: 0, py0: 0, camK: 1, camLift: 0, lookX: 0, lookY: 0, aimFar: false, hurtFrom: null, rmbLock: false, rmbEnd: false, lockErr: false,
   el: 'fire', chgMode: 'A', hp: 100, hpMax: 100, shield: 0, shieldT: 0, downs: 0, slowImmT: 0, mp: 100, mpMax: 100, sp: 100, spMax: 100, mpIdle: 0, spIdle: 0, runLock: false, sitK: 0, sitting: false, down: 0, downK: 0, invulnT: 0, kvx: 0, kvz: 0, slowT: 0, slowPct: 0, burnT: 0, erodeT: 0, litT: 0, lastHitBy: 0, lastHitK: null, lastHitT: 0, tp: 0, stance: 0, stanceCd: 0, stanceBoostT: 0, cr: 0, crIdle: 0, parryT: 0, unyT: 0, ccLog: []   // 非法師:架勢 stance(0/1)、冷卻、加速計時;職業能量 cr;不屈 / 格擋計時;多人控制紀錄 ccLog。 // 目前屬性(C-8,只有法師使用),存 localStorage mageSandbox.el;chgMode = 集氣模式 A/B;hp / shield / downs = S-6 玩家狀態
 };
 try { const v = localStorage.getItem('mageSandbox.el'); if (EL_ORDER.includes(v)) G.el = v; } catch (e) { }
@@ -979,13 +979,15 @@ function updateCamera(dt) {
   if (lk) { fx += Math.cos(G.camYaw) * CFG.camShoulder; fz -= Math.sin(G.camYaw) * CFG.camShoulder; }   // 肩後偏移(角色靠左,準心越過右肩)
   G.focus.x = damp(G.focus.x, fx, 7, dt); G.focus.y = damp(G.focus.y, fy, 7, dt); G.focus.z = damp(G.focus.z, fz, 7, dt);
   G.camD = damp(G.camD, dist, 4, dt);
-  const cp = Math.cos(G.camPitch), sp = Math.sin(G.camPitch);
-  let cx = G.focus.x + Math.sin(G.camYaw) * cp * G.camD, cy = G.focus.y + sp * G.camD, cz = G.focus.z + Math.cos(G.camYaw) * cp * G.camD;
-  let k = 1;   // 沿「焦點 → 相機」取樣,擋到就拉近
-  for (let i = 1; i <= 12; i++) {
-    const s = i / 12, x = lerp(G.focus.x, cx, s), y = lerp(G.focus.y, cy, s), z = lerp(G.focus.z, cz, s);
-    if (camBlocked(x, y, z)) { k = Math.max(.15, (i - 1) / 12); break; }
-  }
+  const camAt = pit => { const cp = Math.cos(pit), sp = Math.sin(pit); return [G.focus.x + Math.sin(G.camYaw) * cp * G.camD, G.focus.y + sp * G.camD, G.focus.z + Math.cos(G.camYaw) * cp * G.camD]; };
+  // 沿「焦點 → 相機」取樣,擋到回傳拉近係數(1 = 不擋)
+  const sampleK = (cx, cy, cz) => { for (let i = 1; i <= 12; i++) { const s = i / 12; if (camBlocked(lerp(G.focus.x, cx, s), lerp(G.focus.y, cy, s), lerp(G.focus.z, cz, s))) return Math.max(.15, (i - 1) / 12); } return 1; };
+  // 抬頭避讓(設計_大面積地形 §4-2 D):斜下看被坡擋住 → 試抬頭 .25 / .5;準心模式不抬(落點會跟著動)。不寫回 G.camPitch
+  let liftT = 0;
+  if (!lk && sampleK(...camAt(G.camPitch)) < .7) for (const dp of [.25, .5]) { const pit = Math.min(G.camPitch + dp, CAM_PITCH_MAX); if (sampleK(...camAt(pit)) >= .85) { liftT = pit - G.camPitch; break; } }
+  G.camLift = damp(G.camLift, liftT, 4, dt);
+  let [cx, cy, cz] = camAt(G.camPitch + G.camLift);
+  const k = sampleK(cx, cy, cz);
   G.camK = k < G.camK ? k : damp(G.camK, k, 3, dt);   // 被擋時立刻拉近、離開後慢慢退回
   cx = lerp(G.focus.x, cx, G.camK); cy = lerp(G.focus.y, cy, G.camK); cz = lerp(G.focus.z, cz, G.camK);
   camera.position.set(cx, Math.max(terrainH(cx, cz) + .6, cy), cz);   // 最後保險:地形高度下限

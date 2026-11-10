@@ -76,13 +76,14 @@ function castWindBolt(P, orb) {
   for (let i = 1; i < n; i++) blades.push({ a: dir + ww_ANG[i], side: 0, mul: ww_TAB.bolt });
   if (orb) { orb.position.copy(mz); dissolveOrb(orb, E); }
   flashLight(mz, E.hex, 2.5, .25, 10);
-  const base = { E, scale: .35 * (P.r || 1) * thick / .75, hitR: .3 * thick, range: ww_range(P), spd: ww_speed(), knock: 5 * (P.fxK || 1) / 3 };
+  const tg = P.target, hd = Math.hypot(tg.x - mz.x, tg.z - mz.z), kS = hd > 1 ? clamp((tg.y + 1.25 - mz.y) / hd, -.8, .8) : 0;   // 俯仰同 spells.js shotOne(設計 §4-2 C)
+  const base = { E, scale: .35 * (P.r || 1) * thick / .75, hitR: .3 * thick, range: ww_range(P), spd: ww_speed(), knock: 5 * (P.fxK || 1) / 3, k: kS };
   for (const b of blades) ww_blade(b, mz, Object.assign({}, base, { dmg: 60 * .45 * (P.dmgK || 1) * b.mul }));
 }
 // 一片風刃:b = { a 方向角, side 左 +1 / 右 -1 / 中 0, mul 傷害倍率 }
 function ww_blade(b, mz, o) {
   const E = o.E, K = Math.PI / 14, sa = Math.sin(b.a), ca = Math.cos(b.a), L = b.side * 1.0;
-  const at = s => { const l = L * Math.sin(K * s); return new V3(mz.x + sa * s + ca * l, mz.y, mz.z + ca * s - sa * l); };
+  const at = s => { const l = L * Math.sin(K * s); return new V3(mz.x + sa * s + ca * l, mz.y + o.k * s, mz.z + ca * s - sa * l); };
   const tg = s => { const dl = L * K * Math.cos(K * s); return { x: sa + ca * dl, z: ca - sa * dl }; };
   const R = ww_init(), g = new THREE.Group();
   g.add(new THREE.Mesh(R.moonOut, R.matOut), new THREE.Mesh(R.moonIn, R.matIn));

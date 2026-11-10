@@ -335,8 +335,11 @@ function castShot(P, orb, st) {
   }
 }
 // 單發:每幀細分為 ≤ 0.5 m 的步長(光彈 64 m/s 不穿過標靶);標靶 > 地形 / 平台 / 裝飾柱 > 場地邊界 > 射程盡頭
+// 直線法術俯仰(設計_大面積地形 §4-2 C):朝瞄準點(地面 y + SHOT_CLR)每水平公尺升降 k;平地站地面 k = 0,與舊版相同
+const SHOT_CLR = 1.25;
 function shotOne(P, orb, st, dir) {
-  const E = EL[P.el], dx = Math.sin(dir), dz = Math.cos(dir), from = P.muzzle.clone(), Y = from.y, hitR = .3 * P.thickK;
+  const E = EL[P.el], dx = Math.sin(dir), dz = Math.cos(dir), from = P.muzzle.clone(), hitR = .3 * P.thickK;
+  const tg = P.target, hd = Math.hypot(tg.x - from.x, tg.z - from.z), kS = hd > 1 ? clamp((tg.y + SHOT_CLR - from.y) / hd, -.8, .8) : 0;
   orb.setR(Math.max(orb.r, .3) * (.8 + .6 * P.power) * P.thickK); orb.position.copy(from);
   let cur = from.clone(), s = 0, ended = false;
   const stop = (pt, boom) => {
@@ -348,7 +351,7 @@ function shotOne(P, orb, st, dir) {
   const hitAt = (a, b) => {   // 這一小段 a → b:標靶先比(段內最早接觸);其餘在段尾判定
     let bt = 2, best = null;
     for (const d of DUMMIES) { if (d.dead) continue; const t = segHitT(a, b, d, hitR); if (t >= 0 && t < bt) { bt = t; best = d; } }
-    if (best) return { pt: new V3(a.x + (b.x - a.x) * bt, Y, a.z + (b.z - a.z) * bt), boom: true };
+    if (best) return { pt: new V3(a.x + (b.x - a.x) * bt, a.y + (b.y - a.y) * bt, a.z + (b.z - a.z) * bt), boom: true };
     if (b.y < terrainH(b.x, b.z) + .1) return { pt: b, boom: true };
     for (const H of PLATFORMS) if (platContains(H, b.x, b.z, .1) && b.y <= platTop(H, b.x, b.z) && (H.bottom == null || b.y >= H.bottom)) return { pt: b, boom: true };
     for (const c of COLLIDERS) if (c.deco && Math.hypot(b.x - c.x, b.z - c.z) < c.r) return { pt: b, boom: true };
@@ -358,7 +361,7 @@ function shotOne(P, orb, st, dir) {
     if (ended) return false;
     const dist = st.speed * dt, steps = Math.max(1, Math.ceil(dist / .5)), step = dist / steps, f0 = cur.clone();
     for (let j = 0; j < steps; j++) {
-      const a = cur.clone(); cur.x += dx * step; cur.z += dz * step; cur.y = Y; s += step;
+      const a = cur.clone(); cur.x += dx * step; cur.z += dz * step; s += step; cur.y = from.y + kS * s;
       const h = hitAt(a, cur);
       if (h) { stop(h.pt, h.boom); return false; }
       if (Math.hypot(cur.x, cur.z) > ARENA_R) { stop(cur.clone(), false); return false; }   // 場地邊界:小煙消失,不爆炸

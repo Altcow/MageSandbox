@@ -225,7 +225,7 @@ function classTick(dt) {
   else if (G.charge >= 1 && !AURA.full) { AURA.full = true; auraGather(); }   // 聚能收束:集氣滿時環繞粒子飛向武器尖端
   if (G.stealth || (G.dash && G.dash.kind === 'charge')) auraSpark(dt, p, E);
   mage.shieldUp = damp(mage.shieldUp, G.dash && G.dash.kind === 'charge' ? 1 : 0, 10, dt);
-  mage.opq = damp(mage.opq, G.stealth ? .3 : 1, 10, dt);
+  mage.opq = damp(mage.opq, G.stealth ? .3 : (bushAt(p.x, p.z, p.y) >= 0 ? .55 : 1), 10, dt);   // 站在草叢裡半透明(設計_叢林地圖 §4-3)
   if (mage.opq < .999 || _opWas) mage.setOpacity(mage.opq);   // 只在半透明中或剛回到不透明時寫材質
   _opWas = mage.opq < .999;
   const sf = G.stealth ? '1' : '0';

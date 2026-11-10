@@ -201,6 +201,12 @@ class RemotePlayer {
     this.col.x = p.x; this.col.z = p.z;
     this.hp = p.hp; this.sh = p.sh;
     const inSm = typeof smokeAt === 'function' && smokeAt(p.x, p.z) && !smokeAt(mage.root.position.x, mage.root.position.z);   // 煙霧彈(skills_assassin.js):圈內的人對圈外觀看者半隱形
+    // 草叢隱身(設計_叢林地圖 §4-3):對方在草叢內、離我 > 2.5 m、未集氣 / 出手 / 照亮 → 隱形;被打(hp 下降)1 s、集氣出手 0.6 s 內現形
+    const me = mage.root.position, bi = bushAt(p.x, p.z, p.y), myBi = bushAt(me.x, me.z, me.y);
+    if (this._lastHp != null && p.hp < this._lastHp) this._revealUntil = now + 1000;
+    this._lastHp = p.hp;
+    if ((g & 128) || p.c >= .05) this._revealUntil = now + 600;
+    const hid = bi >= 0 && bi !== myBi && Math.hypot(p.x - me.x, p.z - me.z) > 2.5 && !(g & 128) && p.c < .05 && !(g & 1024) && now > (this._revealUntil || 0);
     const op = stealth ? .08 : (inSm ? .35 : (away ? .4 : 1));
     if (op !== this._op) { this._op = op; this.mage.setOpacity(op); this._noShadow(); }
     this.mage.root.position.set(p.x, p.y, p.z); this.mage.yaw = p.r;
@@ -209,11 +215,11 @@ class RemotePlayer {
     this.mage.update(dt, { move: p.m, cast: p.c, kick: p.k, charge: p.q, t: G.time, hover: 0, roll: p.o, rollPhi: p.p, flip: p.f, sit: p.s, down: p.d });
     // 顯示:無敵閃爍、潛行隱藏名牌 / 血條 / 假影
     const blink = inv && Math.floor(now / 120) % 2 === 0;
-    this.g.visible = !blink;
-    const vis = !blink && !stealth && !inSm;
+    this.g.visible = !blink && !hid;
+    const vis = !blink && !stealth && !inSm && !hid;
     this.nameSpr.position.set(p.x, p.y + 2.6, p.z);
     if (away !== this._away) { this._away = away; this.nameSpr.material.map = away ? this._awayTex() : this.nameTex; this.nameSpr.material.needsUpdate = true; }
-    const blindFar = G.blindT > 0 && mage.root.position.distanceTo(this.nameSpr.position) > 8;   // 致盲:8 m 外隱藏名牌與血條(§3-3)
+    const blindFar = (G.blindT > 0 && mage.root.position.distanceTo(this.nameSpr.position) > 8) || ((fogAt(p.x, p.z) || fogAt(me.x, me.z)) && me.distanceTo(this.nameSpr.position) > 10);   // 致盲:8 m 外隱藏名牌與血條(§3-3);霧中(設計 §4-4):10 m 外同樣隱藏
     this.nameSpr.visible = vis && !blindFar && camera.position.distanceTo(this.nameSpr.position) < 45;
     this.bar.visible = vis && !blindFar;
     this.bar.position.set(p.x, p.y + 2.2, p.z); this.bar.quaternion.copy(camera.quaternion);
@@ -232,7 +238,7 @@ class RemotePlayer {
     this.glow.visible = vis && p.q > .01;
     if (this.glow.visible) { this.mage.tipWorld(this._tmp); this.glow.position.copy(this._tmp); this.glow.scale.setScalar(.15 + .6 * p.q); }
     // 狀態視覺(§3-3):潛行(照亮例外)與倒下時不畫,避免燃燒粒子暴露潛行者位置;照亮 flag 由快照 g & 1024 來
-    if ((stealth && !this.lit) || down) stVisHide(this);
+    if ((stealth && !this.lit) || down || hid) stVisHide(this);
     else stVis(this, this.stE & 7, (this.stE & 248) | (this.lit ? 256 : 0), dt);
   }
   // 命中(§2-3、§2-7):只有本機的攻擊(NET_CTX === null)才記入待送命中,由 netCombatTick 合併送出;
@@ -305,6 +311,11 @@ function spawnOkHigh(x, z, y) {
 function validSpawnPts(n) {
   const out = [], sp = typeof window.getSceneSpawns === 'function' ? window.getSceneSpawns() : null;
   if (sp) sp.forEach(([x, z, y]) => {
+    if (y == null) {   // 省略 y:自動取地形高;法線 y ≥ .9(坡 ≤ 0.48)且不在平台邊緣才合格;不合格不移動、直接排除(設計 §4-2 E)
+      if (groundNormal(x, z, null, .5, new V3()).y >= .9 && !nearPlatform(x, z, 2)) out.push({ x, z, y: terrainH(x, z) });
+      else console.error('[remote] 出生點不合格(坡度或平台邊緣,已排除):' + x + ',' + z);
+      return;
+    }
     y = y || 0;
     if (y > .01) { if (spawnOkHigh(x, z, y)) out.push({ x, z, y }); else console.error('[remote] 高處出生點不合格(已排除):' + x + ',' + z + ' y=' + y); }
     else { const q = fixSpawn(x, z); if (q) out.push({ x: q.x, z: q.z, y: 0 }); }
