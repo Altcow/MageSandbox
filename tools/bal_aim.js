@@ -65,12 +65,29 @@
   // 單發:c = 招式描述(AIM.combos 產生),dist = 標靶距離(m),mode = MODE 鍵,o = 選項
   // o.keep:不重置玩家位置與稻草人血量(連續施放用);o.yaw:稻草人朝向(0 = 背對攻擊者、PI = 面對);
   // o.cr:連擊點;o.hp:血量比例;o.noErr:強制無誤差
+  // 每發前清殘留(測試用,不影響遊戲邏輯本身):FX 佇列(牆 / 光柱 / 投射物)、減速區、暫時平台、召喚物、
+  // 玩家的位移 / 狀態、稻草人的燃燒與狀態。否則前一發的火牆會在下一發的窗口內持續傷害標靶。
+  AIM.flush = function () {
+    FX.length = 0;
+    SLOW_ZONES.splice(0);
+    for (let i = PLATFORMS.length - 1; i >= 0; i--) if (PLATFORMS[i].tmp) removePlatform(PLATFORMS[i]);
+    clearSummons();
+    G.dash = null; G.spin = null; G.roll = null; G.stealth = null; G.stun = 0; G.rootT = 0; G.paraT = 0; G.silT = 0;
+    G.weak = 0; G.shadowT = 0; G.danceT = 0; G.slowT = 0; G.slowPct = 0; G.litT = 0; G.down = 0; G.cd = {};
+    for (const d of DUMMIES) { d.burn = 0; d.burnT = 0; d.clearStatus(); }
+    // 場景子物件:只保留 setup 當下的數量,之後測試新增的特效網格全部移除(否則每發都讓 frame 變慢)
+    if (AIM.base != null) { for (let i = scene.children.length - 1; i >= AIM.base; i--) scene.remove(scene.children[i]); }
+    if (typeof rings !== 'undefined') rings.length = 0;
+    if (typeof DMGS !== 'undefined') DMGS.length = 0;
+  };
+
   AIM.shot = function (c, dist, mode, o) {
     o = o || {}; const M = MODE[mode] || mode;
     toReady(); setCls(c);
+    if (!o.keep) AIM.flush();
     G.stance = c.stance || 0; G.stanceCd = 0; G.stanceBoostT = 0;
     const d = DUMMIES[0];
-    if (!o.keep) { mage.root.position.set(0, terrainH(0, 0), 0); G.wallOff = 0; }
+    if (!o.keep) { mage.root.position.set(0, terrainH(0, 0), 0); G.wallOff = 0; G.vy = 0; G.ground = true; G.groundY = terrainH(0, 0); G.coyote = 0; G.airJumps = 1; G.airRolls = 1; }
     d.clearStatus(); d.dead = false; d.g.visible = true; d.g.scale.setScalar(1); d.popping = false; d.downK = 0; d.downT = 0;
     d.home.x = 0; d.home.z = dist; d.yaw = o.yaw == null ? Math.PI : o.yaw;
     if (!o.keep) d.hp = d.max;
@@ -193,6 +210,7 @@
   AIM.setup = function () {
     BAL.setup();
     AIM.seed(20261110);
+    AIM.base = scene.children.length;   // 場景基準子物件數(之後測試新增的物件會在 flush 時移除)
     return { ok: true, dummyMax: DUMMIES[0].max, dmgK: NET_RULES.dmgK, modes: Object.keys(MODE) };
   };
 

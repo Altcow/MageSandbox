@@ -79,16 +79,228 @@
   ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, e => { if (e.pointerId === cid) cid = null; }));
 
   // ---- 手把 ----
-  let prev = [], padOn = false, minusHold = -1, yHold = -1, padFullT = 0;
+  // 動作 → 標準映射按鈕編號。預設 = 實體位置(0 下 / 1 右 / 2 左 / 3 上,與舊版相同);畫面上的名稱依型號顯示
+  const PAD_KEY = 'mageSandbox.pad.v1';
+  const PAD_ACTS = [
+    { id: 'jump', name: '跳 / 二段跳', def: 0 },
+    { id: 'roll', name: '翻滾 / 空中側翻', def: 1 },
+    { id: 'strike', name: '來襲測試(長按:自動來襲)', def: 2 },
+    { id: 'weapon', name: '換裝 / 切架勢(集氣中:取消)', def: 3 },
+    { id: 'cast', name: '施法(按住集氣、放開施放)', def: 7 },
+    { id: 'prev', name: '上一個法術', def: 4 },
+    { id: 'next', name: '下一個法術', def: 5 },
+    { id: 'cancel', name: '取消集氣 / 取消選法術', def: 6 },
+    { id: 'scene', name: '換場景(長按)/ 切職業(短按)', def: 8 },
+    { id: 'panel', name: '參數面板', def: 9 },
+    { id: 'sit', name: '打坐 / 起身', def: 10 },
+    { id: 'cam', name: '鏡頭重置', def: 11 },
+    { id: 'mode', name: '集氣模式 A / B', def: 12 },
+    { id: 'zoom', name: '縮放循環', def: 13 },
+    { id: 'skillL', name: '十字左:法師上一屬性 / 其他職業第 4 格', def: 14 },
+    { id: 'skillR', name: '十字右:法師下一屬性 / 其他職業瞬發招', def: 15 }
+  ];
+  // 各型號在標準映射下的按鈕名稱(索引 0~16 = standard mapping 的實體位置)
+  const PAD_LBL = {
+    xbox: ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'LS', 'RS', '↑', '↓', '←', '→', 'Xbox'],
+    ps: ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', '↑', '↓', '←', '→', 'PS'],
+    switch: ['B', 'A', 'Y', 'X', 'L', 'R', 'ZL', 'ZR', '−', '+', 'LS', 'RS', '↑', '↓', '←', '→', 'Home'],
+    gen: null
+  };
+  const PAD_NAME = { xbox: 'Xbox 控制器', ps: 'PlayStation 控制器', switch: 'Switch Pro 控制器', gen: '通用手把' };
+  let padCfg = { bind: {}, rumble: true };
+  try { const s = JSON.parse(localStorage.getItem(PAD_KEY)); if (s && typeof s === 'object') { padCfg.rumble = s.rumble !== false; if (s.bind && typeof s.bind === 'object') padCfg.bind = s.bind; } } catch (e) { }
+  const padSave = () => { try { localStorage.setItem(PAD_KEY, JSON.stringify(padCfg)); } catch (e) { } };
+  const bindOf = id => { const v = padCfg.bind[id]; return Number.isInteger(v) && v >= 0 && v <= 16 ? v : PAD_ACTS.find(a => a.id === id).def; };
+  const padFamily = gp => { const s = gp.id || ''; return /054c|dualshock|dualsense|playstation|sony/i.test(s) ? 'ps' : /057e|switch|pro controller|joy-?con|nintendo/i.test(s) ? 'switch' : /045e|xbox|xinput/i.test(s) ? 'xbox' : 'gen'; };
+  let padFam = 'xbox', padStd = true, pad = null, padOn = false, minusHold = -1, yHold = -1, padFullT = 0, gPrev = [];   // pad:目前連線的手把;gPrev:遊戲輸入的上一格按鍵狀態
+  const labelOf = i => (padStd && PAD_LBL[padFam] && PAD_LBL[padFam][i]) || '#' + i;   // 非標準映射或通用手把:顯示編號
+  const confirmIdx = () => padStd && padFam === 'switch' ? 1 : 0;   // 選單確認 = 「A」/「✕」的實體位置(Switch 的 A 在右側)
+  const backIdx = () => 1 - confirmIdx();                            // 選單返回 = 「B」/「○」
+  const activePad = () => { const gps = navigator.getGamepads ? navigator.getGamepads() : []; for (const g of gps) if (g && g.connected) return g; return null; };
+
+  // 提示小字(手把連線 / 斷線、按鍵提示)
+  const msgEl = document.createElement('div'); msgEl.id = 'padMsg'; document.body.appendChild(msgEl);
+  let msgT = 0, lost = false;
+  function padMsg(txt, warn, ms) {
+    msgEl.textContent = txt; msgEl.classList.toggle('warn', !!warn); msgEl.classList.add('on');
+    clearTimeout(msgT); if (ms) msgT = setTimeout(() => msgEl.classList.remove('on'), ms);
+  }
+  const padHintEl = document.createElement('div'); padHintEl.id = 'padHint'; $('hint').appendChild(padHintEl);
+  const cvHintEl = document.createElement('div'); cvHintEl.id = 'padCvHint'; $('cvRoot').appendChild(cvHintEl);
+  function padHintRefresh() {
+    const L = a => labelOf(bindOf(a));
+    padHintEl.textContent = pad ? '手把:' + L('cast') + ' 按住集氣 ・ ' + L('weapon') + ' 換裝 / 切架勢 ・ ' + L('jump') + ' 跳 ・ ' + L('roll') + ' 翻滾 ・ ' + L('strike') + ' 來襲 ・ ' + L('panel') + ' 面板' : '';
+    cvHintEl.textContent = pad ? labelOf(confirmIdx()) + ' 確認 ・ ' + labelOf(backIdx()) + ' 返回 ・ 左搖桿 / 十字移動' : '';
+    padHelpRefresh();
+  }
+  // 連線 / 斷線:斷線時遊戲暫停集氣進度(window.PAD_LOST,game.js updateCasting)並顯示「手把已中斷」
+  function syncPad(gp) {
+    if (gp) { const fam = padFamily(gp), std = gp.mapping === 'standard'; if (fam !== padFam || std !== padStd) { padFam = fam; padStd = std; padHintRefresh(); } }
+    if (!!gp === !!pad) return;
+    pad = gp;
+    if (gp) { lost = false; window.PAD_LOST = false; padMsg('手把已連線:' + PAD_NAME[padFam] + (padStd ? '' : '(非標準映射,按鍵以編號顯示)'), false, 2800); }
+    else if (lost === false) { lost = true; window.PAD_LOST = true; padMsg('手把已中斷(集氣已暫停,請重新連接)', true, 0); document.body.classList.remove('pad'); }
+    padHintRefresh();
+  }
+
+  // 震動:dual-rumble,低強度短震;不支援或關閉時忽略
+  const RUMBLE = { hit: [.3, .4, 150], cast: [.08, .12, 50] };   // [weak, strong, ms]
+  function padRumble(kind) {
+    const R = RUMBLE[kind], gp = activePad();
+    if (!R || !padCfg.rumble || !gp || !gp.vibrationActuator || !gp.vibrationActuator.playEffect) return;
+    try { gp.vibrationActuator.playEffect('dual-rumble', { startDelay: 0, duration: R[2], weakMagnitude: R[0], strongMagnitude: R[1] }).catch(() => { }); } catch (e) { }
+  }
+  window.padRumble = padRumble;
+
+  // ---- 選單模式(封面 / 手把說明 / 結算畫面):D-pad 或左搖桿移動焦點外框,A 確認、B 返回 ----
+  let cur = null, menuOn = false, helpFrom = null, listenId = null, mPrev = [], rep = 0, repDir = '', helpRows = [];
+  const isTextEl = el => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+  function menuRoot() {
+    if (document.getElementById('padHelp')) return { el: document.getElementById('padHelp'), kind: 'help' };
+    const r = document.getElementById('netResult'); if (r && r.style.display === 'flex') return { el: r, kind: 'result' };
+    if (window.COVER_ON) { const v = document.querySelector('#cvRoot .cv-view.on'); if (v) return { el: v, kind: 'cover' }; }
+    return null;
+  }
+  function padItems(root) {
+    if (root.id === 'cvV_title') return [document.getElementById('cvEnter')].filter(Boolean);
+    return Array.from(root.querySelectorAll('button,input,textarea,select')).filter(el => !el.disabled && el.getClientRects().length && getComputedStyle(el).visibility === 'visible');
+  }
+  function setCur(el) { if (cur === el) return; if (cur) cur.classList.remove('pf'); cur = el || null; if (cur) cur.classList.add('pf'); }
+  function menuMove(dir, items) {
+    if (!cur) return;
+    const c = cur.getBoundingClientRect(), cx = c.left + c.width / 2, cy = c.top + c.height / 2;
+    let best = null, bs = 1e9;
+    for (const el of items) {
+      if (el === cur) continue;
+      const r = el.getBoundingClientRect(), dx = r.left + r.width / 2 - cx, dy = r.top + r.height / 2 - cy;
+      const along = dir === 'up' ? -dy : dir === 'down' ? dy : dir === 'left' ? -dx : dx;
+      const perp = dir === 'up' || dir === 'down' ? Math.abs(dx) : Math.abs(dy);
+      if (along < 4) continue;
+      const s = along + perp * 2;
+      if (s < bs) { bs = s; best = el; }
+    }
+    if (best) setCur(best);
+  }
+  function padActivate() {
+    if (!cur) return;
+    if (isTextEl(cur)) { cur.focus({ preventScroll: true }); padMsg('文字輸入請用鍵盤或螢幕鍵盤,按 ' + labelOf(backIdx()) + ' 結束輸入', false, 2600); return; }
+    cur.click();
+  }
+  function padBack(m) {
+    if (isTextEl(document.activeElement)) { document.activeElement.blur(); return; }
+    if (m.kind === 'help') { padCloseHelp(); return; }
+    if (m.kind !== 'cover') return;
+    const id = m.el.id;
+    if (id === 'cvV_create' || id === 'cvV_join') { const b = m.el.querySelector('[data-back]'); if (b) b.click(); }
+    else if (id === 'cvV_closed') { const b = document.getElementById('cvNoticeOk'); if (b) b.click(); }
+    else if (id === 'cvV_lobby') padMsg('離開房間請選「離開房間」按鈕', false, 2200);
+  }
+  function padBindTo(act, idx) {
+    const old = bindOf(act);
+    for (const a of PAD_ACTS) if (a.id !== act && bindOf(a.id) === idx) padCfg.bind[a.id] = old;   // 同鍵已綁其他動作:互換
+    padCfg.bind[act] = idx; padSave(); padHintRefresh();
+  }
+  function startListen(act) {
+    if (!pad) { padMsg('請先連接手把', true, 2200); return; }
+    listenId = act; padHelpRefresh();
+  }
+
+  // P 面板 / 封面的「手把按鍵說明」小視窗:目前對應、重新綁定、震動、還原預設
+  function padOpenHelp() {
+    if (document.getElementById('padHelp')) return;
+    if (document.pointerLockElement) document.exitPointerLock();
+    helpFrom = cur;
+    const o = document.createElement('div'); o.id = 'padHelp'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', '手把按鍵說明');
+    o.innerHTML = '<div class="ph-box"><div class="ph-title">手把按鍵說明</div><div class="ph-sub" id="phSub"></div><div id="phList"></div>' +
+      '<div class="ph-row"><span>震動(受擊 / 施法)</span><button class="ph-btn" type="button" data-ph="rumble"></button></div>' +
+      '<div class="ph-row" style="justify-content:flex-end;border:0"><button class="ph-btn" type="button" data-ph="reset">還原預設</button><button class="ph-btn" type="button" data-ph="close">關閉</button></div>' +
+      '<div class="ph-note" id="phNote"></div></div>';
+    const list = o.querySelector('#phList'); helpRows = [];
+    PAD_ACTS.forEach(a => {
+      const row = document.createElement('div'); row.className = 'ph-row';
+      const nm = document.createElement('span'); nm.textContent = a.name;
+      const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'ph-btn'; bt.dataset.act = a.id;
+      row.appendChild(nm); row.appendChild(bt); list.appendChild(row); helpRows.push(bt);
+    });
+    o.addEventListener('click', e => {
+      const t = e.target.closest('button'); if (!t) return;
+      if (t.dataset.act) startListen(t.dataset.act);
+      else if (t.dataset.ph === 'rumble') { padCfg.rumble = !padCfg.rumble; padSave(); padHelpRefresh(); }
+      else if (t.dataset.ph === 'reset') { padCfg = { bind: {}, rumble: true }; padSave(); padHintRefresh(); }
+      else if (t.dataset.ph === 'close') padCloseHelp();
+    });
+    document.body.appendChild(o);
+    padHelpRefresh();
+    setCur(o.querySelector('.ph-btn'));
+  }
+  function padHelpRefresh() {
+    const o = document.getElementById('padHelp'); if (!o) return;
+    o.querySelector('#phSub').textContent = pad ? PAD_NAME[padFam] + (padStd ? '' : ' ・ 非標準映射,按鍵以編號顯示') : '未偵測到手把,以下為預設名稱';
+    helpRows.forEach(bt => { const id = bt.dataset.act, on = listenId === id; bt.textContent = on ? '按下按鈕…' : labelOf(bindOf(id)); bt.classList.toggle('on', on); });
+    o.querySelector('[data-ph=rumble]').textContent = '震動:' + (padCfg.rumble ? '開' : '關');
+    o.querySelector('#phNote').textContent = (listenId ? '按下要綁定的按鈕,' + labelOf(backIdx()) + ' 取消。' : '點「改」後按下要綁定的按鈕。') + ' 選單:' + labelOf(confirmIdx()) + ' 確認、' + labelOf(backIdx()) + ' 返回;文字輸入請用鍵盤或螢幕鍵盤。';
+  }
+  function padCloseHelp() {
+    const o = document.getElementById('padHelp'); if (!o) return;
+    o.remove(); helpRows = []; listenId = null;
+    setCur(helpFrom && helpFrom.isConnected ? helpFrom : null); helpFrom = null;
+    padHintRefresh();
+  }
+
+  // 選單輪詢(每個畫面影格都跑,不依賴遊戲迴圈;結算畫面因 NET_LOCK 不呼叫 inputTick 時也能操作)
+  function menuLoop() {
+    requestAnimationFrame(menuLoop);
+    const gp = activePad(), now = performance.now();
+    syncPad(gp);
+    const m = menuRoot(), on = !!m;
+    if (on !== menuOn) {
+      menuOn = on; document.body.classList.toggle('padmenu', on);
+      if (!on) { setCur(null); listenId = null; if (isTextEl(document.activeElement)) document.activeElement.blur(); }
+    }
+    if (!gp) { mPrev = []; gPrev = []; repDir = ''; return; }
+    const bs = gp.buttons.map(x => !!(x && x.pressed));
+    const gameRuns = !on && !(window.NETON && window.NET_LOCK);
+    if (!gameRuns) gPrev = bs;   // 遊戲輸入這一格不會執行:同步按鍵狀態,避免恢復時誤判成按下
+    if (bs.some(Boolean) && on) document.body.classList.add('pad');
+    if (on) {
+      const e = i => bs[i] && !mPrev[i];
+      if (listenId) {
+        for (let i = 0; i < 17; i++) if (e(i)) { if (i !== backIdx()) padBindTo(listenId, i); listenId = null; padHelpRefresh(); break; }
+      } else {
+        const items = padItems(m.el), ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+        if (!cur || items.indexOf(cur) < 0) setCur(items[0] || null);
+        const d = bs[12] || ay < -.5 ? 'up' : bs[13] || ay > .5 ? 'down' : bs[14] || ax < -.5 ? 'left' : bs[15] || ax > .5 ? 'right' : '';
+        if (!d) repDir = '';
+        else if (d !== repDir) { repDir = d; rep = now + 380; menuMove(d, items); }
+        else if (now >= rep) { rep = now + 160; menuMove(d, items); }
+        if (e(confirmIdx())) padActivate();
+        else if (e(backIdx())) padBack(m);
+      }
+    }
+    mPrev = bs;
+  }
+  menuLoop();
+
+  // 手把面板列(game.js buildPanel 呼叫;載入時也會直接加到 P 面板)
+  window.padPanelExtra = function (root) {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '手把按鍵說明 / 自訂';
+    b.onclick = padOpenHelp; root.appendChild(b);
+  };
+  window.padPanelExtra(document.getElementById('panel'));
+  { const cvMenu = document.querySelector('#cvV_menu .cv-menu');
+    if (cvMenu) { const b = document.createElement('button'); b.type = 'button'; b.className = 'cv-link'; b.id = 'cvPadHelp'; b.textContent = '手把按鍵'; b.onclick = padOpenHelp; cvMenu.appendChild(b); } }
+  window.addEventListener('keydown', e => { if (e.code === 'Escape' && document.getElementById('padHelp')) padCloseHelp(); });
+  padHintRefresh();
+
+  // 遊戲內輸入(frame 呼叫 inputTick;封面 / 選單 / 多人開戰倒數時不執行)
   window.inputTick = function (dt) {
-    if (window.COVER_ON) return;   // 封面期間不處理手把
-    const gps = navigator.getGamepads ? navigator.getGamepads() : [];
-    let gp = null; for (const g of gps) if (g && g.connected) { gp = g; break; }
-    if (!gp) return;
-    const dz = v => Math.abs(v) > .18 ? v : 0, ax = i => dz(gp.axes[i] || 0), b = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
-    const edge = i => b(i) && !prev[i];
+    if (window.COVER_ON || menuRoot()) return;
+    const gp = activePad(); if (!gp) return;
+    const bs = gp.buttons.map(x => !!(x && x.pressed));
+    const dz = v => Math.abs(v) > .18 ? v : 0, ax = i => dz(gp.axes[i] || 0), b = i => bs[i] === true;
+    const edge = i => b(i) && !gPrev[i], K = id => bindOf(id);
     const lx = ax(0), ly = ax(1), rx = ax(2), ry = ax(3);
-    const any = lx || ly || rx || ry || gp.buttons.some(x => x.pressed);
+    const any = lx || ly || rx || ry || bs.some(Boolean);
     if (any) { G.inputMode = 'stick'; padOn = true; document.body.classList.add('pad'); }   // 手把操作時隱藏觸控鈕
     if (padOn) { G.stick.x = lx; G.stick.y = ly; G.stick.mag = Math.min(1, Math.hypot(lx, ly)); }
     // 右搖桿視角:圓形死區 .15 + 曲線 ((m-.15)/.85)^1.8;推到 > .92 持續 .3 s 後偏航 ×1.5(設計 §2-7)
@@ -100,25 +312,32 @@
       const c = sc(G.skill); setRad(G.skill, clamp(getRad(G.skill) - ry * dt * (c.rMax - c.rMin) * .7, c.rMin, c.rMax));
       if (curSkill(G.skill).shape === 'wall') G.wallOff -= rx * dt * 2.2; else addLook(padYaw, 0);
     } else addLook(padYaw, padPitch);
-    // ZR / RT 按住集氣、放開施放(按住狀態 G.atkHeld 供僵直結束後接續集氣)
-    G.atkHeld = b(7);
-    if (edge(7)) startCharge();
-    if (!b(7) && prev[7] && G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
-    if (edge(0)) doJump();                                   // B:跳 / 二段跳
-    if (edge(1)) tryRoll();                                  // A:翻滾 / 空中側翻
-    if (edge(2)) yHold = 0; if (yHold >= 0 && b(2)) { yHold += dt; if (yHold >= .6) { yHold = -2; toggleAuto(); } } if (prev[2] && !b(2)) { if (yHold >= 0) strike(); yHold = -1; }                                   // Y:短按來襲測試、長按 0.6 s 切換自動來襲
-    if (edge(3)) { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); }   // X:換裝;集氣中為取消
-    if (edge(4)) cycleSkill(-1);                             // L:上一個法術
-    if (edge(5)) cycleSkill(1);                              // R:下一個法術
-    if (edge(6)) { if (G.state === 'charging') cancelCharge(); else if (G.state === 'ready') G.skill = -1; }   // ZL:取消集氣 / 取消選法術
-    if (edge(8)) minusHold = 0; if (minusHold >= 0 && b(8)) { minusHold += dt; if (minusHold >= .6) { minusHold = -2; nextScene(); } } if (prev[8] && !b(8)) { if (minusHold >= 0) cycleClass(1); minusHold = -1; }                                // −:換場景
-    if (edge(9)) document.getElementById('panel').classList.toggle('on');   // +:參數面板
-    if (edge(10)) toggleSit();                              // 左搖桿按下:打坐 / 起身
-    if (edge(11)) resetCam();                                // 右搖桿按下:鏡頭重置
-    if (edge(12)) toggleChgMode();      // 十字上:切換集氣模式
-    if (edge(13)) { const ZS = [1, .8, 1.3]; G.zoom = ZS[(ZS.findIndex(z => Math.abs(z - G.zoom) < .01) + 1) % 3]; }     // 十字下:縮放循環 1.0 → 0.8 → 1.3
-    if (edge(14)) { if (G.cls === 'mage') cycleElement(-1); else selectSkill(3); }                          // 十字左:法師上一屬性;其他職業直接選第 4 格(瞬發則發動)
-    if (edge(15)) { if (G.cls === 'mage') cycleElement(1); else { const k = instantSlot(); if (k >= 0) selectSkill(k); } }                           // 十字右:法師下一屬性;其他職業為目前架勢的瞬發招
-    prev = gp.buttons.map(x => x.pressed);
+    // 施法鍵(預設 ZR / RT)按住集氣、放開施放(按住狀態 G.atkHeld 供僵直結束後接續集氣)
+    const cast = K('cast');
+    G.atkHeld = b(cast);
+    if (edge(cast)) startCharge();
+    if (!b(cast) && gPrev[cast] && G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
+    if (edge(K('jump'))) doJump();                           // 跳 / 二段跳
+    if (edge(K('roll'))) tryRoll();                          // 翻滾 / 空中側翻
+    const sk = K('strike');                                  // 來襲:短按 = 來襲測試;長按 0.6 s = 切換自動來襲
+    if (edge(sk)) yHold = 0;
+    if (yHold >= 0 && b(sk)) { yHold += dt; if (yHold >= .6) { yHold = -2; toggleAuto(); } }
+    if (gPrev[sk] && !b(sk)) { if (yHold >= 0) strike(); yHold = -1; }
+    if (edge(K('weapon'))) { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); }   // 換裝 / 架勢;集氣中為取消
+    if (edge(K('prev'))) cycleSkill(-1);
+    if (edge(K('next'))) cycleSkill(1);
+    if (edge(K('cancel'))) { if (G.state === 'charging') cancelCharge(); else if (G.state === 'ready') G.skill = -1; }
+    const scn = K('scene');                                  // 換場景:長按 0.6 s;短按 = 切職業
+    if (edge(scn)) minusHold = 0;
+    if (minusHold >= 0 && b(scn)) { minusHold += dt; if (minusHold >= .6) { minusHold = -2; nextScene(); } }
+    if (gPrev[scn] && !b(scn)) { if (minusHold >= 0) cycleClass(1); minusHold = -1; }
+    if (edge(K('panel'))) document.getElementById('panel').classList.toggle('on');
+    if (edge(K('sit'))) toggleSit();
+    if (edge(K('cam'))) resetCam();
+    if (edge(K('mode'))) toggleChgMode();
+    if (edge(K('zoom'))) { const ZS = [1, .8, 1.3]; G.zoom = ZS[(ZS.findIndex(z => Math.abs(z - G.zoom) < .01) + 1) % 3]; }   // 縮放循環 1.0 → 0.8 → 1.3
+    if (edge(K('skillL'))) { if (G.cls === 'mage') cycleElement(-1); else selectSkill(3); }
+    if (edge(K('skillR'))) { if (G.cls === 'mage') cycleElement(1); else { const k = instantSlot(); if (k >= 0) selectSkill(k); } }
+    gPrev = bs;
   };
 })();

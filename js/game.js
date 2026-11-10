@@ -510,7 +510,7 @@ function dissolveOrb(orb, E) {
 function release() {
   const cs = skillCost(G.skill);
   if (!resUse(cs.kind, costAt(cs.base, G.charge))) { cancelCharge(); return; }   // 花費在施放當下扣(chargeCap 已保證夠)
-  sfx.loop('charge', false); sfx.play('cast', { cls: G.cls, el: G.el });
+  sfx.loop('charge', false); sfx.play('cast', { cls: G.cls, el: G.el }); if (window.padRumble) padRumble('cast');
   if (G.stealth && G.stealth.shadow) revealStealth('cast');   // 影遁中出招即解除(skills_assassin.js 影分身)
   const sk = curSkill(G.skill), sp = spellOf(G.skill), p = mage.root.position, q = G.charge, mode = curMode();
   const dir = Math.atan2(G.target.x - p.x, G.target.z - p.z), sizeK = CHG.size(q, mode);
@@ -531,7 +531,7 @@ function release() {
 function updateCasting(dt) {
   for (const k in G.cd) if (G.cd[k] > 0) G.cd[k] = Math.max(0, G.cd[k] - dt);
   if (G.state === 'charging') {
-    if (!(G.paraJolt > 0)) G.chargeT += dt;   // 麻痺抽搐中暫停集氣進度(不取消,status.js)
+    if (!(G.paraJolt > 0) && !window.PAD_LOST) G.chargeT += dt;   // 麻痺抽搐中暫停集氣進度(不取消,status.js)
     G.charge = Math.min(clamp(G.chargeT / chargeTimeEff(), 0, 1), chargeCap());   // MP / SP 不足時卡在買得起的上限
     if (G.charge >= .5 && !G.halfFlash) { G.halfFlash = true; burstRing(mage.root.position, auraEl().hex, 1.2); }
     if (G.charge >= 1 && !G.maxFlash) { G.maxFlash = true; G.shake = Math.max(G.shake, .05); burstRing(mage.root.position, 0xffd27a, 2.4); }
@@ -1144,6 +1144,7 @@ function buildPanel() {
   const b = document.createElement('button'); b.textContent = '還原預設值';
   b.onclick = () => { mergeCfg(CFG, JSON.parse(JSON.stringify(DEFAULT_CFG))); saveCfg(); buildPanel(); }; root.appendChild(b);
   if (typeof stBuildTestPanel === 'function') stBuildTestPanel(root);   // 狀態測試(status.js)
+  if (typeof window.padPanelExtra === 'function') window.padPanelExtra(root);   // 手把按鍵說明(touch.js)
   const rb = document.createElement('button'); rb.textContent = '重置標靶'; rb.onclick = () => resetWorld(); root.appendChild(rb);
 }
 buildPanel();

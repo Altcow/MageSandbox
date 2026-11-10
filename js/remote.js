@@ -150,7 +150,7 @@ class RemotePlayer {
     blobShared();
     this.shadow = new THREE.Mesh(BLOB_GEO, BLOB_MAT); this.shadow.renderOrder = 1; scene.add(this.shadow);
     const color = NAME_COLORS[(this.seat - 1) % NAME_COLORS.length];
-    this.nameTex = nameTexture(this.name, color, ''); this._awayT = null; this._away = false; this._color = color;
+    this.nameTex = nameTexture(this.name, color, ''); this._awayT = null; this._offT = null; this._tag = ''; this._color = color;
     this.nameSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.nameTex, transparent: true, depthWrite: false }));
     this.nameSpr.scale.set(2.4, .4, 1); this.nameSpr.renderOrder = 30; scene.add(this.nameSpr);
     this.bar = new THREE.Group(); scene.add(this.bar);
@@ -181,6 +181,7 @@ class RemotePlayer {
   get z() { return this.pz; }
   _noShadow() { this.mage.root.traverse(o => { if (o.isMesh) o.castShadow = false; }); }
   _awayTex() { if (!this._awayT) this._awayT = nameTexture(this.name, this._color, '(暫離)'); return this._awayT; }
+  _offTex() { if (!this._offT) this._offT = nameTexture(this.name, this._color, '(離線中)'); return this._offT; }
   _ingest(now) {
     const s = Net.snapOf(this.seat);
     if (typeof s !== 'string' || s === this.lastStr) return;
@@ -201,9 +202,12 @@ class RemotePlayer {
     const now = Net.now();
     this._ingest(now);
     const B = this.buf, have = B.length > 0;
-    const stale = !have || now - this.lastRecv > 3000;
+    // 對方在背景(presence 的 away 有效):快照停止時凍結在最後位置、名牌「離線中」,不隱藏、不外插(避免瞬移)
+    const off = have && Net.awayOf(this.seat) && now - this.lastRecv > 3000;
+    const stale = !have || (now - this.lastRecv > 3000 && !off);
     let p = null;
-    if (have) {
+    if (off) p = B[B.length - 1];
+    else if (have) {
       const rt = now - this.delayMs(), L = B.length, last = B[L - 1];
       if (rt >= last.t) p = extrapPose(last, L >= 2 ? B[L - 2] : null, Math.min(rt - last.t, 200));
       else if (rt <= B[0].t) p = B[0];
@@ -223,7 +227,7 @@ class RemotePlayer {
     this._lastHp = p.hp;
     if ((g & 128) || p.c >= .05) this._revealUntil = now + 600;
     const hid = bi >= 0 && bi !== myBi && Math.hypot(p.x - me.x, p.z - me.z) > 2.5 && !(g & 128) && p.c < .05 && !(g & 1024) && now > (this._revealUntil || 0);
-    const op = stealth ? .08 : (inSm ? .35 : (away ? .4 : 1));
+    const op = stealth ? .08 : (inSm ? .35 : ((away || off) ? .4 : 1));
     if (op !== this._op) { this._op = op; this.mage.setOpacity(op); this._noShadow(); }
     this.mage.root.position.set(p.x, p.y, p.z); this.mage.yaw = p.r;
     if (this.cls === 'mage') { const w = p.w ? 'book' : 'staff'; if (this.mage.weapon !== w) this.mage.setWeapon(w, false); }
@@ -240,7 +244,8 @@ class RemotePlayer {
     this.g.visible = !blink && !hid;
     const vis = !blink && !stealth && !inSm && !hid;
     this.nameSpr.position.set(p.x, p.y + 2.6, p.z);
-    if (away !== this._away) { this._away = away; this.nameSpr.material.map = away ? this._awayTex() : this.nameTex; this.nameSpr.material.needsUpdate = true; }
+    const tag = off ? 'off' : (away ? 'away' : '');
+    if (tag !== this._tag) { this._tag = tag; this.nameSpr.material.map = off ? this._offTex() : (away ? this._awayTex() : this.nameTex); this.nameSpr.material.needsUpdate = true; }
     const blindFar = (G.blindT > 0 && mage.root.position.distanceTo(this.nameSpr.position) > 8) || ((fogAt(p.x, p.z) || fogAt(me.x, me.z)) && me.distanceTo(this.nameSpr.position) > 10);   // 致盲:8 m 外隱藏名牌與血條(§3-3);霧中(設計 §4-4):10 m 外同樣隱藏
     const cd = camera.position.distanceTo(this.nameSpr.position), fa = clamp((NET_TIER.nameFade[1] - cd) / (NET_TIER.nameFade[1] - NET_TIER.nameFade[0]), 0, 1);   // 名牌距離淡出(30→45 m)
     this.nameSpr.material.opacity = fa;
@@ -310,7 +315,7 @@ class RemotePlayer {
   destroy() {
     scene.remove(this.g); disposeTree(this.g);
     scene.remove(this.shadow);
-    scene.remove(this.nameSpr); this.nameSpr.material.dispose(); this.nameTex.dispose(); if (this._awayT) this._awayT.dispose();
+    scene.remove(this.nameSpr); this.nameSpr.material.dispose(); this.nameTex.dispose(); if (this._awayT) this._awayT.dispose(); if (this._offT) this._offT.dispose();
     scene.remove(this.bar); disposeTree(this.bar);
     scene.remove(this.glow); this.glow.material.dispose();
     stVisDispose(this);

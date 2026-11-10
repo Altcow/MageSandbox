@@ -272,6 +272,14 @@ function netRespawn() {
   G.tp = (G.tp | 0) + 1;
   if (G.state === 'charging') cancelCharge();
 }
+// 回前景後的本機校正(net.js finishRestore 呼叫):清掉背景期間卡住的按鍵;倒下計時扣掉背景經過的秒數(背景時 rAF 停住),歸零即復活。
+// 背景期間收到的命中事件會因舊事件規則被丟棄,所以不會在背景中被扣血(§1-7)。
+function netOnRestored(info) {
+  if (!window.NETON || !Net.me) return;
+  G.keys = {}; G.atkHeld = false; G.stick.x = 0; G.stick.y = 0; G.stick.mag = 0;
+  const away = info && info.away > 0 ? info.away : 0;
+  if (G.down > 0 && away > 0) { const left = G.down - away; if (left <= 0) playerRevive(); else G.down = left; }
+}
 function netClearDebuffs() {
   G.kvx = G.kvz = 0; G.litT = 0; G.stun = 0; G.weak = 0; G.downK = 0; G.fallT = 0;
   stClear();   // 減速 / 灼燒 / 中毒 / 寒意 / 致盲 / 控制計時與韌性(status.js)

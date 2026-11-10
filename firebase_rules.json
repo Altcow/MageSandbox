@@ -1,0 +1,177 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "roomIdx": {
+      ".indexOn": ".value",
+      ".read": "query.orderByValue == true && query.endAt <= now - 300000 && query.limitToFirst <= 20",
+      "$code": {
+        ".write": "$code.matches(/^[A-HJ-NP-Z2-9]{4}$/) && (newData.exists() || data.val() < now - 300000 || root.child('rooms').child($code).child('meta/state').val() == 'closed')",
+        ".validate": "newData.isNumber() && newData.val() <= now"
+      }
+    },
+    "pw": {
+      "$code": {
+        ".read": false,
+        ".write": "(!data.exists() && newData.exists() && root.child('rooms').child($code).child('meta/locked').val() == true && root.child('rooms').child($code).child('meta/created').val() > now - 30000) || (!newData.exists() && (!root.child('rooms').child($code).exists() || root.child('rooms').child($code).child('meta/lastActive').val() < now - 300000 || root.child('rooms').child($code).child('meta/state').val() == 'closed'))",
+        ".validate": "newData.isString() && newData.val().length == 64"
+      }
+    },
+    "mem": {
+      "$code": {
+        ".read": false,
+        ".write": "!newData.exists() && (!root.child('rooms').child($code).exists() || root.child('rooms').child($code).child('meta/lastActive').val() < now - 300000 || root.child('rooms').child($code).child('meta/state').val() == 'closed')",
+        "$seat": {
+          ".write": "$seat.matches(/^([1-9]|1[0-2])$/) && newData.val() == root.child('pw').child($code).val()",
+          ".validate": "newData.isString() && newData.val().length == 64"
+        }
+      }
+    },
+    "rooms": {
+      "$code": {
+        ".read": "$code.matches(/^[A-HJ-NP-Z2-9]{4}$/)",
+        ".write": "!newData.exists() && (data.child('meta/lastActive').val() < now - 300000 || data.child('meta/state').val() == 'closed')",
+        "meta": {
+          ".write": "$code.matches(/^[A-HJ-NP-Z2-9]{4}$/) && (!data.exists() || data.child('lastActive').val() < now - 300000)",
+          ".validate": "newData.hasChildren(['v','build','host','max','state','salt','locked','created','lastActive','hb'])",
+          "v": {
+            ".validate": "newData.isNumber()"
+          },
+          "build": {
+            ".validate": "newData.isNumber()"
+          },
+          "host": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 12"
+          },
+          "name": {
+            ".validate": "newData.isString() && newData.val().length <= 24"
+          },
+          "max": {
+            ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() <= 12"
+          },
+          "scene": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 15"
+          },
+          "locked": {
+            ".validate": "newData.isBoolean()"
+          },
+          "salt": {
+            ".validate": "newData.isString() && newData.val().length <= 32"
+          },
+          "created": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "state": {
+            ".write": "data.parent().exists()",
+            ".validate": "newData.isString() && newData.val().matches(/^(lobby|match|result|closed)$/)"
+          },
+          "lastActive": {
+            ".write": "data.parent().exists()",
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "hb": {
+            ".write": "data.parent().exists()",
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "rules": {
+            ".write": "data.parent().exists()",
+            ".validate": "newData.isString() && newData.val().length <= 300"
+          },
+          "result": {
+            ".write": "data.parent().exists()",
+            ".validate": "newData.isString() && newData.val().length <= 600"
+          },
+          "round": {
+            ".write": "data.parent().exists()",
+            ".validate": "newData.hasChildren(['n','scene','seed','t0','tEnd'])",
+            "n": {
+              ".validate": "newData.isNumber()"
+            },
+            "scene": {
+              ".validate": "newData.isNumber()"
+            },
+            "seed": {
+              ".validate": "newData.isNumber()"
+            },
+            "t0": {
+              ".validate": "newData.isNumber()"
+            },
+            "tEnd": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "$other": {
+            ".validate": false
+          },
+          "away": {
+            ".validate": "newData.isNumber() && newData.val() <= now",
+            ".write": "data.parent().exists()"
+          }
+        },
+        "players": {
+          "$seat": {
+            ".write": "$seat.matches(/^([1-9]|1[0-2])$/) && root.child('rooms').child($code).child('meta').exists() && (!newData.exists() || !root.child('pw').child($code).exists() || root.child('mem').child($code).child($seat).val() == root.child('pw').child($code).val())",
+            ".validate": "newData.hasChildren(['name','cls','hb'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12"
+            },
+            "cls": {
+              ".validate": "newData.isString() && newData.val().matches(/^(mage|archer|swordsman|assassin)$/)"
+            },
+            "el": {
+              ".validate": "newData.isString() && newData.val().matches(/^(fire|water|wind|earth|light|dark)$/)"
+            },
+            "ready": {
+              ".validate": "newData.isBoolean()"
+            },
+            "joined": {
+              ".validate": "newData.isNumber() && newData.val() <= now"
+            },
+            "hb": {
+              ".validate": "newData.isNumber() && newData.val() <= now"
+            },
+            "$other": {
+              ".validate": false
+            },
+            "away": {
+              ".validate": "newData.isNumber() && newData.val() <= now"
+            }
+          }
+        },
+        "snap": {
+          "$seat": {
+            ".write": "$seat.matches(/^([1-9]|1[0-2])$/) && (!newData.exists() || !root.child('pw').child($code).exists() || root.child('mem').child($code).child($seat).val() == root.child('pw').child($code).val())",
+            ".validate": "newData.isString() && newData.val().length <= 400"
+          }
+        },
+        "sm": {
+          "$seat": {
+            ".write": "$seat.matches(/^([1-9]|1[0-2])$/) && (!newData.exists() || !root.child('pw').child($code).exists() || root.child('mem').child($code).child($seat).val() == root.child('pw').child($code).val())",
+            ".validate": "newData.isString() && newData.val().length <= 600"
+          }
+        },
+        "score": {
+          ".write": "data.parent().child('meta').exists()",
+          "$seat": {
+            ".validate": "$seat.matches(/^([1-9]|1[0-2])$/) && newData.isString() && newData.val().length <= 20"
+          }
+        },
+        "ev": {
+          "$seat": {
+            ".write": "$seat.matches(/^([1-9]|1[0-2])$/) && !newData.exists()",
+            "$key": {
+              ".write": "$seat.matches(/^([1-9]|1[0-2])$/) && $key.matches(/^[0-9a-z]{9}_[0-9a-z]{1,6}$/) && (!newData.exists() || (!data.exists() && (!root.child('pw').child($code).exists() || root.child('mem').child($code).child($seat).val() == root.child('pw').child($code).val())))",
+              ".validate": "newData.isString() && newData.val().length <= 700"
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

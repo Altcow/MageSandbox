@@ -77,7 +77,7 @@ function playerHurt(n, src) {
   if (G.shield > 0) { const a = Math.min(G.shield, rest); G.shield -= a; rest -= a; if (G.shield <= 0) { G.shield = 0; G.shieldT = 0; } }
   sitBreak('hurt');
   if (rest <= 0) { banner('護盾擋下!', '#ffd27a'); return { blocked: true, dmg: 0, src }; }
-  sfx.play('hurt');
+  sfx.play('hurt'); if (!dot && window.padRumble) padRumble('hit');
   G.hp = Math.max(uny ? 1 : 0, G.hp - rest);
   if (!uny && !net && !dot) { G.stun = Math.max(G.stun, .6); G.vy = 5; }   // 單人:硬直取大(原為覆寫)、往上彈;DOT 不硬直
   else if (!uny && net && !dot && G.hardImmT <= 0 && G.hitStunCd <= 0) { G.stun = Math.max(G.stun, NET_RULES.hitStun); G.hitStunCd = NET_RULES.hitStunGap; }   // 多人:硬直取大、0.5 s 內只觸發一次、韌性期間不硬直(§1-6)

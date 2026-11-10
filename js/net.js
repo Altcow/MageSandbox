@@ -17,6 +17,9 @@
   const sceneMax = () => (typeof window.getSceneCount === 'function' ? window.getSceneCount() : 2) - 1;   // 場地索引上限(scenes.js)
   const HB_MS = 10000;          // 心跳間隔
   const STALE_MS = 25000;       // 心跳逾時:超過即視為離開
+  const AWAY_MS = 90000;        // 背景(暫離)存活期限:players/<座位>/away 的時間戳在此內不視為離開(iOS 背景時計時器暫停,無法送心跳)
+  const GRACE_MS = 20000;       // 背景寬限期:回前景在此內不顯示「重新連線中…」
+  const RESTORE_MS = 8000;      // 回前景後等待房間完整狀態(put)的上限,逾時回大廳
   const CREATE_WAIT_MS = 1000;  // 建房前等待是否有人已佔用該房號
   const JOIN_WAIT_MS = 800;     // 加入時等待房主回應
   const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // 去掉 0 O 1 I L,31^4 種
@@ -31,6 +34,10 @@
   let mySeat = 0;        // 我的座位(同時作為玩家 id)
   let lastPlayersKey = '', lastRound = 0, lastCountdown = undefined, idleSince = 0, lastHb = 0;
   let evOpenT = 0;                                  // 本次房間串流開啟的時間(舊事件判斷,§1-7)
+  let myInfo = null, myMem = null;                  // 自己的登記資料與房間密碼雜湊(被移出時重新加入用)
+  let hideAt = 0;                                   // 進入背景的時間(0 = 前景)
+  let restoring = false, restoreTimer = null, restoreAway = 0;   // 回前景後重建串流、等待房間狀態
+  let offline = false, wantWake = false, wakeLock = null, wakePending = false, connEl = null;
   const EV_SEEN = new Set(), EV_SEEN_Q = [];         // 事件去重(保留最近 512 筆,§1-7)
 
   const cryptoOk = () => !!(window.crypto && window.crypto.subtle);
@@ -133,7 +140,11 @@
     _send(m) { if (this.ch) { try { this.ch.postMessage(m); } catch (e) { } } }
     _recv(m) {
       if (m.k === 'req') { if (this.root && m.from !== this.id) this._send({ k: 'full', to: m.from, data: this.root }); }
-      else if (m.k === 'full') { if (this.waiter && m.to === this.id) this.waiter(m.data); }
+      else if (m.k === 'full') {
+        if (m.to !== this.id) return;
+        if (this.waiter) this.waiter(m.data);
+        else if (this.root && m.data) { this.root = m.data; this._fire('put'); }   // 回前景的重新同步(reconnect)
+      }
       else if (m.k === 'map') { if (this.root) { this._applyMap(m.map); this._fire('patch', m.map); } }
       else if (m.k === 'bye') this._fire('down', m.reason);
     }
@@ -169,6 +180,7 @@
       this._close();
       this.root = null; this.seat = 0;
     }
+    reconnect() { if (this.root) this._send({ k: 'req', from: this.id }); }
   }
 
   /* FirebaseBus(N8):REST(fetch)+ SSE(EventSource),不用 SDK、不下載外部程式庫。
@@ -290,7 +302,8 @@
       catch (e) { console.warn('[net] 無法開啟串流'); return this._remoteDown('network'); }
       this.es = es;
       this.lastMsg = Date.now();
-      es.onopen = () => { if (this.es !== es) return; this._retryN = 0; this.failSince = 0; };
+      this.connState = 'connecting';
+      es.onopen = () => { if (this.es !== es) return; this._retryN = 0; this.failSince = 0; this.connState = 'ok'; };
       es.onerror = () => this._onErr(es);
       es.addEventListener('put', e => this._onMsg(es, e, 'put'));
       es.addEventListener('patch', e => this._onMsg(es, e, 'patch'));
@@ -303,7 +316,15 @@
       if (this.es !== es || this._closed) return;
       if (!this.failSince) this.failSince = Date.now();
       // 瀏覽器會自動重連(CONNECTING);只有 CLOSED 時才自己退避重開
+      this.connState = 'connecting';
       if (es.readyState === EventSource.CLOSED) this._scheduleReconnect();
+    }
+    // 回前景 / 網路恢復:立即重建串流(保留本機鏡像,新的 put 會覆寫成最新完整狀態)
+    reconnect() {
+      if (this._closed) return;
+      if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
+      this._retryN = 0; this.failSince = 0;
+      this._connect();
     }
     _scheduleReconnect() {
       if (this._retryTimer || this._closed) return;
@@ -479,14 +500,16 @@
   function removeMap(s) {
     return { ['players/' + s]: null, ['snap/' + s]: null, ['sm/' + s]: null, ['ev/' + s]: null };
   }
-  // 大廳名單:過濾心跳逾時者(自己不過濾)
+  // 存活判定:心跳未逾時,或雖逾時但在背景期限內(away 時間戳)
+  function alive(p, t) { return !!p && (t - (p.hb || 0) <= STALE_MS || (!!p.away && t - p.away <= AWAY_MS)); }
+  // 大廳名單:過濾離開者(自己不過濾)
   function listPlayers() {
     const r = root();
     if (!r || !r.meta) return [];
     const t = nowT(), out = [];
     for (let s = 1; s <= 12; s++) {
       const p = r.players && r.players[s];
-      if (!p || (s !== mySeat && t - (p.hb || 0) > STALE_MS)) continue;
+      if (!p || (s !== mySeat && !alive(p, t))) continue;
       out.push({ id: s, name: p.name, cls: p.cls, el: p.el, ready: !!p.ready, host: s === r.meta.host });
     }
     return out;
@@ -497,7 +520,7 @@
     let n = 0;
     for (let s = 1; s <= 12; s++) {
       const p = r.players && r.players[s];
-      if (p && s !== r.meta.host && t - (p.hb || 0) <= STALE_MS) n++;
+      if (p && s !== r.meta.host && alive(p, t)) n++;
     }
     return n;
   }
@@ -505,14 +528,14 @@
   function findSeat(r, t) {
     for (let s = 1; s <= r.meta.max; s++) {
       const p = r.players && r.players[s];
-      if (!p || t - (p.hb || 0) > STALE_MS) return s;
+      if (!alive(p, t)) return s;
     }
     return 0;
   }
   function wire(b) {
     evOpenT = b.now();
     b.on('open', () => { if (bus === b) evOpenT = b.now(); });
-    b.on('put', () => { if (bus === b) onChange(); });
+    b.on('put', () => { if (bus === b) { if (restoring) finishRestore(); onChange(); } });
     b.on('patch', m => { if (bus === b) { dispatchEv(m); onChange(); } });
     b.on('down', reason => { if (bus === b) closeLocal(reason || 'hostleft'); });
   }
@@ -538,6 +561,10 @@
     bus = null; myRoom = null; mySeat = 0;
     EV_SEEN.clear(); EV_SEEN_Q.length = 0;
     lastPlayersKey = ''; lastRound = 0; lastCountdown = undefined; idleSince = 0; lastHb = 0;
+    myInfo = null; myMem = null; hideAt = 0; restoreAway = 0;
+    if (restoreTimer) { clearTimeout(restoreTimer); restoreTimer = null; }
+    restoring = false;
+    setWake(false);
   }
   // 離開本機房間(不發事件);byeReason 只在房主離開時傳入
   function dropRoom(byeReason) {
@@ -573,6 +600,7 @@
     const r = root();
     if (!r || !r.meta || r.meta.state === 'closed') return closeLocal('hostleft');
     const m = r.meta;
+    setWake(m.state === 'match' || m.state === 'result');   // 對戰中螢幕常亮(Screen Wake Lock,不支援則忽略)
     if (m.state === 'match' && m.round && m.round.n !== lastRound) {
       lastRound = m.round.n;
       emit('start', { scene: m.round.scene, players: listPlayers(), seed: m.round.seed });
@@ -580,9 +608,112 @@
     const pl = listPlayers(), key = JSON.stringify(pl);
     if (key !== lastPlayersKey) { lastPlayersKey = key; emit('players', pl); }
   }
+  /* ================= 背景 / 回前景(手機切 App、鎖屏、分頁切換,設計 §1-9) =================
+     進背景:寫 players/<座位>/away(房主另寫 meta/away);其他人在 AWAY_MS 內仍視為在線,不踢出。
+     回前景:立即重建串流,等房間完整狀態(put)後補寫心跳並清除 away;若已被移出則以原座位重新加入;逾時 RESTORE_MS 回大廳。
+     背景期間不送快照(rAF 暫停);回來後寫入自己的最新位置由快照通道接續。 */
+  function setAway(t) {
+    if (!bus || !myRoom || !mySeat) return;
+    const map = { ['players/' + mySeat + '/away']: t };
+    if (isHost()) map['meta/away'] = t;
+    bus.patchRoot(map);
+  }
+  function goBackground() {
+    if (!bus || !myRoom || hideAt) return;
+    hideAt = nowT();
+    setAway(hideAt);
+    updateConn();
+  }
+  function comeBack() {
+    const was = hideAt, away = was ? Math.max(0, nowT() - was) : 0;
+    hideAt = 0;
+    acquireWake();
+    if (was) resumeRoom(away);
+  }
+  function setOffline(v) {
+    offline = !!v;
+    if (!offline && bus && myRoom && !hideAt) resumeRoom(0);
+    updateConn();
+  }
+  function resumeRoom(away) {
+    const b = bus;
+    if (!b || !myRoom) return;
+    restoring = true; restoreAway = away;
+    if (restoreTimer) clearTimeout(restoreTimer);
+    restoreTimer = setTimeout(() => {
+      restoreTimer = null;
+      if (restoring && bus === b) { restoring = false; closeLocal('network'); }
+    }, RESTORE_MS);
+    if (typeof b.reconnect === 'function') b.reconnect();
+    updateConn();
+  }
+  // 房間完整狀態已到(put):判斷是否仍在房內,補寫心跳 / 重新加入,並通知對戰層做本機校正
+  function finishRestore() {
+    restoring = false;
+    if (restoreTimer) { clearTimeout(restoreTimer); restoreTimer = null; }
+    updateConn();
+    const b = bus, r = root(), t = nowT();
+    if (!r || !r.meta || r.meta.state === 'closed') return closeLocal('hostleft');
+    const away = restoreAway;
+    restoreAway = 0;
+    if (!(r.players && r.players[mySeat])) {
+      if (r.meta.state === 'match' || !myInfo) return closeLocal('kicked');
+      myInfo.hb = t; myInfo.joined = t;
+      b.join(mySeat, Object.assign({}, myInfo), myMem).then(() => {
+        if (bus !== b) return;
+        if (typeof window.netOnRestored === 'function') window.netOnRestored({ away: away / 1000 });
+        onChange();
+      }, () => { if (bus === b) closeLocal('network'); });
+      return;
+    }
+    const map = { ['players/' + mySeat + '/hb']: t, ['players/' + mySeat + '/away']: null, 'meta/lastActive': t };
+    if (isHost()) { map['meta/hb'] = t; map['meta/away'] = null; }
+    lastHb = t;
+    b.patchRoot(map);
+    if (typeof window.netOnRestored === 'function') window.netOnRestored({ away: away / 1000 });
+    updateConn();
+    onChange();
+  }
+  // 螢幕常亮:對戰中才要求;系統會在切到背景時自動釋放,回前景後重新要求
+  function setWake(on) {
+    wantWake = !!on;
+    if (wantWake) { acquireWake(); return; }
+    const s = wakeLock; wakeLock = null;
+    if (s) relWake(s);
+  }
+  function relWake(s) { try { Promise.resolve(s.release()).catch(() => { }); } catch (e) { } }
+  function acquireWake() {
+    if (!wantWake || wakeLock || wakePending || document.hidden || !navigator.wakeLock || !navigator.wakeLock.request) return;
+    wakePending = true;
+    navigator.wakeLock.request('screen').then(s => {
+      wakePending = false;
+      if (!wantWake) return relWake(s);
+      wakeLock = s;
+      s.addEventListener('release', () => { if (wakeLock === s) wakeLock = null; });
+    }, () => { wakePending = false; });
+  }
+  // 連線狀態小字(右上):離線 / 重新連線中… / 連線中…;正常時隱藏
+  function updateConn() {
+    let st = '';
+    if (offline) st = '離線';
+    else if (bus && myRoom) {
+      if (restoring && restoreAway > GRACE_MS) st = '重新連線中…';
+      else if (!restoring && bus.connState === 'connecting') st = '連線中…';
+    }
+    if (!connEl) {
+      if (!st) return;
+      connEl = document.createElement('div');
+      connEl.style.cssText = 'position:fixed;right:10px;top:8px;padding:3px 9px;border-radius:10px;background:rgba(10,12,30,.6);color:#ffe3b0;font:13px sans-serif;text-shadow:0 0 3px #000;pointer-events:none;z-index:16;display:none';
+      document.body.appendChild(connEl);
+    }
+    if (connEl.textContent !== st) connEl.textContent = st;
+    connEl.style.display = st ? '' : 'none';
+  }
+
   // 每秒:心跳、房主的逾時清理與無人倒數、成員的房主逾時偵測
   function tick() {
-    if (!bus || !myRoom) return;
+    updateConn();
+    if (!bus || !myRoom || restoring) return;   // 回前景重建期間不做逾時判定(鏡像可能過舊)
     const r = root();
     if (!r || !r.meta || r.meta.state === 'closed') return closeLocal('hostleft');
     const t = nowT();
@@ -595,7 +726,7 @@
     if (isHost()) {
       for (let s = 1; s <= 12; s++) {
         const p = r.players && r.players[s];
-        if (s !== r.meta.host && p && t - (p.hb || 0) > STALE_MS) bus.patchRoot(removeMap(s));
+        if (s !== r.meta.host && p && !alive(p, t)) bus.patchRoot(removeMap(s));
       }
       let left = null;
       if (othersAlive() === 0) {
@@ -605,7 +736,7 @@
         left = Math.ceil(remain / 1000);
       } else idleSince = 0;
       if (left !== lastCountdown) { lastCountdown = left; emit('idleCountdown', { secondsLeft: left }); }
-    } else if (t - (r.meta.hb || 0) > STALE_MS) {
+    } else if (!alive(r.meta, t)) {
       return closeLocal('hostleft');
     }
     onChange();
@@ -637,7 +768,8 @@
     }, pwHash);
     bus = b; myRoom = code; mySeat = 1; lastHb = t; idleSince = t;
     wire(b);
-    await b.join(1, mkPlayer(name, opt.cls, opt.el, t), pwHash);
+    myInfo = mkPlayer(name, opt.cls, opt.el, t); myMem = pwHash;
+    await b.join(1, Object.assign({}, myInfo), pwHash);
     onChange();
     return { code: code, link: linkOf(code), host: true, me: { id: 1, name: name }, scene: scene, maxPlayers: max, hasPassword: !!pw };
   }
@@ -671,7 +803,8 @@
     const name = clean(opt.name);
     bus = b; myRoom = code; mySeat = seat; lastHb = t;
     wire(b);
-    try { await b.join(seat, mkPlayer(name, opt.cls, opt.el, t), h); }
+    myInfo = mkPlayer(name, opt.cls, opt.el, t); myMem = h;
+    try { await b.join(seat, Object.assign({}, myInfo), h); }
     catch (e) { dropRoom(); throw (e && e.reason === 'password') ? e : { reason: (e && e.reason) || 'network' }; }
     onChange();
     return { code: code, link: linkOf(code), me: { id: seat, name: name }, scene: m.scene, maxPlayers: m.max, hasPassword: !!m.locked };
@@ -684,6 +817,7 @@
     if (EL_OK.indexOf(p.el) >= 0) map[pre + 'el'] = p.el;
     if (typeof p.ready === 'boolean') map[pre + 'ready'] = p.ready;
     if (!Object.keys(map).length) return Promise.resolve();
+    if (myInfo) Object.keys(map).forEach(k => { myInfo[k.slice(pre.length)] = map[k]; });   // 記下最新登記(重新加入用)
     return bus.patchRoot(map);
   }
 
@@ -735,6 +869,7 @@
     roundOf() { const r = root(); return r && r.meta && r.meta.round ? r.meta.round : null; },
     metaState() { const r = root(); return r && r.meta && r.meta.state ? r.meta.state : ''; },
     metaResult() { const r = root(); return r && r.meta && typeof r.meta.result === 'string' ? r.meta.result : ''; },
+    awayOf(seat) { const r = root(), p = r && r.players && r.players[seat]; return !!(p && p.away); },   // 對方是否在背景(遠端角色凍結、名牌「離線中」,remote.js)
     setResult: setResult,
     // 計分(netcombat.js,§2-8 / §4-2):score/<座位> = "擊倒,死亡",只有房主寫;nameOf 供擊殺訊息用
     scores() { const r = root(); return (r && r.score) || {}; },
@@ -749,5 +884,11 @@
   window.mulberry32 = mulberry32;
   window.sha256hex = sha256hex;
   setInterval(tick, 1000);
-  window.addEventListener('pagehide', () => { if (myRoom) leaveNow(); });
+  // 背景 / 回前景 / 網路:不再因 pagehide 離開房間(iOS 切 App 也會觸發),改寫 away 讓其他人暫不踢出
+  document.addEventListener('visibilitychange', () => { if (document.hidden) goBackground(); else comeBack(); });
+  window.addEventListener('pagehide', goBackground);
+  window.addEventListener('pageshow', e => { if (e && e.persisted) comeBack(); });
+  window.addEventListener('online', () => setOffline(false));
+  window.addEventListener('offline', () => setOffline(true));
+  offline = typeof navigator !== 'undefined' && navigator.onLine === false;
 })();

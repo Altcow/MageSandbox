@@ -333,6 +333,23 @@ body.touch #gear{top:60px;right:calc(8px + env(safe-area-inset-right));width:28p
 body.touch #elBar{top:60px;right:calc(44px + env(safe-area-inset-right))}
 body.touch .elc{width:30px;height:30px;font-size:14px;border-width:1px}
 body.touch #chargeBox{top:66px;width:180px;font-size:11px}
+/* 手把(touch.js):選單焦點外框、提示小字、手把按鍵說明視窗 */
+.pf{outline:3px solid #7fd0ff!important;outline-offset:3px;box-shadow:0 0 14px rgba(127,208,255,.55)}
+#padMsg{position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:70;padding:6px 14px;border-radius:10px;background:rgba(10,12,30,.82);color:#e8ecf6;font:600 15px sans-serif;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .25s}
+#padMsg.on{opacity:1}
+#padMsg.warn{color:#ffb4a8;border:1px solid rgba(255,120,100,.5)}
+#padHint{margin-top:4px;color:#ffe3b0}
+#padHint:empty,#padCvHint:empty{display:none}
+#padCvHint{position:absolute;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:7;font-size:13px;color:#cfd6ea;background:rgba(10,12,30,.55);padding:4px 12px;border-radius:8px;pointer-events:none;white-space:nowrap}
+#padHelp{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:rgba(6,8,20,.7);padding:16px;box-sizing:border-box}
+#padHelp .ph-box{width:min(480px,100%);max-height:100%;overflow:auto;background:rgba(20,24,50,.97);border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:16px 18px;color:#e8ecf6;font:14px/1.5 sans-serif;box-sizing:border-box}
+#padHelp .ph-title{font:700 19px sans-serif;margin-bottom:2px}
+#padHelp .ph-sub{color:#aab3c8;font-size:13px;margin-bottom:10px}
+#padHelp .ph-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+#padHelp .ph-row span{flex:1}
+#padHelp .ph-btn{font:600 13px sans-serif;min-width:92px;min-height:34px;padding:4px 10px;border-radius:8px;cursor:pointer;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25)}
+#padHelp .ph-btn.on{background:#3d5fbf}
+#padHelp .ph-note{margin-top:10px;font-size:12px;color:#aab3c8}
 </style>
 </head>
 <body class="cover">
