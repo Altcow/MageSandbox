@@ -38,22 +38,22 @@
   }), 30, 30);
 
   /* ---------- 場景 ---------- */
-  function stoneBraz(x, z) {
-    mesh(new THREE.CylinderGeometry(.5, .7, 2.2, 8), mat(0x777c92), x, 1.1, z);
-    col(x, z, .8); BRAZIERS.push({ x, y: 2.3, z });
-  }
+  // 月夜(設計_大面積地形 §3-1):石柱 28 根、外圈樹 70 棵(樹幹 / 樹冠各 1 群組,不投影)、火盆 7 座,全部實例化
   function buildNight() {
-    const pm = mat(0x6a6f85);
-    for (let i = 0; i < 28; i++) {
-      const a = i / 28 * TAU, h = rnd(3, 5.5), m = mesh(new THREE.BoxGeometry(1.4, h, 1.4), pm, Math.cos(a) * 56, h / 2, Math.sin(a) * 56); m.rotation.y = rnd(0, 3);
-    }
+    const pillars = [];
+    for (let i = 0; i < 28; i++) { const a = i / 28 * TAU, h = rnd(3, 5.5); pillars.push([Math.cos(a) * 56, h / 2, Math.sin(a) * 56, rnd(0, 3), 1.4, h, 1.4]); }
+    inst(new THREE.BoxGeometry(1, 1, 1), mat(0x6a6f85), pillars);
+    const trunks = [], cones = [];
     for (let i = 0; i < 70; i++) {
-      const a = rnd(0, TAU), r = rnd(62, 95), g = new THREE.Group(), h = rnd(5, 9);
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.3, .4, 2, 6), new THREE.MeshStandardMaterial({ color: 0x4a3322 })); trunk.position.y = 1; g.add(trunk);
-      for (let k = 0; k < 3; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(2.4 - k * .5, h / 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x1e3a33, roughness: 1 })); c.position.y = 2.6 + k * h / 4; g.add(c); }
-      g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); deco.add(g);
+      const a = rnd(0, TAU), r = rnd(62, 95), h = rnd(5, 9), x = Math.cos(a) * r, z = Math.sin(a) * r;
+      trunks.push([x, 1, z]);
+      for (let k = 0; k < 3; k++) { const cr = 2.4 - k * .5; cones.push([x, 2.6 + k * h / 4, z, 0, cr, h / 2.2, cr]); }
     }
-    [[-18, -6], [20, -10], [-24, 18], [26, 14], [0, 36], [-20, -24], [24, -28]].forEach(p => stoneBraz(p[0], p[1]));
+    inst(new THREE.CylinderGeometry(.3, .4, 2, 6), mat(0x4a3322, { roughness: 1 }), trunks, false);
+    inst(new THREE.ConeGeometry(1, 1, 8), mat(0x1e3a33, { roughness: 1 }), cones, false);
+    const braz = [[-18, -6], [20, -10], [-24, 18], [26, 14], [0, 36], [-20, -24], [24, -28]];
+    inst(new THREE.CylinderGeometry(.5, .7, 2.2, 8), mat(0x777c92), braz.map(p => [p[0], terrainH(p[0], p[1]) + 1.1, p[1]]));
+    braz.forEach(p => { col(p[0], p[1], .8); BRAZIERS.push({ x: p[0], y: terrainH(p[0], p[1]) + 2.3, z: p[1] }); });
   }
 
   // ---- 叢林(設計_大面積地形 §2-3~2-6、§3-1):地形由 terrain 高度場;物件實例化;y 一律取 terrainH ----
@@ -209,8 +209,9 @@
   // 南側地形組(四個場景共用):山頂 A、台地 B、山谷 V;吊橋與山頂旗依場景另給
   const SOUTH_T = [['hill', -11, -38, 3, 10, 5], ['hill', 13, -38, 5, 3, 5], ['trench', 0, -30, 0, -40, 3, 3.5, 9, -4]];
   const SOUTH_BR = (sag, style) => [[-8.6, -38, 8.6, -38, 5.05, .8, sag, style]];
+  const NIGHT_SPAWNS = [[-22, 13], [24, -13], [-11, -6], [-27, -13], [22, 13], [0, -20], [9, -6], [-21, -20], [-25, 0], [13, -22], [26, 0], [-10, -24]];   // 12 點;省略 y(自動取地形高、驗坡度),與稻草人至少 9 m(設計_大面積地形 §4-2 E)
   const SCENES = [
-    { name: '月夜訓練場', build: buildNight, terrain: [...SOUTH_T, ['hill', 42, 20, 2, 7, 2.5], ['hill', -40, 22, 4, 7, 3], ['hill', 36, -32, 3, 6, 2.5]], terrainLook: { cliff: 0x6a6f85, dark: .35 }, bridges: SOUTH_BR(.5, 'rope'), bridgeCol: [0x5a4632, 0xb8a070], bridgeGlow: 0x9fd0ff, summit: [-11, -38, 5, 0x9fd0ff], ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', 0, -16, 2, 2, 1.2, 0], ['box', -28, -10, 3, 3, 3.5, 0], ['box', -29.5, -11.5, 1.5, 1.5, 7, 0], ['cyl', 28, -14, 2.5, 3.5], ['box', -31, -6.5, .9, .9, 5.3, 0], ['box', 31.5, -19, 1.2, 1.2, 5.3, 0], ['cyl', 34.5, -22, .9, 7.2], ['box', 0, -21, 2, 1.5, 2.4, 0]], ramps: [['ramp', -17.5, -10, 0, -25.4, -10, 3.6, 1.4, 'stone'], ['ramp', 37.6, -14, 0, 30.1, -14, 3.6, 1.4, 'stone']], platCol: 0x454a62, platTrim: 0xb8c0ea },
+    { name: '月夜訓練場', build: buildNight, terrain: [...SOUTH_T, ['hill', 42, 20, 2, 7, 2.5], ['hill', -40, 22, 4, 7, 3], ['hill', 36, -32, 3, 6, 2.5], ['mesa', -26, -18, 4, 4, 0, 8, 3.5], ['mesa', 26, -18, 4, 4, 0, 8, 3.5], ['hill', 0, -20, 2, 9, 2.5]], terrainLook: { cliff: 0x6a6f85, dark: .35 }, bridges: SOUTH_BR(.5, 'rope'), bridgeCol: [0x5a4632, 0xb8a070], bridgeGlow: 0x9fd0ff, summit: [-11, -38, 5, 0x9fd0ff], ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', -25.5, -16, .9, .9, 5.3, 0, 3.5], ['box', -28.5, -19, 1.5, 1.5, 7, 0, 3.5], ['box', 25.5, -16, .9, .9, 5.3, 0, 3.5], ['cyl', 28.5, -19, .9, 7.2, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea, spawns: NIGHT_SPAWNS, terrainProbes: [['WS', -24, -16], ['ES', 24, -16], ['S', 0, -20]] },
     { name: '非洲叢林', build: buildJungle, terrain: JUNGLE_T, terrainLook: { cliff: 0x8a4a2a, dark: .3, bands: [[-1.5, 0x4a4630], [-.4, 0x6a6a3a], [.3, 0x86a04c], [3, 0x6f8f3e], [6, 0xa09a5c]], path: 0xb09468 }, bridges: [[-8.8, 16.5, -4.8, 14.6, 5.5, .8, .3, 'rope']], bridgeCol: [0x7a5a32, 0x3c5a22], ground: jungleDetail, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [.45, .28, .12], bt: .93, bk: .55, clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.0], sun: [-32, 24, 22], plats: [['deck', -2, 14, 3.2, 3.2, 5.5, 0, .4]], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 32, flatZone: [-5, -5, 5, 5], dummyPos: JUNGLE_DUMMY, spawns: JUNGLE_SPAWNS, bushes: JUNGLE_BUSH, fogZones: JUNGLE_FOG, terrainProbes: JUNGLE_PROBES },
   ];
 
