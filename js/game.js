@@ -58,7 +58,7 @@ const CHG = {
   fx:    q => lerp(0.5, 1.0, q),                    // 效果強度:減速%、推 / 拉 / 擊飛距離、暈眩 / 燃燒秒數、易傷%
   dur:   q => 0.7 + 0.6 * (0.35 + 0.65 * q),        // 0.91 → 1.30(持續時間)
   size:  (q, m) => m === 'B' ? 0.6 : lerp(0.6, 1.0, q),           // 範圍(半徑 / 牆長 / 線寬);B 固定在 0% 值
-  thick: (q, m) => m === 'A' ? lerp(1.0, 1.6, q) : 1,             // 粗細(牆厚、子彈命中寬、子單位大小);只有 A 成長
+  thick: (q, m) => m === 'A' ? lerp(1.0, 1.25, q) : 1,             // 粗細(牆厚、子彈命中寬、子單位大小);只有 A 成長
   count: (n, q, m) => m === 'A' ? Math.max(1, Math.round(n * Math.pow(lerp(0.6, 1, q), 2)))
                     : m === 'B' ? Math.max(1, Math.round(n * lerp(0.36, 1.5, q)))
                     : Math.max(1, Math.round(n * lerp(0.4, 1.0, q))),   // 子單位數量(石柱 / 聖光柱 / 箭等)
@@ -750,7 +750,7 @@ function damageArea(pos, R, dmg, burn, el) {
     if (d.dead) continue;
     if (Math.abs(pos.y - d.y) > R + 1.5) continue;   // 標靶高度用目前的 y(可能被擊飛到空中)
     const dx = d.x - pos.x, dz = d.z - pos.z, dist = Math.hypot(dx, dz);
-    if (dist < R + .4) d.hit(dmg * (1 - clamp(dist / (R + .4), 0, 1) * .7) * rnd(.9, 1.1), dx, dz, burn, el);
+    if (dist < R + .2) d.hit(dmg * (1 - clamp(dist / (R + .2), 0, 1) * .7) * rnd(.9, 1.1), dx, dz, burn, el);
   }
 }
 

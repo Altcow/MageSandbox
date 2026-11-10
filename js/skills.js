@@ -5,11 +5,13 @@
 // 統一集氣(C-0b):只讀 P.dmgK / P.sizeK / P.durK / P.fxK / P.q / P.r(= 選定範圍 × sizeK)與 CHG.count。
 
 // 線段 a→b 與標靶(xz 距離 < r、高度相近)的最近接觸參數 t(0~1);沒碰到回傳 -1
+const SEG_BODY_R = .2;   // 投射物命中判定:標靶身體半徑(加在 hitR 之上)
 function segHitT(a, b, d, r) {
   const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1e-6;
   const t = clamp(((d.x - a.x) * dx + (d.z - a.z) * dz) / L2, 0, 1);
   const px = a.x + dx * t - d.x, pz = a.z + dz * t - d.z, yy = a.y + (b.y - a.y) * t - (d.y + 1);
-  return px * px + pz * pz < r * r && Math.abs(yy) < 1.6 ? t : -1;
+  const R2 = r + SEG_BODY_R;
+  return px * px + pz * pz < R2 * R2 && Math.abs(yy) < 1.2 ? t : -1;
 }
 
 // 圓形範圍內的活標靶受傷(距離衰減同 damageArea)。knock > 0 時沿 (kx,kz)→標靶 方向擊退(kx,kz 省略則以爆心為準)
@@ -18,8 +20,8 @@ function areaHit(cx, cy, cz, R, dmg, knock, kx, kz) {
   for (const d of DUMMIES) {
     if (d.dead || Math.abs(cy - d.y) > R + 1.5) continue;
     const dx = d.x - cx, dz = d.z - cz, dist = Math.hypot(dx, dz);
-    if (dist >= R + .4) continue;
-    d.hit(dmg * (1 - clamp(dist / (R + .4), 0, 1) * .7) * rnd(.9, 1.1), dx, dz, 0, null);
+    if (dist >= R + .2) continue;
+    d.hit(dmg * (1 - clamp(dist / (R + .2), 0, 1) * .7) * rnd(.9, 1.1), dx, dz, 0, null);
     if (knock) { const ex = d.x - ox, ez = d.z - oz, l = Math.hypot(ex, ez) || 1; d.knock(ex / l, ez / l, knock); }
   }
 }
@@ -96,7 +98,7 @@ function castQuickShot(P, orb) {
   const L = Math.hypot(P.target.x - from.x, P.target.z - from.z) || 1, reach = P.range || 26;
   const to = ex ? new V3(from.x + (P.target.x - from.x) / L * reach, P.target.y + .4, from.z + (P.target.z - from.z) / L * reach) : new V3(P.target.x, P.target.y + .4, P.target.z);
   flyProjectile(from, to, ex ? 90 : lerp(45, 70, P.q), {
-    mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.45, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1, pierce: !!ex,
+    mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.3, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1, pierce: !!ex,
     onHit: (d, b) => {
       hitFx(b, 14);
       if (rmt) return;
@@ -115,7 +117,7 @@ function castShockArrow(P, orb) {
   const mesh = giantArrowMesh(w, E.hex, lerp(.7, 1.2, P.q)), dir = new V3(dx, 0, dz);
   let flashed = false; const seen = new Set();
   flyProjectile(from, to, 40, {
-    mesh, hitR: w / 2 + .3, pierce: true, fade: true, stuck: .15, trail: IS_TOUCH ? 5 : 8, c0: E.c0, c1: E.c1,
+    mesh, hitR: w / 2 + .1, pierce: true, fade: true, stuck: .15, trail: IS_TOUCH ? 5 : 8, c0: E.c0, c1: E.c1,
     blocked: b => PLATFORMS.some(H => platTop(H, b.x, b.z) > y0 - 1 && (H.bottom == null || H.bottom < y0 + .3) && platContains(H, b.x, b.z, .1)),
     onEnd: b => { hitFx(b, 20); burstRing(new V3(b.x, p.y, b.z), E.hex, 1.2); },
     onHit: (d, b) => {
@@ -134,8 +136,8 @@ function archRainTick(P, cx, gy, cz, R, ex, seen) {
   for (const d of DUMMIES) {
     if (d.dead || Math.abs(gy - d.y) > R + 1.5) continue;
     const dx = d.x - cx, dz = d.z - cz, dist = Math.hypot(dx, dz);
-    if (dist >= R + .4) continue;
-    const v = 9 * P.dmgK * (ex ? 1.25 : 1) * (ex && archSlowed(d) ? 1.3 : 1) * (1 - clamp(dist / (R + .4), 0, 1) * .7) * rnd(.9, 1.1);
+    if (dist >= R + .2) continue;
+    const v = 9 * P.dmgK * (ex ? 1.25 : 1) * (ex && archSlowed(d) ? 1.3 : 1) * (1 - clamp(dist / (R + .2), 0, 1) * .7) * rnd(.9, 1.1);
     d.hit(v, dx, dz, 0, null);
     d.slow(1, .25); archMark(d, '_archSl', 1);
     archHitGain(P, d, seen);
@@ -210,7 +212,7 @@ function castPowerSlash(P, orb) {
   if (P.ex) {   // 破空斬(強化,P.ex 由 swordExFn 在施放時判定):沿方向射出劍氣,直線 9 m、穿透
     const dx = Math.sin(P.dir), dz = Math.cos(P.dir), from = new V3(p.x + dx * .8, p.y + 1, p.z + dz * .8), to = new V3(from.x + dx * SW.waveLen, from.y, from.z + dz * SW.waveLen);
     flyProjectile(from, to, 30, {
-      mesh: arrowMesh(1.6, .05, E.hex, 1.6), hitR: .9, pierce: true, fade: true, stuck: .15, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1,
+      mesh: arrowMesh(1.6, .05, E.hex, 1.6), hitR: .6, pierce: true, fade: true, stuck: .15, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1,
       onHit: (d, b) => { d.hit(SW.waveDmg * P.dmgK, dx, dz, 0, null); hitFx(b, 10); }
     });
   }
@@ -355,7 +357,7 @@ function castKnives(P, orb) {
     const a = P.dir + (n === 1 ? 0 : lerp(-A / 2, A / 2, i / (n - 1)));
     const dx = Math.sin(a), dz = Math.cos(a), to = new V3(from.x + dx * cfg.range, from.y, from.z + dz * cfg.range);
     flyProjectile(from, to, 40, {
-      mesh: arrowMesh(.5, .025, 0xc08aff, 1), hitR: .5, stuck: .05, fade: false, trail: IS_TOUCH ? 1 : 2, c0: E.c0, c1: E.c1,
+      mesh: arrowMesh(.5, .025, 0xc08aff, 1), hitR: .3, stuck: .05, fade: false, trail: IS_TOUCH ? 1 : 2, c0: E.c0, c1: E.c1,
       onHit: d => {
         d.hit(18 * P.dmgK, d.x - from.x, d.z - from.z, 0, null); hitFx(new V3(d.x, d.y + 1, d.z), 6);
         if (!poisoned.has(d)) { poisoned.add(d); d.poison(2, 1); }   // 中毒 1 層 2 s(同一標靶只 +1)

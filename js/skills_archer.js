@@ -81,7 +81,7 @@ function castScatter(P, orb) {
     const a = P.dir + (n === 1 ? 0 : lerp(-A / 2, A / 2, i / (n - 1)));
     const dx = Math.sin(a), dz = Math.cos(a), to = new V3(from.x + dx * cfg.range, from.y, from.z + dz * cfg.range);
     flyProjectile(from, to, 40, {
-      mesh: arrowMesh(.5, .025, E.hex, 1), hitR: .5, stuck: .05, fade: false, trail: IS_TOUCH ? 1 : 2, c0: E.c0, c1: E.c1,
+      mesh: arrowMesh(.5, .025, E.hex, 1), hitR: .3, stuck: .05, fade: false, trail: IS_TOUCH ? 1 : 2, c0: E.c0, c1: E.c1,
       onHit: d => {
         hitFx(new V3(d.x, d.y + 1, d.z), 6);
         if (rmt) return;
@@ -104,7 +104,7 @@ function castDisengage(P, orb) {
   const from = casterTip(P, new V3()), dx = Math.sin(P.dir), dz = Math.cos(P.dir);
   const to = new V3(from.x + dx * cfg.range, from.y, from.z + dz * cfg.range);
   flyProjectile(from, to, 45, {
-    mesh: arrowMesh(.9, .03, E.hex, 1), hitR: .5, stuck: .5, fade: true, trail: IS_TOUCH ? 2 : 3, c0: E.c0, c1: E.c1,
+    mesh: arrowMesh(.9, .03, E.hex, 1), hitR: .3, stuck: .5, fade: true, trail: IS_TOUCH ? 2 : 3, c0: E.c0, c1: E.c1,
     onHit: (d, b) => {
       hitFx(b, 12);
       if (rmt) return;
@@ -183,7 +183,7 @@ function castFlare(P, orb) {
     hitFx(to, 20); burstRing(new V3(to.x, to.y, to.z), E.hex, R); flashLight(new V3(to.x, to.y + 1.5, to.z), E.hex, 4, .4, 10 + R * 2);
     if (!rmt) {
       for (const d of DUMMIES) {
-        if (d.dead || Math.hypot(d.x - to.x, d.z - to.z) >= R + .4 || Math.abs(d.y - to.y) > 2) continue;
+        if (d.dead || Math.hypot(d.x - to.x, d.z - to.z) >= R + .2 || Math.abs(d.y - to.y) > 2) continue;
         d.hit(10 * P.dmgK, d.x - to.x, d.z - to.z, 0, null);
         d.light(lit); archMark(d, '_archLit', lit);
         archHitGain(P, d, seen);

@@ -118,8 +118,8 @@ function areaEl(pos, R, B, el, P, fx) {
     if (d.dead) continue;
     if (Math.abs(pos.y - d.y) > R + 1.5) continue;
     const dx = d.x - pos.x, dz = d.z - pos.z, dist = Math.hypot(dx, dz);
-    if (dist >= R + .4) continue;
-    const dmg = B * (P.dmgK || 1) * (1 - clamp(dist / (R + .4), 0, 1) * .7) * rnd(.9, 1.1), l = dist || 1;
+    if (dist >= R + .2) continue;
+    const dmg = B * (P.dmgK || 1) * (1 - clamp(dist / (R + .2), 0, 1) * .7) * rnd(.9, 1.1), l = dist || 1;
     if (pull) d.knock(-dx / l, -dz / l, pull);
     hitEl(d, dmg, el, dx / l, dz / l, f);
   }
@@ -336,7 +336,7 @@ function castShot(P, orb, st) {
 }
 // 單發:每幀細分為 ≤ 0.5 m 的步長(光彈 64 m/s 不穿過標靶);標靶 > 地形 / 平台 / 裝飾柱 > 場地邊界 > 射程盡頭
 function shotOne(P, orb, st, dir) {
-  const E = EL[P.el], dx = Math.sin(dir), dz = Math.cos(dir), from = P.muzzle.clone(), Y = from.y, hitR = .5 * P.thickK;
+  const E = EL[P.el], dx = Math.sin(dir), dz = Math.cos(dir), from = P.muzzle.clone(), Y = from.y, hitR = .3 * P.thickK;
   orb.setR(Math.max(orb.r, .3) * (.8 + .6 * P.power) * P.thickK); orb.position.copy(from);
   let cur = from.clone(), s = 0, ended = false;
   const stop = (pt, boom) => {

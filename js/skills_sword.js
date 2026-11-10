@@ -111,9 +111,9 @@ function castSlam(P, orb) {
   for (const d of DUMMIES) {
     if (d.dead || Math.abs(p.y - d.y) > R + 1.5) continue;
     const dx = d.x - p.x, dz = d.z - p.z, dist = Math.hypot(dx, dz);
-    if (dist >= R + .4) continue;
+    if (dist >= R + .2) continue;
     const l = dist || 1;
-    d.hit(SW.slamDmg * P.dmgK * (1 - clamp(dist / (R + .4), 0, 1) * .7), dx, dz, 0, null);
+    d.hit(SW.slamDmg * P.dmgK * (1 - clamp(dist / (R + .2), 0, 1) * .7), dx, dz, 0, null);
     d.lift(SW.slamLift * P.fxK); d.knockDown(SW.slamDown, dx / l, dz / l);
   }
 }
@@ -150,9 +150,9 @@ function leapLand(L) {
   for (const d of DUMMIES) {
     if (d.dead || Math.abs(y - d.y) > R + 1.5) continue;
     const dx = d.x - x, dz = d.z - z, dist = Math.hypot(dx, dz);
-    if (dist >= R + .4) continue;
+    if (dist >= R + .2) continue;
     const l = dist || 1;
-    d.hit(SW.leapDmg * P.dmgK * (1 - clamp(dist / (R + .4), 0, 1) * .7), dx, dz, 0, null);
+    d.hit(SW.leapDmg * P.dmgK * (1 - clamp(dist / (R + .2), 0, 1) * .7), dx, dz, 0, null);
     d.stun(SW.leapStun * P.fxK); d.knock(dx / l, dz / l, SW.leapKnock * P.fxK);
   }
 }

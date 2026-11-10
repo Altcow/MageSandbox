@@ -528,7 +528,7 @@ function summonsHitArea(pos, R, dmg) {
   for (const u of SUMMONS.slice()) {
     if (u.dead || u.spawnT > 0 || Math.abs(pos.y - u.y) > R + 1.5) continue;
     const dist = Math.hypot(u.x - pos.x, u.z - pos.z);
-    if (dist < R + .4) u.hurt(dmg * (1 - clamp(dist / (R + .4), 0, 1) * .7));
+    if (dist < R + .2) u.hurt(dmg * (1 - clamp(dist / (R + .2), 0, 1) * .7));
   }
 }
 // 玩家資源掛點(設計_玩家資源HPMPSP.md §4):10 m 內有活的熾天使 → MP / SP 恢復 ×1.25
