@@ -12,12 +12,58 @@ const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 60
 const fire = new Particles(scene, IS_TOUCH ? 5000 : 9000, true);
 const smoke = new Particles(scene, IS_TOUCH ? 1500 : 2500, false);
 
-// 天空
+// 程序化平鋪雜訊(移植自 RiftChronicle textures.js 的 tileNoise / tileFbm;雲貼圖與地面貼圖共用,全域函式)
+const tnSm = t => t * t * (3 - 2 * t);
+function tnLattice(n, seed) { const a = new Float32Array(n * n); let s = (seed * 2654435761) >>> 0; for (let i = 0; i < a.length; i++) { s = (s * 1664525 + 1013904223) >>> 0; a[i] = s / 4294967296; } return a; }
+// fx × fy 格的可平鋪 value noise,回傳 res*res(0..1)
+function tnNoise(res, fx, fy, seed) {
+  const n = Math.max(fx, fy), L = tnLattice(n, seed), out = new Float32Array(res * res);
+  for (let y = 0; y < res; y++) {
+    const v = y / res * fy, y0 = Math.floor(v), ty = tnSm(v - y0), ya = (y0 % fy) * n, yb = ((y0 + 1) % fy) * n;
+    for (let x = 0; x < res; x++) {
+      const u = x / res * fx, x0 = Math.floor(u), tx = tnSm(u - x0), xa = x0 % fx, xb = (x0 + 1) % fx;
+      const a = L[ya + xa], b = L[ya + xb], c = L[yb + xa], d = L[yb + xb];
+      out[y * res + x] = a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
+    }
+  }
+  return out;
+}
+function tnFbm(res, f0, oct, seed) {
+  const out = new Float32Array(res * res); let amp = .5, tot = 0, f = f0;
+  for (let o = 0; o < oct; o++) { const n = tnNoise(res, f, f, seed + o * 17); for (let i = 0; i < out.length; i++) out[i] += n[i] * amp; tot += amp; amp *= .5; f *= 2; }
+  for (let i = 0; i < out.length; i++) out[i] /= tot;
+  return out;
+}
+// 雲層:同一片天空 shader 內取樣;貼圖 128×128 可平鋪,R = 低頻 fbm(雲團)、G = 中頻 fbm(細節),啟動時產生一次
+const CLOUD_TAPS = IS_TOUCH ? 1 : 2;   // 雲取樣次數(桌機 2、手機 1),以 #define 寫入 shader
+const cloudTex = (() => {
+  const N = 128, r = tnFbm(N, 4, 4, 101), g = tnFbm(N, 8, 3, 103), d = new Uint8Array(N * N * 4);
+  for (let i = 0; i < N * N; i++) { d[i * 4] = r[i] * 255; d[i * 4 + 1] = g[i] * 255; d[i * 4 + 3] = 255; }
+  const t = new THREE.DataTexture(d, N, N, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true;
+  return t;
+})();
+// 天空(漸層 + 太陽光暈 + 雲層:shader 內取樣雲貼圖,不新增 mesh / draw call)
 const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 24, 16), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
-  uniforms: { uHor: { value: new THREE.Color(.24, .2, .4) }, uTop: { value: new THREE.Color(.03, .05, .16) }, uGnd: { value: new THREE.Color(.12, .1, .2) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(0, 0, 0) } },
+  uniforms: { uHor: { value: new THREE.Color(.24, .2, .4) }, uTop: { value: new THREE.Color(.03, .05, .16) }, uGnd: { value: new THREE.Color(.12, .1, .2) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(0, 0, 0) },
+    uCloud: { value: cloudTex }, uTime: { value: 0 }, uCover: { value: .5 }, uCloudOn: { value: 0 }, uCloudLit: { value: new THREE.Color(1, 1, 1) }, uCloudShade: { value: new THREE.Color(.7, .7, .7) } },
   vertexShader: 'varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-  fragmentShader: 'uniform vec3 uHor,uTop,uGnd,uSunDir,uSunCol;varying vec3 vP;void main(){vec3 n=normalize(vP);float h=n.y;vec3 c=mix(uHor,uTop,smoothstep(0.,.55,h));c=mix(uGnd,c,smoothstep(-.1,.05,h));float s=max(dot(n,normalize(uSunDir)),0.);c+=uSunCol*(pow(s,6.)*.18+pow(s,160.)*.6);gl_FragColor=vec4(c,1.);}'
+  fragmentShader: [
+    '#define CLOUD_TAPS ' + CLOUD_TAPS,
+    'uniform vec3 uHor,uTop,uGnd,uSunDir,uSunCol,uCloudLit,uCloudShade;uniform sampler2D uCloud;uniform float uTime,uCover,uCloudOn;varying vec3 vP;',
+    'void main(){vec3 n=normalize(vP);float h=n.y;vec3 c=mix(uHor,uTop,smoothstep(0.,.55,h));c=mix(uGnd,c,smoothstep(-.1,.05,h));',
+    'vec3 sd=normalize(uSunDir);float s=max(dot(n,sd),0.);c+=uSunCol*(pow(s,6.)*.18+pow(s,160.)*.6);',
+    'if(uCloudOn>.5&&h>.02){float t=1./max(h,.04);vec2 p=n.xz*t+vec2(uTime*.9,uTime*.35);',
+    'vec2 a=texture2D(uCloud,p*.12).rg;float dens=a.r*.6+a.g*.4;',
+    '#if CLOUD_TAPS==2',
+    'vec2 b=texture2D(uCloud,p*.35+vec2(.37,.71)).rg;dens=dens*.7+(b.r*.6+b.g*.4)*.3;',
+    '#endif',
+    'float d=smoothstep(uCover,uCover+.2,dens);float th=clamp((dens-uCover)/.25,0.,1.);',
+    'vec3 cc=mix(uCloudLit,uCloudShade,th*.7)+uCloudLit*pow(s,3.)*(1.-th)*.35;',
+    'c=mix(c,cc,d*smoothstep(.03,.22,h)*.9);}',
+    'gl_FragColor=vec4(c,1.);}'
+  ].join('\n')
 }));
 sky.renderOrder = -10; scene.add(sky);
 {

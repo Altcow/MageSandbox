@@ -257,6 +257,8 @@ function updateResHUD() {
   if (EN) resBar('pMP', G.cr, EN.max, false, energyTxt(), true);   // 非法師:MP 條位置改顯示職業能量
   else resBar('pMP', G.mp, G.mpMax, !isMage, isMage ? Math.round(G.mp) + '/' + G.mpMax : '');
   const mcol = EN ? EN.css : '';
+  const mic = rhEl('pMPi'), msrc = 'assets/icons/' + (EN ? 'ui_' + EN.kind : 'ui_mp') + '.png';
+  if (mic && mic._s !== msrc) { mic._s = msrc; mic.src = msrc; }
   if (mfg._c !== mcol) { mfg._c = mcol; mfg.style.background = mcol; }
   tog(mpEl, 'seg5', !!(EN && EN.seg));
   resBar('pSP', G.sp, G.spMax, false, Math.round(G.sp) + '/' + G.spMax);

@@ -30,12 +30,31 @@
   function rep(t, x, y) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(x, y); t.anisotropy = 4; return t; }
 
   /* ---------- 貼圖 ---------- */
-  // 叢林地面:中性細節貼圖(顏色全交給頂點色,設計 §3-3)
+  // 叢林地面:程序化可平鋪(tnFbm / tnNoise,world.js);顏色主要交給頂點色(設計 §3-3),貼圖只給中性微暖明暗、乾黃草塊與草葉細紋
   const jungleDetail = () => rep(canvasTex(256, (g, s) => {
-    g.fillStyle = '#c4bcac'; g.fillRect(0, 0, s, s);
-    for (let i = 0; i < 420; i++) { g.fillStyle = pick(['rgba(90,90,90,.16)', 'rgba(255,255,255,.14)', 'rgba(60,60,60,.12)']); g.beginPath(); g.arc(Math.random() * s, Math.random() * s, rnd(3, 14), 0, TAU); g.fill(); }
-    speck(g, s, 3000, .06);
+    const lo = tnFbm(s, 4, 4, 11), mid = tnFbm(s, 12, 3, 23), patch = tnFbm(s, 3, 3, 41), blade = tnNoise(s, 96, 96, 31), blade2 = tnNoise(s, 48, 48, 37);
+    const img = g.createImageData(s, s), d = img.data;
+    for (let i = 0; i < s * s; i++) {
+      const dry = clamp((patch[i] - .6) * 3, 0, 1) * .14, b = (blade[i] - .5) * .1 + (blade2[i] - .5) * .05, v = .78 + (lo[i] - .5) * .1 + b;
+      d[i * 4] = (v * 1.04 + dry) * 255; d[i * 4 + 1] = v * (1 + (mid[i] - .5) * .2) * 255; d[i * 4 + 2] = (v * .9 - dry * .3) * 255; d[i * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
   }), 30, 30);
+  // 月夜地面:程序化可平鋪的冷色暗苔地(顏色寫在貼圖上,頂點色為白);平鋪 45 次、anisotropy 8(同原 world.js 設定)
+  const nightGroundTex = () => {
+    const t = canvasTex(256, (g, s) => {
+      const lo = tnFbm(s, 4, 4, 111), mid = tnFbm(s, 12, 3, 123), patch = tnFbm(s, 3, 3, 141), blade = tnNoise(s, 96, 96, 131), blade2 = tnNoise(s, 48, 48, 137);
+      const img = g.createImageData(s, s), d = img.data;
+      for (let i = 0; i < s * s; i++) {
+        const k = .25 + .5 * mid[i] + .25 * lo[i], soil = clamp((patch[i] - .62) * 3, 0, 1) * .4, f = (blade[i] - .5) * 18 + (blade2[i] - .5) * 10;
+        const r0 = 36 + 24 * k, g0 = 50 + 30 * k, b0 = 50 + 28 * k;   // 冷色暗苔地:青灰綠
+        d[i * 4] = r0 + (44 - r0) * soil + f * .8; d[i * 4 + 1] = g0 + (44 - g0) * soil + f; d[i * 4 + 2] = b0 + (54 - b0) * soil + f * 1.1; d[i * 4 + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+    });
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(45, 45); t.anisotropy = 8;
+    return t;
+  };
 
   /* ---------- 場景 ---------- */
   // 月夜(設計_大面積地形 §3-1):石柱 28 根、外圈樹 70 棵(樹幹 / 樹冠各 1 群組,不投影)、火盆 7 座,全部實例化
@@ -211,8 +230,8 @@
   const SOUTH_BR = (sag, style) => [[-8.6, -38, 8.6, -38, 5.05, .8, sag, style]];
   const NIGHT_SPAWNS = [[-22, 13], [24, -13], [-11, -6], [-27, -13], [22, 13], [0, -20], [9, -6], [-21, -20], [-25, 0], [13, -22], [26, 0], [-10, -24]];   // 12 點;省略 y(自動取地形高、驗坡度),與稻草人至少 9 m(設計_大面積地形 §4-2 E)
   const SCENES = [
-    { name: '月夜訓練場', build: buildNight, terrain: [...SOUTH_T, ['hill', 42, 20, 2, 7, 2.5], ['hill', -40, 22, 4, 7, 3], ['hill', 36, -32, 3, 6, 2.5], ['mesa', -26, -18, 4, 4, 0, 8, 3.5], ['mesa', 26, -18, 4, 4, 0, 8, 3.5], ['hill', 0, -20, 2, 9, 2.5]], terrainLook: { cliff: 0x6a6f85, dark: .35 }, bridges: SOUTH_BR(.5, 'rope'), bridgeCol: [0x5a4632, 0xb8a070], bridgeGlow: 0x9fd0ff, summit: [-11, -38, 5, 0x9fd0ff], ground: () => nightGround, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', -25.5, -16, .9, .9, 5.3, 0, 3.5], ['box', -28.5, -19, 1.5, 1.5, 7, 0, 3.5], ['box', 25.5, -16, .9, .9, 5.3, 0, 3.5], ['cyl', 28.5, -19, .9, 7.2, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea, spawns: NIGHT_SPAWNS, terrainProbes: [['WS', -24, -16], ['ES', 24, -16], ['S', 0, -20]] },
-    { name: '非洲叢林', build: buildJungle, terrain: JUNGLE_T, terrainLook: { cliff: 0x8a4a2a, dark: .3, bands: [[-1.5, 0x4a4630], [-.4, 0x6a6a3a], [.3, 0x86a04c], [3, 0x6f8f3e], [6, 0xa09a5c]], path: 0xb09468 }, bridges: [[-8.8, 16.5, -4.8, 14.6, 5.5, .8, .3, 'rope']], bridgeCol: [0x7a5a32, 0x3c5a22], ground: jungleDetail, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [.45, .28, .12], bt: .93, bk: .55, clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.0], sun: [-32, 24, 22], plats: [['deck', -2, 14, 3.2, 3.2, 5.5, 0, .4]], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 32, flatZone: [-5, -5, 5, 5], dummyPos: JUNGLE_DUMMY, spawns: JUNGLE_SPAWNS, bushes: JUNGLE_BUSH, fogZones: JUNGLE_FOG, terrainProbes: JUNGLE_PROBES },
+    { name: '月夜訓練場', build: buildNight, terrain: [...SOUTH_T, ['hill', 42, 20, 2, 7, 2.5], ['hill', -40, 22, 4, 7, 3], ['hill', 36, -32, 3, 6, 2.5], ['mesa', -26, -18, 4, 4, 0, 8, 3.5], ['mesa', 26, -18, 4, 4, 0, 8, 3.5], ['hill', 0, -20, 2, 9, 2.5]], terrainLook: { cliff: 0x6a6f85, dark: .35 }, bridges: SOUTH_BR(.5, 'rope'), bridgeCol: [0x5a4632, 0xb8a070], bridgeGlow: 0x9fd0ff, summit: [-11, -38, 5, 0x9fd0ff], ground: nightGroundTex, cloud: { on: true, cover: .42, lit: [.7, .78, 1], shade: [.28, .24, .42] }, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', -25.5, -16, .9, .9, 5.3, 0, 3.5], ['box', -28.5, -19, 1.5, 1.5, 7, 0, 3.5], ['box', 25.5, -16, .9, .9, 5.3, 0, 3.5], ['cyl', 28.5, -19, .9, 7.2, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea, spawns: NIGHT_SPAWNS, terrainProbes: [['WS', -24, -16], ['ES', 24, -16], ['S', 0, -20]] },
+    { name: '非洲叢林', build: buildJungle, terrain: JUNGLE_T, terrainLook: { cliff: 0x8a4a2a, dark: .3, bands: [[-1.5, 0x4a4630], [-.4, 0x6a6a3a], [.3, 0x86a04c], [3, 0x6f8f3e], [6, 0xa09a5c]], path: 0xb09468 }, bridges: [[-8.8, 16.5, -4.8, 14.6, 5.5, .8, .3, 'rope']], bridgeCol: [0x7a5a32, 0x3c5a22], ground: jungleDetail, cloud: { on: true, cover: .4, lit: [1, .97, .88], shade: [.6, .62, .7] }, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [.45, .28, .12], bt: .93, bk: .55, clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.0], sun: [-32, 24, 22], plats: [['deck', -2, 14, 3.2, 3.2, 5.5, 0, .4]], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 32, flatZone: [-5, -5, 5, 5], dummyPos: JUNGLE_DUMMY, spawns: JUNGLE_SPAWNS, bushes: JUNGLE_BUSH, fogZones: JUNGLE_FOG, terrainProbes: JUNGLE_PROBES },
   ];
 
   // 組內網格(坡道 / 樓板用):座標為組的本地座標
@@ -406,6 +425,8 @@
     const u = sky.material.uniforms;
     u.uHor.value.setRGB(S.hor[0], S.hor[1], S.hor[2]); u.uTop.value.setRGB(S.top[0], S.top[1], S.top[2]); u.uGnd.value.setRGB(S.gnd[0], S.gnd[1], S.gnd[2]);
     u.uSunCol.value.setRGB(S.sunCol[0], S.sunCol[1], S.sunCol[2]); u.uSunDir.value.set(S.sun[0], S.sun[1], S.sun[2]).normalize();
+    const cl = S.cloud; u.uCloudOn.value = cl && cl.on && !S.indoor ? 1 : 0;
+    if (cl) { u.uCover.value = cl.cover; u.uCloudLit.value.setRGB(cl.lit[0], cl.lit[1], cl.lit[2]); u.uCloudShade.value.setRGB(cl.shade[0], cl.shade[1], cl.shade[2]); }
     skyStars.visible = skyMoon.visible = !!S.stars;
     hemi.color.setHex(S.hemi[0]); hemi.groundColor.setHex(S.hemi[1]); hemi.intensity = S.hemi[2];
     moonLight.color.setHex(S.dir[0]); moonLight.intensity = S.dir[1];
