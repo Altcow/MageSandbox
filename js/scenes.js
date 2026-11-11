@@ -280,7 +280,7 @@
   ];
   // 目前生效場地:唯一一筆(索引 0)
   const SCENES = [
-    { name: '海島戰場', build: buildIsland, atmo: true, terrain: ISLAND_T, terrainLook: { cliff: 0x9a8a6a, dark: 0, bands: ISLAND_BANDS, sandNoise: { amp: .1, band: [1.1, 1.9] } }, waterY: ISLAND_WATER, ground: islandGroundTex, cloud: { on: true, cover: .45, lit: [1, 1, 1], shade: [.62, .7, .82] }, gtint: 0xffffff, fog: [0xa9dcd6, 60, 220], clear: 0xa9dcd6, hor: [.72, .88, .86], top: [.28, .62, .9], gnd: [.25, .5, .55], sunCol: [1, .92, .7], hemi: [0xbfe9ff, 0x4a6a3a, 1.1], dir: [0xfff1d6, 1.6], sun: [-30, 40, 18], bt: .93, bk: .55, plats: [], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 56, flatZone: [-6, -6, 6, 6], dummyPos: ISLAND_DUMMY, spawns: ISLAND_SPAWNS, terrainProbes: ISLAND_PROBES },
+    { name: '海島戰場', build: buildIsland, atmo: true, terrain: ISLAND_T, terrainLook: { cliff: 0x9a8a6a, dark: 0, bands: ISLAND_BANDS, sandNoise: { amp: .1, band: [1.1, 1.9] } }, waterY: ISLAND_WATER, ground: islandGroundTex, cloud: { on: true, cover: .45, lit: [1, 1, 1], shade: [.62, .7, .82] }, gtint: 0xffffff, fog: [0xa9dcd6, 60, 220], clear: 0xa9dcd6, hor: [.72, .88, .86], top: [.28, .62, .9], gnd: [.25, .5, .55], sunCol: [1, .92, .7], hemi: [0xbfe9ff, 0x4a6a3a, 1.1], dir: [0xfff1d6, 1.6], sun: [-30, 40, 18], bt: 1.1, bk: .55, plats: [], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 56, flatZone: [-6, -6, 6, 6], dummyPos: ISLAND_DUMMY, spawns: ISLAND_SPAWNS, terrainProbes: ISLAND_PROBES },
   ];
 
   // ---- 海島戰場 ----
@@ -326,7 +326,7 @@
     'vec3 Rf=reflect(-V,N);',
     'col=mix(col,mix(uSkyHor,uSkyTop,smoothstep(0.,.55,Rf.y)),(.02+.98*pow(1.-max(dot(N,V),0.),5.))*.9);',
     'float nh=max(dot(N,normalize(L+V)),0.);',
-    'col+=uSunCol*(pow(nh,240.)*2.4+pow(nh,40.)*.12);',
+    'col+=uSunCol*(pow(nh,240.)*1.7+pow(nh,40.)*.1)*smoothstep(.3,1.6,d);',
     'float lc=1.,lc2=1.,crest=smoothstep(.08,.24,vCrest),sb=(1.-smoothstep(.12,.4,abs(d-(.25+.9*(.5+.5*sin(uTime*.8))))))*(1.-smoothstep(1.,1.8,d))+(1.-smoothstep(0.,.35,d))*.6;',
     '#if LACE',
     'lc=1.-smoothstep(.02,.22,texture2D(uNoise,vWP.xz*.06+uTime*vec2(.02,.012)).r);',
@@ -341,7 +341,7 @@
     'float cau=(1.-smoothstep(.02,.2,texture2D(uNoise,cu).r))*(1.-smoothstep(.02,.2,texture2D(uNoise,cu*1.7+vec2(.3)).r));',
     'col+=vec3(.55,1.,.9)*cau*.35*(1.-smoothstep(.5,4.,d))*ndl;',
     '#endif',
-    'col=mix(col,vec3(.93,.97,.96)*(.75+.25*ndl),clamp(foam,0.,.9));',
+    'col=mix(col,vec3(.8,.84,.83)*(.72+.2*ndl),clamp(foam,0.,.7));',
     'float fg=smoothstep(uFogN,uFogF,dist);col=mix(col,uFogCol,fg);',
     'gl_FragColor=vec4(col,mix(mix(.55,.93,smoothstep(.4,3.,d)),1.,fg));}'
   ].join('\n');
