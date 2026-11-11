@@ -465,7 +465,7 @@ function mcAimYaw() {
 function pickStick(out) {
   const p = mage.root.position, mc = moveCharge(), dirA = G.skill >= 0 && curSkill(G.skill).aim === 'dir';
   if (mc && G.state === 'charging') {
-    const yw = mcAimYaw(), d = skillRange() * (dirA ? .6 : .5), x = p.x + Math.sin(yw) * d, z = p.z + Math.cos(yw) * d;
+    const yw = mcAimYaw(), d = Math.max(2, skillRange() * (dirA ? .6 : .5)), x = p.x + Math.sin(yw) * d, z = p.z + Math.cos(yw) * d;
     G.stickHold.set(x, surfaceY(x, z, p.y + 2), z); out.copy(G.stickHold); return;
   }
   if (dirA) {
