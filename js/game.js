@@ -34,7 +34,7 @@ const DEFAULT_CFG = {
     decoy: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.15 }
   },
   sfx: { on: true, music: false, vol: .6, mvol: .4 },   // 音效 / 音樂(sfx.js):音效開關、音樂開關、音量 0~1
-  res: { infinite: false, mpRegen: 6, spRegen: 15, mpDelay: 1.5, spDelay: 1.0, sitMp: 4, sitSp: 3, runCost: 12, airJump: 20, roll: 20, airRoll: 15, reviveHP: 100, downTime: 3 }   // 資源系統(resources.js),隨 CFG 存 localStorage
+  res: { infinite: false, mpRegen: 6, spRegen: 15, mpDelay: 1.5, spDelay: 1.0, sitMp: 4, sitSp: 3, runCost: 12, airJump: 20, roll: 20, airRoll: 15, reviveHP: 200, downTime: 3 }   // 資源系統(resources.js),隨 CFG 存 localStorage
 };
 const CFG = JSON.parse(JSON.stringify(DEFAULT_CFG));
 const CFG_KEY = 'mageSandbox.cfg.v1';

@@ -4,7 +4,7 @@
 //       classes.js(setClass)、touch.js(打坐鈕與手把)、mage.js(sit / down 姿勢)、index.html(#pRes、#btnSit)
 // 載入順序:skills.js → resources.js → classes.js(classes.js 最後呼叫 startLoop)。resInit() 在載入時執行一次。
 
-const RES_MAX = { hp: 100, mp: 100, sp: 100 };
+const RES_MAX = { hp: 200, mp: 100, sp: 100 };
 const MAGE_COST = { bolt: 8, wall: 18, sky: 35, summon: 30 };   // 法師 MP 基準花費(依形狀;六屬性同價)
 const CLASS_COST = { quickShot: 6, shockArrow: 18, arrowRain: 30, powerSlash: 12, whirlwind: 20, shieldCharge: 25, backstab: 12, knives: 10, stealth: 20, scatter: 10, disengage: 18, snare: 15, flare: 25, parry: 12, slam: 20, leap: 25, unyield: 0, shadowStep: 15, smoke: 20, eviscerate: 15, decoy: 25 };   // 非法師 SP 基準花費(沒列到的招式預設 10)
 

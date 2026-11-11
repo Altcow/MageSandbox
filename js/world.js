@@ -414,12 +414,13 @@ function nearPlatform(x, z, m) { return PLATFORMS.some(P => platContains(P, x, z
 // 或穿過實體平台(頂面高於地面 SEG_SOLID_H 以上、且頂面高於射線 y;有 bottom 的橋 / 樓板,射線在底面以下可通過)。
 // 平台每 SEG_STEP 取樣一次;碰撞圓用點到線段距離精確判定。回傳 true = 被擋。melee(近戰):起終點同在某碰撞圓內者不算擋
 const SEG_STEP = .25, SEG_SOLID_H = .6;
-function segBlocked(ax, az, ay, bx, bz, by, melee) {
+function segBlocked(ax, az, ay, bx, bz, by, melee, skipStart) {
   const x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), z0 = Math.min(az, bz), z1 = Math.max(az, bz);
   const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz;
   for (const c of COLLIDERS) {
     if (!c.deco || (c.ref && c.ref.dead)) continue;
     if (c.x < x0 - c.r || c.x > x1 + c.r || c.z < z0 - c.r || c.z > z1 + c.r) continue;
+    if (skipStart && Math.hypot(ax - c.x, az - c.z) < c.r) continue;   // blockDist:起點所在圓略過(貼牆 / 貼樹瞄準線不恆為 0)
     const t = L2 > 1e-9 ? clamp(((c.x - ax) * dx + (c.z - az) * dz) / L2, 0, 1) : 0;
     if (Math.hypot(ax + dx * t - c.x, az + dz * t - c.z) < c.r) {
       if (melee && Math.hypot(ax - c.x, az - c.z) < c.r && Math.hypot(bx - c.x, bz - c.z) < c.r) continue;
@@ -446,6 +447,15 @@ function meleeBlocked(from, d) {
   if (L < .6) return false;
   const k = .3 / L;
   return segBlocked(from.x + dx * k, from.z + dz * k, from.y, d.x, d.z, d.y, true);
+}
+// 方向型瞄準的截斷距離(classes.js aimSpecial 每幀呼叫一次,不另外快取):從 (ax,az,ay) 沿單位方向 (dirx,dirz) 找第一個被擋的距離。
+// segBlocked 以起點為端點的前綴線段判定,被擋與否隨長度單調,故直接二分到 0.1 m;未被擋回傳 maxLen。起點所在碰撞圓略過(skipStart)
+function blockDist(ax, az, ay, dirx, dirz, maxLen, melee) {
+  const hit = s => segBlocked(ax, az, ay, ax + dirx * s, az + dirz * s, ay, melee, true);
+  if (!(maxLen > 0) || !hit(maxLen)) return maxLen;
+  let lo = 0, hi = maxLen;
+  while (hi - lo > .1) { const m = (lo + hi) / 2; if (hit(m)) hi = m; else lo = m; }
+  return lo;
 }
 // 樓板天花板:站點上方最低的 bottom(頭頂會撞到);yPrev = 本幀移動前的腳底高度。沒有則 null
 function ceilAt(x, z, yPrev) {

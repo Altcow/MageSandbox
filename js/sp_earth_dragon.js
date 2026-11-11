@@ -65,7 +65,7 @@ function castEarthDragon(P, orb) {
 function ed_len(ox, oz, fwx, fwz, len) {
   const Rb = ARENA_R - 1, bo = ox * fwx + oz * fwz, oo = ox * ox + oz * oz;
   const sMax = -bo + Math.sqrt(Math.max(0, bo * bo - (oo - Rb * Rb)));
-  return Math.max(0, Math.min(len, sMax));
+  return Math.max(0, Math.min(len, sMax, blockDist(ox, oz, terrainH(ox, oz) + 1.2, fwx, fwz, len, false)));   // 障礙前截斷(blockDist,world.js)
 }
 
 function ed_start(P, E, dir, ox, oz) {

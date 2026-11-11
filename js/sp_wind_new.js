@@ -216,8 +216,9 @@ function castWindCut(P, orb) {
   if (orb) { orb.position.set(ox, y0 + .4, oz); dissolveOrb(orb, E); }
   flashLight(new V3(ox, y0, oz), E.hex, 6, .4, 22);
   G.shake = Math.max(G.shake, .15 * CFG.shake);
+  const maxS = blockDist(ox, oz, y0, sa, ca, ww_CUT_LEN, false);   // 障礙前停下(blockDist,world.js)
   for (let i = 0; i < n; i++) {
-    const w = { ox, oz, sa, ca, y0, hw: .5 * (P.r || 4), dmg, lead: i === 0, E, fxK: P.fxK || 1 };
+    const w = { ox, oz, sa, ca, y0, hw: .5 * (P.r || 4), dmg, lead: i === 0, E, fxK: P.fxK || 1, maxS };
     if (i === 0) ww_wave(w); else after(i * .22, () => ww_wave(w));
   }
 }
@@ -229,9 +230,10 @@ function ww_wave(w) {
   grp.add(core, mid, out); grp.scale.setScalar(hw); grp.rotation.y = Math.atan2(-ca, sa);
   scene.add(grp);
   let s = 0, y = w.y0, ghostT = 0;
+  const cut = w.maxS == null ? ww_CUT_LEN : w.maxS;
   if (w.lead) claimLight(token, E.hex, new V3(w.ox, w.y0 + 1.5, w.oz), 14);
   addFx(dt => {
-    const sPrev = s; s = Math.min(ww_CUT_LEN, s + ww_CUT_V * dt);
+    const sPrev = s; s = Math.min(cut, s + ww_CUT_V * dt);
     const cx = w.ox + sa * s, cz = w.oz + ca * s;
     y = damp(y, surfaceY(cx, cz, w.y0 + 2), 8, dt);
     grp.position.set(cx, y, cz);
@@ -256,7 +258,7 @@ function ww_wave(w) {
     ghostT += dt;
     if (ghostT >= .06) { ghostT = 0; ww_ghost(grp); }
     if (w.lead) driveLight(token, 2);
-    if (s >= ww_CUT_LEN) { scene.remove(grp); if (w.lead) endLight(token); return false; }
+    if (s >= cut) { scene.remove(grp); if (w.lead) endLight(token); return false; }
     return true;
   });
 }

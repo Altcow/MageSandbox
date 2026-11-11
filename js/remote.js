@@ -474,7 +474,7 @@ function sendSnap(now) {
     n: sendSeq, tm: now, x: p.x, y: p.y, z: p.z, r: mage.yaw, m: G.speedN || 0, c: G.cb || 0, k: G.kick || 0,
     q: G.state === 'charging' ? (G.charge || 0) : 0,
     o: roll ? clamp(roll.t / roll.time, 0, 1) : -1, p: roll ? roll.phi : 0, f: G.flip, s: G.sitK || 0, d: G.downK || 0,
-    g: g, hp: Math.ceil(G.hp), sh: Math.ceil(G.shield || 0), w: (G.cls === 'mage' && G.weapon === 'book') ? 1 : 0, tp: G.tp || 0,
+    g: g, hp: Math.ceil(G.hp / G.hpMax * 100), sh: Math.ceil(G.shield || 0), w: (G.cls === 'mage' && G.weapon === 'book') ? 1 : 0, tp: G.tp || 0,
     e: typeof stCode === 'function' ? (stCode() | stFlags()) : 0   // 狀態欄(status.js)
   }));
 }

@@ -36,6 +36,7 @@ const SM_FADING = [];        // 消散中(不計上限、無 AI)
 const SLABS = [];            // 石頭人土牆(S-4b)
 const SM_ZONES = [];         // 砸地組:{ zone, wi, n, sunk, alive, x, z, gy, Rs, hex, age, sinkAt }
 
+const SM_DMG_K = .35;   // 召喚獸整體傷害倍率:定位為騷擾,不是主要輸出(玩家回報太強;可被瞄準玩家)
 const SM_MAX = 2, SM_CD = 8, SM_SPAWN_T = .6, SM_FADE_T = .8, SM_RETARGET = .5, SM_BAR_T = 3;
 const SM_MELEE_R = 1.5, SM_TP_CD = 1.5, SM_SLAB_RISE = .35, SM_SLAB_SINK = .5, SM_SLAB_MAX_N = 16, SM_ZONE_IND_MAX = 3;
 const SM_SLAM_H = [1, 1.5, 2, 2.5, 3], SM_OFF = [0, .698, -.698, 1.396, -1.396];   // 轉向嘗試:0、±40°、±80°
@@ -368,7 +369,7 @@ class SmUnit {
   constructor(P, def, x, y, z, scale, k, n) {
     const el = P.el, aid = def.aid;
     this.el = el; this.def = def; this.E = EL[el]; this.scale = scale; this.multi = n > 1;
-    this.fxK = P.fxK || 1; this.dmgK = (P.dmgK || 1) * k; this.atkBase = def.atk * this.dmgK * scale;
+    this.fxK = P.fxK || 1; this.dmgK = (P.dmgK || 1) * k * SM_DMG_K; this.atkBase = def.atk * this.dmgK * scale;
     this.hpMax = def.hp * scale * (n > 1 ? .7 : 1); this.hp = this.hpMax;
     this.life = def.dur * (P.durK || 1); this.age = 0;
     this.x = x; this.y = y; this.z = z; this.yaw = typeof P.dir === 'number' ? P.dir : 0; this.heading = this.yaw;

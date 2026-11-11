@@ -246,7 +246,8 @@ function wd_launch(Pi, i, n, ox, oz) {
   const base = typeof Pi.dir === 'number' ? Pi.dir : 0;
   const th = base + (n > 1 ? (wd_ANG[i] || 0) : 0) * Math.PI / 180;
   const sn = Math.sin(th), cs = Math.cos(th);
-  const Ld = Math.max(1, wd_arena(ox, oz, sn, cs, 3.5 * rs * sizeK));
+  const sy0 = surfaceY(ox, oz, Pi.target.y + 2) + 1.2;
+  const Ld = Math.max(1, Math.min(wd_arena(ox, oz, sn, cs, 3.5 * rs * sizeK), blockDist(ox, oz, sy0, sn, cs, 3.5 * rs * sizeK, false)));   // 障礙前停下(blockDist,world.js);至少 1 m 同場地邊界
   const D = {
     Pi, ox, oz, sn, cs, yaw: th - Math.PI / 2, gy: Pi.target.y, Ld, scale, hw,
     fxK: Pi.fxK || 1, dmg: 100 * (Pi.dmgK || 1), phi: prnd(Pi, 0, 6.283),

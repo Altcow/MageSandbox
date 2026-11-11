@@ -10,7 +10,7 @@ const MAGE_SK = {};
 function mageSkill(i) {
   if (!SKILLS[i]) return SKILLS[i];
   const el = G.el, row = MAGE_SK[el] || (MAGE_SK[el] = []);
-  if (!row[i]) { const sp = SPELLS[el][i] || {}; row[i] = Object.assign({}, SKILLS[i], { aim: sp.aim || SKILLS[i].aim, line: sp.line }); }
+  if (!row[i]) { const sp = SPELLS[el][i] || {}; row[i] = Object.assign({}, SKILLS[i], { aim: sp.aim || SKILLS[i].aim, line: sp.line, blockAim: sp.blockAim }); }
   return row[i];
 }
 // 非法師快捷列:第 i 格 = 目前架勢 bars[stance][i] 指向的扁平 skills 索引(第 4 格絕技兩架勢共用);法師 = 格位本身
@@ -134,8 +134,22 @@ function lineShape(sk, q, rs) {
   if (sk.id === 'shieldCharge') return { len: rs * sz, hw: cfg.width / 2, off: 0, maxLen: rs, maxHw: cfg.width / 2 };
   return { len: rs * sz, hw: lerp(cfg.width0, cfg.width1, q) / 2, off: .8, maxLen: rs, maxHw: cfg.width1 / 2 };   // shockArrow
 }
+// 瞄準線會被障礙擋住的方向型招式(實際傷害以 world.js segBlocked / meleeBlocked 判定,光圈要同步截斷)。
+// 不在此表且無 blockAim 的 line / front 招式(衝鋒盾為位移)光圈維持原樣
+const BLOCK_AIM = new Set(['shockArrow', 'scatter', 'knives', 'powerSlash', 'eviscerate']);
+// 法師的線型法術以 SPELLS 的 blockAim 標記(水龍彈 / 土龍術 / 風刃切割);法師 id 依屬性共用,不能只看 id
+function blocksAim(sk) { return BLOCK_AIM.has(sk.id) || !!sk.blockAim; }
+// 瞄準射擊(circle 落點圓,不走光圈分支):落點朝向被障礙擋住時,G.target 截到障礙前;實際射出的箭也只飛到這個落點(castQuickShot 用 P.target)
+function clipQuickShotTarget(p) {
+  const dx = G.target.x - p.x, dz = G.target.z - p.z, L = Math.hypot(dx, dz);
+  if (L < .05) return;
+  const D = blockDist(p.x, p.z, p.y + 1.2, dx / L, dz / L, L, false);
+  if (D >= L - .05) return;
+  G.target.x = p.x + dx / L * D; G.target.z = p.z + dz / L * D; G.target.y = surfaceY(G.target.x, G.target.z, p.y + 2);
+}
 // 回傳 true 表示已處理光圈(updateAim 直接 return);circle / wall 回傳 false 走原本的路徑
 function aimSpecial(sk, p, charging, q, rs, alpha, E) {
+  if (sk.id === 'quickShot') clipQuickShotTarget(p);   // 落點圓截斷(circle 型,之後仍回傳 false 走 updateAim 原路徑)
   const a = sk.aim;
   if (!a || a === 'circle' || a === 'wall') return false;
   const cfg = CFG.skills[sk.id], prog = charging ? q : 0, th = Math.atan2(G.target.x - p.x, G.target.z - p.z);
@@ -143,11 +157,17 @@ function aimSpecial(sk, p, charging, q, rs, alpha, E) {
   if (a === 'none') { ind.hide(); return true; }
   if (a === 'self') { ind.setMax(rs, 0, 0); ind.set(p.x, p.z, 0, rs * CHG.size(q, curMode()), 0, 0, prog, alpha, E.hex, surfaceY(p.x, p.z, p.y + .5)); return true; }
   if (a === 'front') {
-    const cx = p.x + Math.sin(th) * cfg.range, cz = p.z + Math.cos(th) * cfg.range;
+    const fd = blocksAim(sk) ? blockDist(p.x, p.z, p.y + 1.2, Math.sin(th), Math.cos(th), cfg.range, true) : cfg.range;   // 前方被擋:圓心截到障礙前
+    const cx = p.x + Math.sin(th) * fd, cz = p.z + Math.cos(th) * fd;
     ind.setMax(rs, 0, 0); ind.set(cx, cz, 0, rs * CHG.size(q, curMode()), 0, 0, prog, alpha, E.hex, surfaceY(cx, cz, p.y + 2)); return true;
   }
   // line:矩形(本地 x 軸 = 瞄準方向,yaw = θ − π/2)
-  const L = lineShape(sk, q, rs), cx = p.x + Math.sin(th) * (L.off + L.len / 2), cz = p.z + Math.cos(th) * (L.off + L.len / 2);
+  const L = lineShape(sk, q, rs);
+  if (blocksAim(sk)) {   // 障礙前截斷:線只畫到第一個擋住的位置;起點就被擋(len < .05)則整條不顯示
+    L.len = Math.max(0, Math.min(L.len, blockDist(p.x, p.z, p.y + 1.2, Math.sin(th), Math.cos(th), L.off + L.len, false) - L.off));
+    if (L.len < .05) { ind.hide(); hideIndPool(); return true; }
+  }
+  const cx = p.x + Math.sin(th) * (L.off + L.len / 2), cz = p.z + Math.cos(th) * (L.off + L.len / 2);
   ind.setMax(0, L.maxLen / 2, L.maxHw);
   ind.set(cx, cz, 1, L.len / 2, L.hw, th - Math.PI / 2, prog, alpha, E.hex, surfaceY(cx, cz, p.y + 2));
   return true;
