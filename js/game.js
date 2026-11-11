@@ -453,8 +453,21 @@ function pickGround(out) {
 
 // 搖桿/觸控瞄準:集氣時左搖桿的方向=光圈方向、推多少=離多遠;放開搖桿則光圈停在原地
 // 方向型(第 1 招 aim 'dir'):只取方向、距離固定 range × .6,推過 .3 才更新方向(手機 / 手把;設計 §1-2)
+// 集氣中可移動(劍士 / 刺客 / 游擊弓手):瞄準方向 = 搖桿(=移動)方向;放開搖桿後保留相對鏡頭的角度,拖曳 / 右搖桿轉視角時一起轉
+function mcAimYaw() {
+  if (G.stick.mag > .3) {
+    const ix = G.stick.x / G.stick.mag, iz = -G.stick.y / G.stick.mag;
+    const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
+    G.mcOff = Math.atan2(fx * iz + rx * ix, fz * iz + rz * ix) - G.camYaw;
+  }
+  return G.camYaw + (G.mcOff == null ? Math.PI : G.mcOff);
+}
 function pickStick(out) {
   const p = mage.root.position, mc = moveCharge(), dirA = G.skill >= 0 && curSkill(G.skill).aim === 'dir';
+  if (mc && G.state === 'charging') {
+    const yw = mcAimYaw(), d = skillRange() * (dirA ? .6 : .5), x = p.x + Math.sin(yw) * d, z = p.z + Math.cos(yw) * d;
+    G.stickHold.set(x, surfaceY(x, z, p.y + 2), z); out.copy(G.stickHold); return;
+  }
   if (dirA) {
     if (G.state === 'charging' && G.stick.mag > .3) {
       const ix = G.stick.x / G.stick.mag, iz = -G.stick.y / G.stick.mag;
@@ -489,7 +502,7 @@ function startCharge() {
   if (G.cd[curSkill(G.skill).id] > 0 || skillBlocked(curSkill(G.skill))) return;   // 冷卻中 / 虛弱中不能開始集氣
   { const c = skillCost(G.skill); if (!resCan(c.kind, costAt(c.base, 0))) { resDeny(c.kind); return; } }   // MP / SP 不夠 → 不進入集氣
   if (G.sitting) sitBreak('cast');
-  G.state = 'charging'; G.chargeT = 0; G.charge = 0; G.queued = false; G.maxFlash = false; G.halfFlash = false;
+  G.mcOff = Math.PI; G.state = 'charging'; G.chargeT = 0; G.charge = 0; G.queued = false; G.maxFlash = false; G.halfFlash = false;
   sfx.loop('charge', true);
   { const p = mage.root.position, x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z); }
   G.orb = makeOrb(auraEl()); scene.add(G.orb);
