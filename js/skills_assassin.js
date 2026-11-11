@@ -102,7 +102,7 @@ function castEviscerate(P, orb) {
   arcSlash(new V3(cx, cy, cz), P.r, P.dir, E.hex, .2);
   let best = null, bd = P.r + .4;
   for (const d of DUMMIES) { if (d.dead) continue; const dd = Math.hypot(d.x - cx, d.z - cz); if (dd < bd && Math.abs(d.y - cy) < 2) { bd = dd; best = d; } }
-  if (!best) return;
+  if (!best || meleeBlocked(p, best)) return;   // 前方單體被牆 / 岩 / 樹幹 / 高台擋住:不命中
   const sb = !P.net && G.shadowT > 0, dance = !P.net && G.danceT > 0;
   const behind = behindOf(best, p) || sb, low = best.hp <= .3 * best.max;
   let mult = Math.min((behind ? 1.3 : 1) * (low ? 1.3 : 1), 1.5);

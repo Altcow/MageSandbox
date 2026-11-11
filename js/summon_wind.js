@@ -95,7 +95,7 @@ function wFire(u, t, S) {
   const mesh = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.5, 24, 1, 0, Math.PI), mat);   // 新月 geometry ×2(同第 4 項)
   burstRing(from, E.hex, .9);
   flyProjectile(from, to, W_SPEED, {
-    mesh, hitR: .7, pierce: true,
+    mesh, hitR: .7, pierce: true, solid: true,
     onHit: d => hitEl(d, dmg, 'wind', sx, sz, { knock: 1.5 * u.fxK }),   // 真空刃擊退 1.5 m
     trail: fq(2), c0: E.c0, c1: E.c1, stuck: .05,
     onEnd: p => burstRing(p, E.hex, .7)

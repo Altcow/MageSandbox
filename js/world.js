@@ -272,11 +272,12 @@ function setTerrain(feats, look) {
   TER.H0.set(H); TER.hMin0 = lo; TER.hMax0 = hi; TER.flat0 = TER.flat;
   pos.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere();
   const nrm = geo.attributes.normal, cliffC = new THREE.Color(look.cliff == null ? 0xffffff : look.cliff), pathC = new THREE.Color(look.path == null ? 0xffffff : look.path), dk = look.dark || 0, bc = new THREE.Color();
-  const hasPath = feats.some(f => f[0] === 'path' && !f[9]);
+  const hasPath = feats.some(f => f[0] === 'path' && !f[9]), sn = look.sandNoise || null;   // sandNoise:{ amp, band:[hMin,hMax] },未設 = 不變
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const k = j * N + i, x = TER.X0 + i * TER.CELL, z = TER.X0 + j * TER.CELL;
     const st = clamp((.8 - nrm.getY(k)) / .3, 0, 1), sh = 1 - dk * clamp(-H[k] / 4, 0, 1);
     bandColor(look.bands, H[k], bc).lerp(cliffC, st);      // 基色(色帶)→ 崖壁
+    if (sn) { const w = _ss(sn.band[0] - .15, sn.band[0], H[k]) * (1 - _ss(sn.band[1], sn.band[1] + .15, H[k])); if (w > 0) bc.multiplyScalar(1 + w * sn.amp * clamp(1.5 * _tn(x, z) - .015, -1, 1)); }   // 沙地深淺起伏:band 內確定性低頻噪聲乘 1±amp(邊緣 .15 m 羽化)
     if (hasPath) { const pw = pathPaint(feats, x, z) * .85; if (pw > 0) bc.lerp(pathC, pw); }   // 小路
     col.setXYZ(k, bc.r * sh, bc.g * sh, bc.b * sh);
   }
@@ -411,16 +412,19 @@ function groundAt(x, z, y) {
 function nearPlatform(x, z, m) { return PLATFORMS.some(P => platContains(P, x, z, m)); }
 // 方向型飛行(箭 / 飛刀 / 直線衝擊 / 劍氣)的視線是否被擋:xz 線段 a→b 穿過 deco 碰撞圓(忽略已死的 ref,不分高度),
 // 或穿過實體平台(頂面高於地面 SEG_SOLID_H 以上、且頂面高於射線 y;有 bottom 的橋 / 樓板,射線在底面以下可通過)。
-// 平台每 SEG_STEP 取樣一次;碰撞圓用點到線段距離精確判定。回傳 true = 被擋
-const SEG_STEP = .5, SEG_SOLID_H = .6;
-function segBlocked(ax, az, ay, bx, bz, by) {
+// 平台每 SEG_STEP 取樣一次;碰撞圓用點到線段距離精確判定。回傳 true = 被擋。melee(近戰):起終點同在某碰撞圓內者不算擋
+const SEG_STEP = .25, SEG_SOLID_H = .6;
+function segBlocked(ax, az, ay, bx, bz, by, melee) {
   const x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), z0 = Math.min(az, bz), z1 = Math.max(az, bz);
   const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz;
   for (const c of COLLIDERS) {
     if (!c.deco || (c.ref && c.ref.dead)) continue;
     if (c.x < x0 - c.r || c.x > x1 + c.r || c.z < z0 - c.r || c.z > z1 + c.r) continue;
     const t = L2 > 1e-9 ? clamp(((c.x - ax) * dx + (c.z - az) * dz) / L2, 0, 1) : 0;
-    if (Math.hypot(ax + dx * t - c.x, az + dz * t - c.z) < c.r) return true;
+    if (Math.hypot(ax + dx * t - c.x, az + dz * t - c.z) < c.r) {
+      if (melee && Math.hypot(ax - c.x, az - c.z) < c.r && Math.hypot(bx - c.x, bz - c.z) < c.r) continue;
+      return true;
+    }
   }
   if (!PLATFORMS.length) return false;
   const n = Math.max(1, Math.ceil(Math.sqrt(L2) / SEG_STEP));
@@ -435,6 +439,13 @@ function segBlocked(ax, az, ay, bx, bz, by) {
     }
   }
   return false;
+}
+// 近戰(蓄力斬圓 / 割喉)視為朝方向發出:施放者 → 目標被擋則不命中。起點取施放者朝目標 0.3 m 處(貼著障礙時起點不會落在圓內);距離 < .6 m 不判
+function meleeBlocked(from, d) {
+  const dx = d.x - from.x, dz = d.z - from.z, L = Math.hypot(dx, dz);
+  if (L < .6) return false;
+  const k = .3 / L;
+  return segBlocked(from.x + dx * k, from.z + dz * k, from.y, d.x, d.z, d.y, true);
 }
 // 樓板天花板:站點上方最低的 bottom(頭頂會撞到);yPrev = 本幀移動前的腳底高度。沒有則 null
 function ceilAt(x, z, yPrev) {

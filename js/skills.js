@@ -15,12 +15,13 @@ function segHitT(a, b, d, r) {
 }
 
 // 圓形範圍內的活標靶受傷(距離衰減同 damageArea)。knock > 0 時沿 (kx,kz)→標靶 方向擊退(kx,kz 省略則以爆心為準)
-function areaHit(cx, cy, cz, R, dmg, knock, kx, kz) {
+function areaHit(cx, cy, cz, R, dmg, knock, kx, kz, from) {   // from(選填):近戰來源,施放者→標靶被擋則不命中(meleeBlocked,world.js)
   const ox = kx == null ? cx : kx, oz = kz == null ? cz : kz;
   for (const d of DUMMIES) {
     if (d.dead || Math.abs(cy - d.y) > R + 1.5) continue;
     const dx = d.x - cx, dz = d.z - cz, dist = Math.hypot(dx, dz);
     if (dist >= R + .2) continue;
+    if (from && meleeBlocked(from, d)) continue;
     d.hit(dmg * (1 - clamp(dist / (R + .2), 0, 1) * .7) * rnd(.9, 1.1), dx, dz, 0, null);
     if (knock) { const ex = d.x - ox, ez = d.z - oz, l = Math.hypot(ex, ez) || 1; d.knock(ex / l, ez / l, knock); }
   }
@@ -208,7 +209,7 @@ function castPowerSlash(P, orb) {
   const E = casterAura(P), p = casterPos(P), cfg = CFG.skills.powerSlash;
   if (orb) dissolveOrb(orb, E);
   const cx = p.x + Math.sin(P.dir) * cfg.range, cz = p.z + Math.cos(P.dir) * cfg.range, cy = surfaceY(cx, cz, p.y + 2);
-  areaHit(cx, cy, cz, P.r, 90 * P.dmgK, 1.5 * P.fxK, p.x, p.z);
+  areaHit(cx, cy, cz, P.r, 90 * P.dmgK, 1.5 * P.fxK, p.x, p.z, p);
   arcSlash(new V3(cx, cy, cz), P.r, P.dir, E.hex, .2);
   if (P.ex) {   // 破空斬(強化,P.ex 由 swordExFn 在施放時判定):沿方向射出劍氣,直線 9 m、穿透
     const dx = Math.sin(P.dir), dz = Math.cos(P.dir), from = new V3(p.x + dx * .8, p.y + 1, p.z + dz * .8), to = new V3(from.x + dx * SW.waveLen, from.y, from.z + dz * SW.waveLen);
