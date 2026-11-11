@@ -90,6 +90,9 @@ body.touch .rb.hp{height:8px}
 body.touch .rn{display:none}
 #btnMode{display:none;left:calc(40px + env(safe-area-inset-left));bottom:calc(185px + env(safe-area-inset-bottom))}
 body.touch #btnMode{display:flex}
+#btnNear{display:none;left:calc(110px + env(safe-area-inset-left));bottom:calc(185px + env(safe-area-inset-bottom))}
+body.touch #btnNear{display:flex}
+#btnNear.on{border-color:#9fe8ff;box-shadow:0 0 14px #6fd0ff}
 body.touch #modeTag{display:none}
 body.touch #info{top:58px}
 .elc{position:relative;width:40px;height:40px;border-radius:10px;background:rgba(14,16,40,.75);border:2px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;user-select:none}
@@ -152,7 +155,6 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 #btnHit{right:calc(200px + env(safe-area-inset-right));bottom:calc(110px + env(safe-area-inset-bottom))}
 #btnSit{right:calc(250px + env(safe-area-inset-right));bottom:calc(34px + env(safe-area-inset-bottom))}
 #btnSit.on{border-color:#9fe8ff;box-shadow:0 0 14px #6fd0ff}
-@media (orientation:portrait){body.touch #portraitMsg{display:flex;position:fixed;inset:0;background:#0b1030;z-index:99;align-items:center;justify-content:center;font-size:22px}}
 #gear{position:fixed;right:12px;bottom:14px;width:40px;height:40px;border-radius:50%;background:rgba(14,16,40,.75);border:1px solid rgba(255,255,255,.25);font-size:20px;text-align:center;line-height:40px;cursor:pointer}
 #panel{position:fixed;right:12px;bottom:62px;width:290px;max-height:70vh;overflow:auto;background:rgba(10,12,30,.88);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:10px 12px;font-size:12px;display:none}
 #panel.on{display:block}
@@ -163,7 +165,7 @@ body.touch #panel{bottom:auto;top:116px;max-height:60vh}
 #panel .row span{flex:0 0 38px;text-align:right;color:#aaa}
 #panel button{margin-top:8px;padding:4px 10px}
 /* ===== 封面 / 房間 / 大廳(cv-) ===== */
-body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.cover #sceneBar,body.cover #clsBar,body.cover #elBar,body.cover #modeTag,body.cover #btnMode,body.cover #pRes,body.cover #stBar,body.cover #stFx,body.cover #touchUI,body.cover #gear,body.cover #panel,body.cover #chargeBox,body.cover #chant,body.cover #banner,body.cover #dmgLayer,body.cover #xhair,body.cover #lockMsg{display:none !important}
+body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.cover #sceneBar,body.cover #clsBar,body.cover #elBar,body.cover #modeTag,body.cover #btnMode,body.cover #btnNear,body.cover #pRes,body.cover #stBar,body.cover #stFx,body.cover #touchUI,body.cover #gear,body.cover #panel,body.cover #chargeBox,body.cover #chant,body.cover #banner,body.cover #dmgLayer,body.cover #xhair,body.cover #lockMsg{display:none !important}
 .cv-root{position:fixed;inset:0;z-index:60;overflow:hidden;font-family:"Microsoft JhengHei","PingFang TC",system-ui,sans-serif;color:#e8ecf6;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .cv-root.gone{display:none}
 .cv-root [hidden]{display:none !important}
@@ -350,6 +352,29 @@ body.touch #chargeBox{top:66px;width:180px;font-size:11px}
 #padHelp .ph-btn{font:600 13px sans-serif;min-width:92px;min-height:34px;padding:4px 10px;border-radius:8px;cursor:pointer;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25)}
 #padHelp .ph-btn.on{background:#3d5fbf}
 #padHelp .ph-note{margin-top:10px;font-size:12px;color:#aab3c8}
+/* 直向(手機直放):取消橫向蓋板後重排 HUD 與觸控鈕;只在 orientation:portrait 生效,橫向與桌機不受影響 */
+@media (orientation:portrait){
+body.touch #pRes{top:8px;left:calc(10px + env(safe-area-inset-left));width:128px}
+body.touch #gear{top:8px;right:calc(8px + env(safe-area-inset-right));bottom:auto}
+body.touch #sceneBar{top:64px;left:calc(8px + env(safe-area-inset-left));right:auto;transform:none;gap:3px}
+body.touch #clsBar{top:64px;left:auto;right:calc(8px + env(safe-area-inset-right));transform:none;gap:3px}
+body.touch #sceneBar button,body.touch #clsBar button{padding:2px 3px;font-size:9px;white-space:nowrap}
+body.touch #clsBar img.ci{width:11px;height:11px;vertical-align:-2px}
+body.touch #stBar{top:96px;left:calc(10px + env(safe-area-inset-left))}
+body.touch #elBar{top:96px;left:auto;right:calc(8px + env(safe-area-inset-right));bottom:auto}
+body.touch #locTag{top:134px;left:calc(10px + env(safe-area-inset-left));right:auto;max-width:60vw;text-align:left}
+body.touch #hotbar{top:auto;left:50%;right:auto;bottom:calc(190px + env(safe-area-inset-bottom));transform:translateX(-50%);gap:4px}
+body.touch #chargeBox{top:auto;bottom:calc(246px + env(safe-area-inset-bottom));width:220px}
+body.touch #btnMode{left:calc(14px + env(safe-area-inset-left));bottom:calc(140px + env(safe-area-inset-bottom))}
+body.touch #btnNear{left:calc(60px + env(safe-area-inset-left));bottom:calc(140px + env(safe-area-inset-bottom))}
+body.touch #btnJump{right:calc(36px + env(safe-area-inset-right));bottom:calc(112px + env(safe-area-inset-bottom))}
+body.touch #btnRoll{right:calc(110px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom))}
+body.touch #btnSit{right:calc(166px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom))}
+body.touch #btnWeap{right:calc(115px + env(safe-area-inset-right));bottom:calc(72px + env(safe-area-inset-bottom))}
+body.touch #btnHit{right:calc(166px + env(safe-area-inset-right));bottom:calc(62px + env(safe-area-inset-bottom))}
+.cv-pick-btn{width:68px}
+.cv-clsrow,.cv-elrow{gap:6px}
+}
 </style>
 </head>
 <body class="cover">
@@ -360,7 +385,7 @@ body.touch #chargeBox{top:66px;width:180px;font-size:11px}
 <b>按住左鍵</b> 集氣(光圈在準心 / 跟著游標,施法中不能移動)・<b>放開</b> 施放<br>
 <b>滑鼠移動</b> 轉視角(點畫面鎖定)・<b>Esc / 按住 Alt</b> 釋放滑鼠 ・<b>右鍵拖曳</b> 游標模式轉視角<br>
 <b>滾輪</b> 調整範圍 ・ <b>Q / E</b> 轉視角(選牆時旋轉牆)・ <b>X</b> 取消<br>
-<b>Ctrl+滾輪</b> 縮放 ・ <b>Tab</b> 法杖(重擊)/ 魔法書(速唱);弓 / 劍 / 刺 切換架勢<br>
+<b>B</b> 近距離視角 ・ <b>[ / ]</b> 或 <b>Ctrl+滾輪</b> 拉近 / 拉遠 ・ <b>Tab</b> 法杖(重擊)/ 魔法書(速唱);弓 / 劍 / 刺 切換架勢<br>
 <b>Space</b> 跳 / 空中再按一次二段跳 ・ <b>F</b> 翻滾(翻滾中短暫無敵,空中可側翻一次)<br>
 <b>T</b> 腳下來襲測試(紅圈預告後爆炸)・ <b>Y</b> 自動來襲<br>
 <b>G</b> 切換集氣模式(A 變大 / B 變多)・<b>~</b> 召喚(第 4 格)<br>
@@ -393,6 +418,7 @@ body.touch #chargeBox{top:66px;width:180px;font-size:11px}
   <div class="tb sm" id="btnWeap">換裝</div>
   <div class="tb sm" id="btnHit">來襲</div>
   <div class="tb sm" id="btnMode">A 大</div>
+  <div class="tb sm" id="btnNear">近景</div>
   <div class="tb sm" id="btnSit"><img class="bi" src="assets/icons/ui_sit.png" alt="打坐"></div>
 </div>
 <div id="portraitMsg">請把手機轉成橫向</div>

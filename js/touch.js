@@ -51,6 +51,7 @@
   press('btnJump', doJump);
   press('btnRoll', tryRoll);
   press('btnSit', toggleSit);   // 手機:打坐 / 起身
+  press('btnNear', () => { G.zoom = G.zoom > .4 ? .3 : 1; $('btnNear').classList.toggle('on', G.zoom < .4); });   // 手機:近距離視角 / 恢復(同桌機 B 鍵)
   press('btnMode', toggleChgMode);   // 手機:集氣模式 A / B
   press('btnWeap', () => { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); });   // 集氣中此鈕變「取消」
   // 來襲鈕:短按 = 來襲測試;按住滿 0.6 s = 切換自動來襲
@@ -64,8 +65,12 @@
 
   // ---- 觸控拖曳轉視角 ----
   const cv = renderer.domElement; let cid = null, cx = 0, cy = 0, tapT = -1e9, tapX = 0, tapY = 0;
+  const tps = new Map(); let pinchD = 0;   // 畫面上的觸控點;兩指同時按在畫面 = 雙指縮放(拉近 / 拉遠),縮放時不轉視角
+  const tpDist = () => { const a = [...tps.values()]; return a.length >= 2 ? Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) : 0; };
   cv.addEventListener('pointerdown', e => {
     if (e.pointerType !== 'touch') return; touchNow();
+    tps.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (tps.size >= 2) { pinchD = tpDist(); cid = null; return; }
     try { document.documentElement.requestFullscreen && !document.fullscreenElement && document.documentElement.requestFullscreen().catch(() => { }); } catch (err) { }
     if (e.clientX < innerWidth * .4) return;   // 左側 40% 留給搖桿,只接受右側 60% 的手指轉視角
     cid = e.pointerId; cx = e.clientX; cy = e.clientY;
@@ -73,10 +78,14 @@
     if (now - tapT < 250 && Math.hypot(cx - tapX, cy - tapY) < 10) { resetCam(); tapT = -1e9; } else { tapT = now; tapX = cx; tapY = cy; }
   });
   cv.addEventListener('pointermove', e => {
+    if (tps.has(e.pointerId)) {
+      tps.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (tps.size >= 2 && pinchD > 0) { const d = tpDist(); if (d > 0) { G.zoom = clamp(G.zoom * pinchD / d, .28, 1.9); pinchD = d; } return; }
+    }
     if (e.pointerId !== cid) return;
     addLook(-(e.clientX - cx) * CFG.camSens * CFG.touchSens, (e.clientY - cy) * CFG.camSens * CFG.touchSens); cx = e.clientX; cy = e.clientY;
   });
-  ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, e => { if (e.pointerId === cid) cid = null; }));
+  ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, e => { tps.delete(e.pointerId); pinchD = 0; if (e.pointerId === cid) cid = null; }));
 
   // ---- 手把 ----
   // 動作 → 標準映射按鈕編號。預設 = 實體位置(0 下 / 1 右 / 2 左 / 3 上,與舊版相同);畫面上的名稱依型號顯示
@@ -335,7 +344,7 @@
     if (edge(K('sit'))) toggleSit();
     if (edge(K('cam'))) resetCam();
     if (edge(K('mode'))) toggleChgMode();
-    if (edge(K('zoom'))) { const ZS = [1, .8, 1.3]; G.zoom = ZS[(ZS.findIndex(z => Math.abs(z - G.zoom) < .01) + 1) % 3]; }   // 縮放循環 1.0 → 0.8 → 1.3
+    if (edge(K('zoom'))) { const ZS = [1, .8, .3, 1.3]; G.zoom = ZS[(ZS.findIndex(z => Math.abs(z - G.zoom) < .01) + 1) % 4]; }   // 縮放循環 1.0 → 0.8 → 0.3(近距離)→ 1.3
     if (edge(K('skillL'))) { if (G.cls === 'mage') cycleElement(-1); else selectSkill(3); }
     if (edge(K('skillR'))) { if (G.cls === 'mage') cycleElement(1); else { const k = instantSlot(); if (k >= 0) selectSkill(k); } }
     gPrev = bs;

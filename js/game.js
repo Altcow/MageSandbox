@@ -161,9 +161,19 @@ function setupComposer() {
 }
 setupComposer();
 const aimCam = camera.clone();   // 瞄準用相機(不加震動、不進 scene;updateCamera 每格同步姿態)
-const CAM_FOV0 = camera.fov, ADS_FOV_K = .12;   // 基準 FOV(world.js 58)與弓箭手集氣滿時縮小比例(派工單未給數字,待確認)
+let CAM_FOV0 = camera.fov, ADS_FOV_K = .12;   // 基準 FOV(world.js 58;直向由 applyFov 換算)與弓箭手集氣滿時縮小比例(派工單未給數字,待確認)
+// 直向 FOV:aspect<1 時水平視野 = 16:9 時的水平視野,垂直 FOV 上限 95°;aspect>=1 維持 58(橫向與桌機不變)
+const FOV_LAND = 58, FOV_REF_ASPECT = 16 / 9, FOV_PORTRAIT_MAX = 95;
+function applyFov() {
+  const a = innerWidth / innerHeight;
+  let f = FOV_LAND;
+  if (a < 1) f = Math.min(FOV_PORTRAIT_MAX, 2 * Math.atan(Math.tan(FOV_LAND * Math.PI / 360) * FOV_REF_ASPECT / a) * 180 / Math.PI);
+  CAM_FOV0 = f;
+  camera.fov = f; camera.aspect = a; camera.updateProjectionMatrix();
+  aimCam.fov = f; aimCam.aspect = a; aimCam.updateProjectionMatrix();   // aimCam 維持基準 FOV,集氣縮放只作用於 camera,瞄準不變
+}
 function onResize() {
-  renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); aimCam.aspect = camera.aspect; aimCam.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); applyFov();
   if (composer) { composer.setSize(innerWidth, innerHeight); }
   const u = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
   fire.mat.uniforms.uScale.value = u; smoke.mat.uniforms.uScale.value = u;
@@ -176,7 +186,9 @@ addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   if (e.code === 'AltLeft' || e.code === 'AltRight') { e.preventDefault(); if (document.pointerLockElement === gameCv) document.exitPointerLock(); return; }   // 按住 Alt 暫時釋放滑鼠(點 UI 用;點畫面即回到遊戲)
   if (['Tab', 'Space'].includes(e.code)) e.preventDefault();
-  if (e.ctrlKey && ['Equal', 'Minus', 'Digit0', 'NumpadAdd', 'NumpadSubtract', 'Numpad0'].includes(e.code)) { e.preventDefault(); if (e.code === 'Digit0' || e.code === 'Numpad0') G.zoom = 1; return; }
+  if (e.ctrlKey && ['Equal', 'Minus', 'Digit0', 'NumpadAdd', 'NumpadSubtract', 'Numpad0'].includes(e.code)) { e.preventDefault(); if (e.code === 'Digit0' || e.code === 'Numpad0') G.zoom = 1; else G.zoom = clamp(G.zoom * (e.code === 'Equal' || e.code === 'NumpadAdd' ? .85 : 1.18), .28, 1.9); return; }
+  if (!e.ctrlKey && !e.altKey && e.code === 'KeyB' && !window.COVER_ON) { G.zoom = G.zoom > .4 ? .3 : 1; return; }   // B:近距離視角(接近第一人稱、仍看得到角色)/ 恢復
+  if (!e.ctrlKey && !e.altKey && (e.code === 'BracketLeft' || e.code === 'BracketRight') && !window.COVER_ON) { G.zoom = clamp(G.zoom * (e.code === 'BracketLeft' ? .85 : 1.18), .28, 1.9); return; }
   if (e.repeat) return;
   if (e.code === 'KeyC' || e.code === 'Home') { resetCam(); return; }   // 鏡頭重置
   G.keys[e.code] = true;
@@ -269,7 +281,7 @@ addEventListener('wheel', e => {
   if (G.skill >= 0 && !e.ctrlKey && (G.state === 'ready' || G.state === 'charging')) {
     const c = sc(G.skill), step = (c.rMax - c.rMin) / 14;
     setRad(G.skill, clamp(getRad(G.skill) - Math.sign(e.deltaY) * step, c.rMin, c.rMax)); saveCfgSoon();
-  } else G.zoom = clamp(G.zoom * (1 + Math.sign(e.deltaY) * .1), .5, 1.9);
+  } else G.zoom = clamp(G.zoom * (1 + Math.sign(e.deltaY) * .1), .28, 1.9);
 }, { passive: false });
 let saveTimer = 0; function saveCfgSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveCfg, 400); }
 
@@ -449,8 +461,9 @@ function pickStick(out) {
       const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
       const dx = fx * iz + rx * ix, dz = fz * iz + rz * ix, d = skillRange() * .6;
       const x = p.x + dx * d, z = p.z + dz * d; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
-    } else if (G.state !== 'charging') {
-      const x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
+    } else if (G.state !== 'charging' || mc) {   // 集氣中可移動(劍士 / 刺客)且搖桿沒推:朝鏡頭前方,角色才會跟著視角左右轉
+      const yw = mc && G.state === 'charging' ? G.camYaw + Math.PI : mage.yaw;
+      const x = p.x + Math.sin(yw) * skillRange() * .5, z = p.z + Math.cos(yw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
     }
     out.copy(G.stickHold); return;
   }
@@ -461,7 +474,8 @@ function pickStick(out) {
     const d = lerp(minD, skillRange(), Math.min(1, G.stick.mag));
     const x = p.x + dx * d, z = p.z + dz * d; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
   } else if (G.state === 'ready' || mc) {
-    const x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
+    const yw = mc && G.state === 'charging' ? G.camYaw + Math.PI : mage.yaw;   // 集氣中可移動:面向鏡頭前方(拖曳 / 右搖桿轉視角 = 角色左右轉)
+    const x = p.x + Math.sin(yw) * skillRange() * .5, z = p.z + Math.cos(yw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
   }
   out.copy(G.stickHold);
 }
@@ -1115,7 +1129,7 @@ function updateHUD() {
 /* ================= 參數面板 ================= */
 const PANEL = [
   ['鏡頭與操作'],
-  ['camDist', '鏡頭距離', 4, 18, .5], ['camLock', '滑鼠鎖定(準心模式)', 'bool'], ['camXhair', '顯示準心', 'bool'], ['camSens', '視角靈敏度', .001, .015, .0005], ['camInvY', '反轉上下', 'bool'], ['camSmooth', '鏡頭平滑(0 = 即時)', 0, 1, .05], ['camShoulder', '肩後偏移(m)', 0, 1.5, .1], ['camKeyTurn', 'Q / E 轉向速度', 0, 5, .2], ['touchSens', '觸控靈敏度倍率', .5, 3, .1], ['padSens', '手把靈敏度倍率', .5, 2.5, .1],['autoFrame', '施法自動拉鏡頭', 'bool'], ['shake', '震動強度', 0, 2, .1],
+  ['camDist', '鏡頭距離', 2.5, 18, .5], ['camLock', '滑鼠鎖定(準心模式)', 'bool'], ['camXhair', '顯示準心', 'bool'], ['camSens', '視角靈敏度', .001, .015, .0005], ['camInvY', '反轉上下', 'bool'], ['camSmooth', '鏡頭平滑(0 = 即時)', 0, 1, .05], ['camShoulder', '肩後偏移(m)', 0, 1.5, .1], ['camKeyTurn', 'Q / E 轉向速度', 0, 5, .2], ['touchSens', '觸控靈敏度倍率', .5, 3, .1], ['padSens', '手把靈敏度倍率', .5, 2.5, .1],['autoFrame', '施法自動拉鏡頭', 'bool'], ['shake', '震動強度', 0, 2, .1],
   ['moveSpeed', '移動速度', 2, 10, .5], ['showInfo', '單人顯示詳細資訊', 'bool'], ['showInfoNet', '對戰顯示詳細資訊', 'bool'], ['dodgeWin', '閃避窗(秒)', .05, .45, .01], ['rollCD', '翻滾冷卻', .3, 2, .1], ['jumpV', '跳躍力道', 5, 14, .5], ['airJumpV', '二段跳力道', 5, 12, .5], ['airRollDist', '空中翻滾距離', 1, 6, .5], ['rollDist', '翻滾距離', 2, 10, .5], ['rollTime', '翻滾時間(秒)', .25, .8, .05], ['rollCD', '翻滾冷卻(秒)', 0, 2, .1], ['minHold', '最短集氣(秒)', 0, 1, .05], ['bloom', '泛光特效', 'bool'], ['bloomStrength', '泛光強度', 0, 2, .05],
   ['fxq', '特效粒子量(新屬性)', .3, 1, .05], ['dummyMove', '標靶左右移動', 'bool'], ['slowSelf', '風場 / 坑洞減速玩家', 'bool'], ['rangeK', '全域射程係數(測試用)', .5, 1.5, .05], ['radK', '全域半徑係數(測試用)', .5, 1.5, .05],
   ['投射類(火球等)'], ['skills.fireball.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.fireball.range', '最大射程', 8, 45, 1], ['skills.fireball.rMin', '最小半徑', .5, 5, .1], ['skills.fireball.rMax', '最大半徑', 1, 10, .1], ['skills.fireball.recover', '施法後僵直(秒)', 0, 2, .05],
