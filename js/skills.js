@@ -74,6 +74,7 @@ function flyProjectile(from, to, speed, o) {
     if (o.trail) for (let i = 0; i < o.trail; i++) fire.emit(cur.x + rnd(-.1, .1), cur.y + rnd(-.1, .1), cur.z + rnd(-.1, .1), rnd(-.4, .4), rnd(-.2, .2), rnd(-.4, .4), .3, rnd(.08, .14), o.c0, o.c1, .9, .3, 0, .5);
     if (!TER.flat && cur.y < terrainH(cur.x, cur.z) + .05) { if (o.onEnd) o.onEnd(cur); stuck = 0; return true; }   // 碰到山坡就插住
     if (o.blocked && o.blocked(cur)) { if (o.onEnd) o.onEnd(cur); stuck = 0; return true; }
+    if (o.solid && segBlocked(prev.x, prev.z, prev.y, cur.x, cur.z, cur.y)) { if (o.onEnd) o.onEnd(cur); stuck = 0; return true; }   // 方向型:視線被牆 / 岩 / 樹幹 / 高台擋住就插住(world.js segBlocked)
     let best = 2, bd = null;
     for (const d of DUMMIES) {
       if (d.dead || hit.has(d)) continue;
@@ -98,7 +99,7 @@ function castQuickShot(P, orb) {
   const L = Math.hypot(P.target.x - from.x, P.target.z - from.z) || 1, reach = P.range || 26;
   const to = ex ? new V3(from.x + (P.target.x - from.x) / L * reach, P.target.y + .4, from.z + (P.target.z - from.z) / L * reach) : new V3(P.target.x, P.target.y + .4, P.target.z);
   flyProjectile(from, to, ex ? 90 : lerp(45, 70, P.q), {
-    mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.3, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1, pierce: !!ex,
+    mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.3, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1, pierce: !!ex, solid: true,
     onHit: (d, b) => {
       hitFx(b, 14);
       if (rmt) return;
@@ -117,7 +118,7 @@ function castShockArrow(P, orb) {
   const mesh = giantArrowMesh(w, E.hex, lerp(.7, 1.2, P.q)), dir = new V3(dx, 0, dz);
   let flashed = false; const seen = new Set();
   flyProjectile(from, to, 40, {
-    mesh, hitR: w / 2 + .1, pierce: true, fade: true, stuck: .15, trail: IS_TOUCH ? 5 : 8, c0: E.c0, c1: E.c1,
+    mesh, hitR: w / 2 + .1, pierce: true, solid: true, fade: true, stuck: .15, trail: IS_TOUCH ? 5 : 8, c0: E.c0, c1: E.c1,
     blocked: b => PLATFORMS.some(H => platTop(H, b.x, b.z) > y0 - 1 && (H.bottom == null || H.bottom < y0 + .3) && platContains(H, b.x, b.z, .1)),
     onEnd: b => { hitFx(b, 20); burstRing(new V3(b.x, p.y, b.z), E.hex, 1.2); },
     onHit: (d, b) => {
@@ -212,7 +213,7 @@ function castPowerSlash(P, orb) {
   if (P.ex) {   // 破空斬(強化,P.ex 由 swordExFn 在施放時判定):沿方向射出劍氣,直線 9 m、穿透
     const dx = Math.sin(P.dir), dz = Math.cos(P.dir), from = new V3(p.x + dx * .8, p.y + 1, p.z + dz * .8), to = new V3(from.x + dx * SW.waveLen, from.y, from.z + dz * SW.waveLen);
     flyProjectile(from, to, 30, {
-      mesh: arrowMesh(1.6, .05, E.hex, 1.6), hitR: .6, pierce: true, fade: true, stuck: .15, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1,
+      mesh: arrowMesh(1.6, .05, E.hex, 1.6), hitR: .6, pierce: true, solid: true, fade: true, stuck: .15, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1,
       onHit: (d, b) => { d.hit(SW.waveDmg * P.dmgK, dx, dz, 0, null); hitFx(b, 10); }
     });
   }
@@ -357,7 +358,7 @@ function castKnives(P, orb) {
     const a = P.dir + (n === 1 ? 0 : lerp(-A / 2, A / 2, i / (n - 1)));
     const dx = Math.sin(a), dz = Math.cos(a), to = new V3(from.x + dx * cfg.range, from.y, from.z + dz * cfg.range);
     flyProjectile(from, to, 40, {
-      mesh: arrowMesh(.5, .025, 0xc08aff, 1), hitR: .3, stuck: .05, fade: false, trail: IS_TOUCH ? 1 : 2, c0: E.c0, c1: E.c1,
+      mesh: arrowMesh(.5, .025, 0xc08aff, 1), hitR: .3, stuck: .05, fade: false, trail: IS_TOUCH ? 1 : 2, c0: E.c0, c1: E.c1, solid: true,
       onHit: d => {
         d.hit(18 * P.dmgK, d.x - from.x, d.z - from.z, 0, null); hitFx(new V3(d.x, d.y + 1, d.z), 6);
         if (!poisoned.has(d)) { poisoned.add(d); d.poison(2, 1); }   // 中毒 1 層 2 s(同一標靶只 +1)

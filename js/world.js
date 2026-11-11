@@ -409,6 +409,33 @@ function groundAt(x, z, y) {
   return g;
 }
 function nearPlatform(x, z, m) { return PLATFORMS.some(P => platContains(P, x, z, m)); }
+// 方向型飛行(箭 / 飛刀 / 直線衝擊 / 劍氣)的視線是否被擋:xz 線段 a→b 穿過 deco 碰撞圓(忽略已死的 ref,不分高度),
+// 或穿過實體平台(頂面高於地面 SEG_SOLID_H 以上、且頂面高於射線 y;有 bottom 的橋 / 樓板,射線在底面以下可通過)。
+// 平台每 SEG_STEP 取樣一次;碰撞圓用點到線段距離精確判定。回傳 true = 被擋
+const SEG_STEP = .5, SEG_SOLID_H = .6;
+function segBlocked(ax, az, ay, bx, bz, by) {
+  const x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), z0 = Math.min(az, bz), z1 = Math.max(az, bz);
+  const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz;
+  for (const c of COLLIDERS) {
+    if (!c.deco || (c.ref && c.ref.dead)) continue;
+    if (c.x < x0 - c.r || c.x > x1 + c.r || c.z < z0 - c.r || c.z > z1 + c.r) continue;
+    const t = L2 > 1e-9 ? clamp(((c.x - ax) * dx + (c.z - az) * dz) / L2, 0, 1) : 0;
+    if (Math.hypot(ax + dx * t - c.x, az + dz * t - c.z) < c.r) return true;
+  }
+  if (!PLATFORMS.length) return false;
+  const n = Math.max(1, Math.ceil(Math.sqrt(L2) / SEG_STEP));
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, x = ax + dx * t, z = az + dz * t, y = ay + (by - ay) * t;
+    for (const P of PLATFORMS) {
+      if (!platContains(P, x, z, 0)) continue;
+      const top = platTop(P, x, z);
+      if (top <= y || top - terrainH(x, z) <= SEG_SOLID_H) continue;
+      if (P.bottom != null && y < P.bottom) continue;
+      return true;
+    }
+  }
+  return false;
+}
 // 樓板天花板:站點上方最低的 bottom(頭頂會撞到);yPrev = 本幀移動前的腳底高度。沒有則 null
 function ceilAt(x, z, yPrev) {
   let c = null;

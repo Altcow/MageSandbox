@@ -240,23 +240,37 @@
   const SOUTH_T = [['hill', -11, -38, 3, 10, 5], ['hill', 13, -38, 5, 3, 5], ['trench', 0, -30, 0, -40, 3, 3.5, 9, -4]];
   const SOUTH_BR = (sag, style) => [[-8.6, -38, 8.6, -38, 5.05, .8, sag, style]];
   const NIGHT_SPAWNS = [[-22, 13], [24, -13], [-11, -6], [-27, -13], [22, 13], [0, -20], [9, -6], [-21, -20], [-25, 0], [13, -22], [26, 0], [-10, -24]];   // 12 點;省略 y(自動取地形高、驗坡度),與稻草人至少 9 m(設計_大面積地形 §4-2 E)
-  // ---- 海島戰場:海面 waterY = 1.0;海床 h ≈ 0(網格外也是 0);島面高原 h = 2.6(h = 1.0 的岸線約在 r 28);掩體丘 h ≈ 4;岸坡緩 ----
+  // ---- 海島戰場:海面 waterY = 1.0;海床 h ≈ 0(網格外也是 0);中央高原 h = 2.6(r ≤ 8 平坦,稻草人區);島緣約 r 40~48;小山丘 4~6.5 m;凹地底 1.5;南灣與東西沙灘 ----
   const ISLAND_WATER = 1;
   const ISLAND_T = [
-    ['hill', 0, 0, 20, 14, 2.6],          // I1 中央高原(r < 20 平坦戰場)
-    ['hill', -10, 9, 6, 8, 1.8],          // I2 西北岬
-    ['hill', 14, -12, 4, 7, 1.6],         // I3 東南岬
-    ['hill', -16, -14, 3, 6, 1.2],        // I4 西南小岬
-    ['hill', -13, -3, 2.5, 10, 4],        // M1 掩體丘(西)
+    ['hill', 0, 0, 33, 16, 2.6],          // I1 中央高原(r < 33 平坦戰場)
+    ['hill', -24, 17, 2.5, 13, 5.5],      // I2 西北小山丘
+    ['hill', 25, -18, 3, 15, 6.5],        // I3 東南山丘
+    ['hill', 6, 30, 2, 11, 4.6],          // I4 北方高地
+    ['hill', -14, -24, 1.5, 10, 4.2],     // I5 西南小丘
+    ['hill', -15, -4, 2.5, 10, 4],        // M1 掩體丘(西)
     ['hill', 12, 10, 1.5, 9, 3.6],        // M2 掩體丘(東北)
-    ['noise', .25, 14, 30]                // 微起伏(中央 r < 14 不加)
+    ['hill', -9, -42, 2, 6, 2.6],         // 南灣東西兩側岬角(馬蹄形)
+    ['hill', 9, -42, 2, 6, 2.6],
+    ['basin', 20, 8, 3.5, 6, 1.5],        // 凹地(底 1.5,深約 1.1)
+    ['basin', 0, -45, 3, 7, .2],          // 南灣(海水入侵)
+    ['basin', 42, 0, 3, 4, 1.2],          // 東沙灘(低而寬的沙帶)
+    ['basin', -42, 4, 3, 4, 1.2],         // 西沙灘
+    ['noise', .25, 16, 36]                // 微起伏(中央 r < 16 不加)
   ];
-  const ISLAND_SPAWNS = [[0, 14], [-6, 12], [-14, 8], [-4, -12], [6, -12], [16, -4], [18, 4], [4, 18], [-2, -18], [-12, 14], [10, -6], [0, -10]];   // 12 點;省略 y(自動取地形高、驗坡度)
-  const ISLAND_DUMMY = [];   // 單人稻草人 24 個:內圈 8 個 r4、外圈 16 個 r7.5(中央平地 r≤6 附近,y 由 clearStatus 取地形高)
+  const ISLAND_SPAWNS = [[-1, 31], [10, -36], [-35, -9], [36, 3], [-5, -10], [-28, 19], [-16, -33], [24, 26], [29, -21], [13, 5], [-8, 11], [11, -18]];   // 12 點;省略 y(自動取地形高、驗坡度)
+  const ISLAND_DUMMY = [];   // 單人稻草人 24 個:內圈 8 個 r4、外圈 16 個 r7.5(中央平地 r≤8 恆高 2.6,y 由 clearStatus 取地形高)
   for (let k = 0; k < 8; k++) { const a = (22.5 + 45 * k) * Math.PI / 180; ISLAND_DUMMY.push([4 * Math.cos(a), 4 * Math.sin(a)]); }
   for (let k = 0; k < 16; k++) { const a = 22.5 * k * Math.PI / 180; ISLAND_DUMMY.push([7.5 * Math.cos(a), 7.5 * Math.sin(a)]); }
-  const ISLAND_PROBES = [['C', 0, 0], ['NW', -10, 9], ['SE', 14, -12], ['M1', -13, -3]];
-  const ISLAND_BANDS = [[-1.5, 0x7a7050], [0, 0xa89a70], [.6, 0x9a8c62], [.9, 0xb09c6a], [1.2, 0xf1dca2], [1.65, 0xe6cf8c], [2.15, 0x8fd05a], [2.6, 0x6fbe3f], [3.6, 0x5fae3a], [4.8, 0x7cc650]];   // 水下沙底(水色由海面 shader 負責)→ 濕沙帶(waterY 附近較暗)→ 乾沙 → 草地 → 丘頂;不畫泡沫帶
+  const ISLAND_PROBES = [['C', 0, 0], ['NW', -24, 17], ['SE', 25, -18], ['M1', -15, -4], ['E', 36, 3]];
+  // 沙色:降亮度、提高飽和,不接近白色(避免泛光);乾沙 / 濕沙交錯的細帶讓沙地看得出起伏;草地偏深;丘頂灰綠岩色
+  const ISLAND_BANDS = [[-1.5, 0x5e5238], [.85, 0x7a6a45], [1.05, 0x8f7a4c], [1.25, 0xb89a5a], [1.4, 0x9a8450], [1.6, 0xc9a868], [1.85, 0xa8905a], [2.2, 0x8fa860], [2.7, 0x6fa048], [4.2, 0x5f8a44], [5.6, 0x7a8068], [6.6, 0x8a8a78]];
+  // 固定表(多人一致):樹 60 棵(手機前 34 棵,依序排好);木屋 4 座;岩 9 顆;擱淺船 2 艘;漂流木 8 根 [x, z, yaw, 長]
+  const ISLAND_TREES = [[-33.1,2.8],[-25.9,0.7],[-27.4,8.6],[-31,8.6],[-30.7,1],[-28.5,2],[-25.2,9.2],[-28,-0.7],[14.4,19.2],[22.4,21.6],[15.5,23.7],[18.5,28.7],[18.8,17.5],[21.3,17.7],[23.9,17.5],[25.8,20.2],[-5.7,-32.4],[-8,-31],[-6,-28],[-10.4,-29.6],[-3.1,-29.4],[-3.8,-26.3],[-3.3,-32],[-9.8,-32.6],[2.5,34.1],[-25.8,-24.6],[30.4,15.3],[28.5,-11.4],[-15.3,-5],[35.8,10.4],[-9.2,-20.5],[6,29.4],[15.2,-28],[3.3,-25.9],[-24.5,5.6],[-30.5,6.4],[-26.4,4],[-23.7,0.1],[-22.4,4.5],[-22.8,7],[19.7,26.5],[19.5,20.6],[17.7,23.8],[16.5,18.5],[14,21.8],[17.2,26.2],[-8,-34],[-7.9,-26.8],[-5.8,-34.8],[-1.1,-30.4],[-5.9,-25.5],[-1.8,-27.6],[-27.5,14.1],[8.6,-27.1],[-5.6,31.2],[-35.7,12.3],[-14.8,-22.1],[-24.9,21.7],[-0.1,-37.4],[-11,27.9]];
+  const ISLAND_HUTS = [[-22, -12], [10, -9], [-6, 17], [7, 20]];   // 破舊木屋(6×5 m,yaw 0)
+  const ISLAND_ROCKS = [[28, 6, 2, 2.8], [30.5, 4, 1.6, 2.2], [-30, -6, 2.2, 3.2], [-32, -3.5, 1.8, 2.4], [-28, -4.5, 1.6, 2], [8, -32, 2, 2.6], [10.5, -31, 1.6, 2], [-14, 32, 2.2, 3], [-12, 33.5, 1.7, 2.2]];   // [x, z, 半徑, 高]
+  const ISLAND_BOATS = [[34, -10, .4], [-36, 8, -.3]];   // [x, z, yaw]
+  const ISLAND_DRIFT = [[16, -38, -.5, 4.5], [-19, 37, -.5, 4.5], [37, 18, -2, 4.5], [-37, -17, -2, 4.5], [-16, -39, .5, 4.5], [16, 37, .5, 4.5], [-37, 17, 2, 4.5], [41, -6, -1.5, 4.5]];
   let seaU = null, seaTex = [];   // 海面 shader uniform 與自建貼圖(buildIsland 設、sceneTick 更新時間與視點、clearDeco 釋放)
 
   // 已停用場地(保留為死碼,供日後復原):要恢復時,把這兩筆依原順序(月夜、叢林、海島)放回 SCENES,並同步恢復 cover.js 的 SCENE_INFO 與 sfx.js 的配樂判斷
@@ -266,7 +280,7 @@
   ];
   // 目前生效場地:唯一一筆(索引 0)
   const SCENES = [
-    { name: '海島戰場', build: buildIsland, atmo: true, terrain: ISLAND_T, terrainLook: { cliff: 0x9a8a6a, dark: 0, bands: ISLAND_BANDS }, waterY: ISLAND_WATER, ground: islandGroundTex, cloud: { on: true, cover: .45, lit: [1, 1, 1], shade: [.62, .7, .82] }, gtint: 0xffffff, fog: [0xa9dcd6, 60, 220], clear: 0xa9dcd6, hor: [.72, .88, .86], top: [.28, .62, .9], gnd: [.25, .5, .55], sunCol: [1, .92, .7], hemi: [0xbfe9ff, 0x4a6a3a, 1.1], dir: [0xfff1d6, 1.6], sun: [-30, 40, 18], bt: .93, bk: .55, plats: [], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 38, flatZone: [-6, -6, 6, 6], dummyPos: ISLAND_DUMMY, spawns: ISLAND_SPAWNS, terrainProbes: ISLAND_PROBES },
+    { name: '海島戰場', build: buildIsland, atmo: true, terrain: ISLAND_T, terrainLook: { cliff: 0x9a8a6a, dark: 0, bands: ISLAND_BANDS }, waterY: ISLAND_WATER, ground: islandGroundTex, cloud: { on: true, cover: .45, lit: [1, 1, 1], shade: [.62, .7, .82] }, gtint: 0xffffff, fog: [0xa9dcd6, 60, 220], clear: 0xa9dcd6, hor: [.72, .88, .86], top: [.28, .62, .9], gnd: [.25, .5, .55], sunCol: [1, .92, .7], hemi: [0xbfe9ff, 0x4a6a3a, 1.1], dir: [0xfff1d6, 1.6], sun: [-30, 40, 18], bt: .93, bk: .55, plats: [], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 56, flatZone: [-6, -6, 6, 6], dummyPos: ISLAND_DUMMY, spawns: ISLAND_SPAWNS, terrainProbes: ISLAND_PROBES },
   ];
 
   // ---- 海島戰場 ----
@@ -396,33 +410,63 @@
       misc.push([x, S.waterY - .3, z, 0, 14, .9, 14, 0, 0, 0xe6d096]);
       misc.push([x + rr(-2, 2), S.waterY + .6, z + rr(-2, 2), rr(0, 3), 8.5, 3.6, 8.5, 0, 0, 0x5f9a3a]);
     });
-    // 樹:只放陸地(h > waterY + .6)、離出生點 ≥ 4 m、彼此 ≥ 3 m、避開中央稻草人區(r < 8)
-    const NT = MOBILE ? 20 : 36, trees = [];
-    for (let t = 0; trees.length < NT && t < 1200; t++) {
-      const a = rr(0, TAU), r = rr(8, 26), x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (terrainH(x, z) < S.waterY + .6) continue;
-      if (S.spawns.some(p => Math.hypot(p[0] - x, p[1] - z) < 4) || trees.some(q => Math.hypot(q[0] - x, q[1] - z) < 3)) continue;
-      trees.push([x, z]);
-    }
+    // 樹:固定表 ISLAND_TREES(多人一致);手機取前 34 棵、桌機 60 棵;樹幹碰撞 r .6
+    const NT = MOBILE ? 34 : ISLAND_TREES.length;
     const TRUNK = [0x6b4f36, 0x7a5a3c], LEAF_D = [0x2f6b2c, 0x3a7a34], LEAF_L = [0x5fa04a, 0x74b04e], BUSH = [0x3a7a34, 0x4f8a3a, 0x5fa04a];
     const trunksI = [], canI = [];
-    trees.forEach(([x, z]) => {
-      const g = terrainH(x, z), h = rr(4, 6.5), t = rr(.55, .75), L = 2 + Math.floor(R() * 2);   // 粗樹幹 + 2~3 層扁球冠(深淺綠)
+    for (let q = 0; q < NT; q++) {
+      const x = ISLAND_TREES[q][0], z = ISLAND_TREES[q][1], g = terrainH(x, z), h = rr(4, 6.5), t = rr(.55, .75), L = 2 + Math.floor(R() * 2);   // 粗樹幹 + 2~3 層扁球冠(深淺綠)
       trunksI.push([x, g + h / 2, z, 0, t, h, t, 0, 0, pk(TRUNK)]); col(x, z, .6);
-      for (let q = 0; q < L; q++) { const cr = rr(2.2, 3) * (1 - q * .2); canI.push([x + rr(-.4, .4), g + h - .8 + q * 1.1, z + rr(-.4, .4), rr(0, 3), cr, cr * .62, cr, 0, 0, q === L - 1 ? pk(LEAF_L) : pk(LEAF_D)]); }
+      for (let k = 0; k < L; k++) { const cr = rr(2.2, 3) * (1 - k * .2); canI.push([x + rr(-.4, .4), g + h - .8 + k * 1.1, z + rr(-.4, .4), rr(0, 3), cr, cr * .62, cr, 0, 0, k === L - 1 ? pk(LEAF_L) : pk(LEAF_D)]); }
+    }
+    // 木屋 / 岩 / 船 / 漂流木:BOX(方塊群組,1 個 draw call)與 ROCKS_I(多面體群組,1 個 draw call)
+    const BOX = [], box = (x, y, z, sx, sy, sz, c, rx, rz, ry) => BOX.push([x, y, z, ry || 0, sx, sy, sz, rx || 0, rz || 0, c]);
+    const ROCKS_I = [];
+    // 牆:沿線每 ~1.2 m 一顆 r .7 碰撞圈(skip 為門口)
+    const wallCols = (ax, az, bx, bz, skip) => { const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / 1.2)); for (let i = 0; i <= n; i++) { const x = ax + (bx - ax) * i / n, z = az + (bz - az) * i / n; if (!skip || !skip(x, z)) col(x, z, .7); } };
+    const RX = Math.atan(.35), DKW = 0x4a3524, ROOF = 0x5e452d;   // 屋頂坡度 .35(約 19°)
+    // 木屋(yaw 0,6×5 m):地板、四面牆(前牆門口 ±1.1 m)、門楣、後牆右段破損、屋脊與兩面斜頂(一面缺角)
+    ISLAND_HUTS.forEach(([hx, hz]) => {
+      const g = terrainH(hx, hz), wood = pk([0x7a5a3c, 0x6b4e30, 0x5e452d]);
+      box(hx, g + .06, hz, 5.6, .12, 4.6, DKW);
+      box(hx - 2.05, g + 1.2, hz - 2.5, 1.9, 2.4, .2, wood); box(hx + 2.05, g + 1.2, hz - 2.5, 1.9, 2.4, .2, wood);
+      box(hx, g + 2, hz - 2.5, 2.2, .8, .2, wood);
+      box(hx - 1.3, g + 1.2, hz + 2.5, 3.4, 2.4, .2, wood); box(hx + 1.7, g + .65, hz + 2.5, 2.6, 1.3, .2, wood);
+      box(hx - 3, g + 1.2, hz, .2, 2.4, 5, wood);
+      box(hx + 3, g + 1.2, hz - .95, .2, 2.4, 3.1, wood); box(hx + 3, g + .5, hz + 1.75, .2, 1, 1.5, wood);
+      box(hx, g + 3.5, hz, 6.4, .14, .14, DKW);
+      box(hx, g + 2.94, hz + 1.6, 6.4, .12, 3.3, ROOF, RX);
+      box(hx - 1.2, g + 2.94, hz - 1.6, 3.6, .12, 3.3, ROOF, -RX);
+      wallCols(hx - 3, hz - 2.5, hx + 3, hz - 2.5, x => Math.abs(x - hx) < 1.1);
+      wallCols(hx - 3, hz + 2.5, hx + 3, hz + 2.5);
+      wallCols(hx - 3, hz - 2.5, hx - 3, hz + 2.5);
+      wallCols(hx + 3, hz - 2.5, hx + 3, hz + 2.5);
+    });
+    // 岩群:每顆一個多面體(中心沉入地面 .4·高);碰撞 r = 半徑 × .75
+    ISLAND_ROCKS.forEach(([x, z, s, sy]) => { const g = terrainH(x, z); ROCKS_I.push([x, g + sy * .4, z, rr(0, 3), s, sy, s, 0, 0, pk([0x6f6a5c, 0x7d7868, 0x5f5a4e])]); col(x, z, s * .75); });
+    // 擱淺小船:船身 + 歪斜桅桿;碰撞 r 1.6
+    ISLAND_BOATS.forEach(([x, z, yaw]) => { const g = terrainH(x, z); box(x, g + .45, z, 4.4, .9, 1.7, 0x6b4e30, .12, 0, yaw); box(x, g + 1.6, z, .14, 2.8, .14, DKW, 0, .25, yaw); col(x, z, 1.6); });
+    // 漂流木:灰褐圓木(方塊近似)+ 兩段樹枝;平台高 .8 m(跳得過,走路會被擋);onHill 免除平地檢查
+    ISLAND_DRIFT.forEach(([x, z, yaw, L]) => {
+      const g = terrainH(x, z), top = g + .8, LOG = pk([0x5a4833, 0x4e3e2c]);
+      box(x, g + .4, z, L, .8, .64, LOG, 0, 0, yaw);
+      [-.3, .2].forEach(f => box(x + f * L * Math.cos(yaw), top + .18, z - f * L * Math.sin(yaw), .08, .45, .08, DKW, .5, 0, yaw));
+      addPlatform({ kind: 'box', x, z, hx: L / 2, hz: .32, yaw, top, deco: true, onHill: true });
     });
     // 灌木(陸地,無碰撞)、沙灘邊小石(水線附近,無碰撞)
     for (let i = 0, t = 0, NB = MOBILE ? 24 : 40; i < NB && t < 800; t++) {
-      const a = rr(0, TAU), r = rr(6, 26), x = Math.cos(a) * r, z = Math.sin(a) * r, y = terrainH(x, z);
+      const a = rr(0, TAU), r = rr(6, 36), x = Math.cos(a) * r, z = Math.sin(a) * r, y = terrainH(x, z);
       if (y < S.waterY + .5) continue; i++;
       const s = rr(1, 1.8); misc.push([x, y + s * .3, z, rr(0, 3), s, s * .7, s, 0, 0, pk(BUSH)]);
     }
     for (let i = 0, t = 0, NS = MOBILE ? 16 : 30; i < NS && t < 800; t++) {
-      const a = rr(0, TAU), r = rr(10, 32), x = Math.cos(a) * r, z = Math.sin(a) * r, y = terrainH(x, z);
+      const a = rr(0, TAU), r = rr(10, 38), x = Math.cos(a) * r, z = Math.sin(a) * r, y = terrainH(x, z);
       if (y < S.waterY - .25 || y > S.waterY + .45) continue; i++;
       const s = rr(.35, .8); misc.push([x, y + s * .15, z, rr(0, 3), s * rr(1, 1.4), s * .7, s, 0, 0, pk([0x8a8478, 0x9a9488, 0x7a7468])]);
     }
     inst(IG, mat(0xffffff, { roughness: 1 }), misc, false);
+    inst(new THREE.BoxGeometry(1, 1, 1), mat(0xffffff, { roughness: 1 }), BOX);
+    inst(new THREE.DodecahedronGeometry(1, 0), mat(0xffffff, { roughness: 1 }), ROCKS_I);
     inst(new THREE.CylinderGeometry(.8, 1, 1, 6), mat(0xffffff, { roughness: 1 }), trunksI);
     inst(new THREE.IcosahedronGeometry(1, 1), mat(0xffffff, { roughness: 1 }), canI);
   }
