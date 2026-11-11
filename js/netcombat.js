@@ -73,6 +73,7 @@ function netOnEv(e) {
   else if (t === 'hit') netApplyHit(e.seat, e.data);      // 只有受害者會套用(N5)
   else if (t === 'dmg') netShowDmg(e.seat, e.data);       // 對方的傷害數字
   else if (t === 'down') netOnRemoteDown(e.seat, e.data); // 擊殺訊息與計分
+  else if (t === 'sh') smnApplyHit(e.seat, e.data);      // 傀儡被打(netsummon.js):擁有者端扣自己的召喚物
   else if (!netUnknownWarned[t]) { netUnknownWarned[t] = true; console.warn('[net] 未知事件類型,忽略:' + t); }
 }
 // 以該座位的 RemotePlayer 當施法者重現(§2-4 接收端 1~7)

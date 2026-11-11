@@ -54,15 +54,6 @@
   press('btnNear', () => { G.zoom = G.zoom > .4 ? .3 : 1; $('btnNear').classList.toggle('on', G.zoom < .4); });   // 手機:近距離視角 / 恢復(同桌機 B 鍵)
   press('btnMode', toggleChgMode);   // 手機:集氣模式 A / B
   press('btnWeap', () => { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); });   // 集氣中此鈕變「取消」
-  // 來襲鈕:短按 = 來襲測試;按住滿 0.6 s = 切換自動來襲
-  const hitBtn = $('btnHit'); let hitT = 0, hitId = null;
-  hitBtn.addEventListener('pointerdown', e => {
-    e.preventDefault(); touchNow(); hitId = e.pointerId; hitBtn.setPointerCapture(hitId);
-    hitT = setTimeout(() => { hitT = 0; toggleAuto(); }, 600);
-  });
-  hitBtn.addEventListener('pointerup', e => { if (e.pointerId !== hitId) return; hitId = null; if (hitT) { clearTimeout(hitT); hitT = 0; strike(); } });
-  hitBtn.addEventListener('pointercancel', e => { if (e.pointerId !== hitId) return; hitId = null; clearTimeout(hitT); hitT = 0; });
-
   // ---- 觸控拖曳轉視角 ----
   const cv = renderer.domElement; let cid = null, cx = 0, cy = 0, tapT = -1e9, tapX = 0, tapY = 0;
   const tps = new Map(); let pinchD = 0;   // 畫面上的觸控點;兩指同時按在畫面 = 雙指縮放(拉近 / 拉遠),縮放時不轉視角
@@ -93,7 +84,6 @@
   const PAD_ACTS = [
     { id: 'jump', name: '跳 / 二段跳', def: 0 },
     { id: 'roll', name: '翻滾 / 空中側翻', def: 1 },
-    { id: 'strike', name: '來襲測試(長按:自動來襲)', def: 2 },
     { id: 'weapon', name: '換裝 / 切架勢(集氣中:取消)', def: 3 },
     { id: 'cast', name: '施法(按住集氣、放開施放)', def: 7 },
     { id: 'prev', name: '上一個法術', def: 4 },
@@ -138,7 +128,7 @@
   const cvHintEl = document.createElement('div'); cvHintEl.id = 'padCvHint'; $('cvRoot').appendChild(cvHintEl);
   function padHintRefresh() {
     const L = a => labelOf(bindOf(a));
-    padHintEl.textContent = pad ? '手把:' + L('cast') + ' 按住集氣 ・ ' + L('weapon') + ' 換裝 / 切架勢 ・ ' + L('jump') + ' 跳 ・ ' + L('roll') + ' 翻滾 ・ ' + L('strike') + ' 來襲 ・ ' + L('panel') + ' 面板' : '';
+    padHintEl.textContent = pad ? '手把:' + L('cast') + ' 按住集氣 ・ ' + L('weapon') + ' 換裝 / 切架勢 ・ ' + L('jump') + ' 跳 ・ ' + L('roll') + ' 翻滾 ・ ' + L('panel') + ' 面板' : '';
     cvHintEl.textContent = pad ? labelOf(confirmIdx()) + ' 確認 ・ ' + labelOf(backIdx()) + ' 返回 ・ 左搖桿 / 十字移動' : '';
     padHelpRefresh();
   }
@@ -328,10 +318,6 @@
     if (!b(cast) && gPrev[cast] && G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
     if (edge(K('jump'))) doJump();                           // 跳 / 二段跳
     if (edge(K('roll'))) tryRoll();                          // 翻滾 / 空中側翻
-    const sk = K('strike');                                  // 來襲:短按 = 來襲測試;長按 0.6 s = 切換自動來襲
-    if (edge(sk)) yHold = 0;
-    if (yHold >= 0 && b(sk)) { yHold += dt; if (yHold >= .6) { yHold = -2; toggleAuto(); } }
-    if (gPrev[sk] && !b(sk)) { if (yHold >= 0) strike(); yHold = -1; }
     if (edge(K('weapon'))) { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); }   // 換裝 / 架勢;集氣中為取消
     if (edge(K('prev'))) cycleSkill(-1);
     if (edge(K('next'))) cycleSkill(1);

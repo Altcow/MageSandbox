@@ -4,7 +4,8 @@
 //   回合不在進行中或沒有召喚物時刪除該節點。st:0 出場 / 1 移動 / 2 攻擊。
 // 其他端:依各座位的 sm 節點建立 / 更新 / 移除傀儡(PUPPETS),外觀用 SUMMON_KINDS[el].build,不跑 AI、不攻擊、不投影;
 //   位置與朝向每幀平滑趨近快照;消失時播放 onDeath 與煙霧 / 光環特效後淡出。
-//   傀儡不在 DUMMIES 內、不呼叫 hit;傷害只由擁有者端判定,經 hit 事件(netcombat.js)送到受害者端套用一次。
+//   傀儡的命中代理(u.tgt)在 DUMMIES 內(與對手、稻草人同級,各招式的既有迴圈打得到);本機攻擊命中時只記入 pendDmg(NET_CTX === null),
+//   netSmTick 每幀送 sh 事件給擁有者,擁有者端 smnApplyHit 呼叫 SmUnit.hurt 扣血(死亡走既有消散)。傷害只由擁有者端套用一次。
 //   傀儡的 animate / onDeath 在 NET_CTX = 座位 下執行,RemotePlayer._pend 會忽略其中的 hit / 位移記錄(例如暗影長矛),避免重複傷害。
 // 依賴(全域):summons_core.js(SUMMONS、SUMMON_DEF、SUMMON_KINDS、clearSummons)、remote.js(REMOTES、NETON)、net.js(Net.setSm / smOf / metaState / now)、
 //   game.js(NET_CTX、burstRing、COLLIDERS)、world.js(scene、surfaceY、ARENA_R、fire、smoke)、fx.js(V3、EL、rnd、clamp、angDiff、easeOut)、spells.js(fq)。
@@ -22,6 +23,9 @@ let smnAcc = 0, smnWrote = false;
 const PUPPETS = {};         // 座位(字串)→ Map(seq → 傀儡)
 const PUP_STR = {};         // 座位 → 上次套用的 sm 字串(相同就不重新解析)
 const PUP_FADING = [];      // 消散中的傀儡
+
+const SMN_HIT_T = .2;      // 傀儡受擊縮放彈跳時間(s),與 summons_core.js 的 SM_HIT_T 相同
+const SMN_HIT_SEEN = new Set(), SMN_HIT_Q = []; let smnHitSeq = 0;   // 收到的 sh 事件去重
 
 const smnNum = (v, d) => String(+v.toFixed(d));
 
@@ -71,6 +75,21 @@ function smnParse(str) {
   }
   return out;
 }
+/* 傀儡的命中代理(與 Dummy 同名方法,供 DUMMIES 的既有迴圈呼叫)。不把傀儡本體放進 DUMMIES:傀儡的 root 欄位是 3D 群組,
+   與狀態方法 root()(定身)同名,所以改用代理物件 u.tgt,x / y / z / dead 轉發到傀儡本體。
+   只有本機的攻擊(NET_CTX === null)才記入 pendDmg;重現他人法術(NET_CTX 為座位)與控制效果一律忽略,避免重複計算;傀儡沒有 AI 與 DOT,其餘方法為空函式。 */
+function smnTargetOf(u) {
+  const t = {
+    hit(dmg) {
+      if (NET_CTX !== null || !(dmg > 0) || u.dead || u.spawnT > 0 || !u.root.visible) return;
+      u.pendDmg += dmg; u.hitT = SMN_HIT_T;
+      if (typeof addDmgText === 'function') addDmgText(new V3(u.x, u.y + 1.2 + u.def.size * u.scale, u.z), Math.round(dmg), u.E.css0);
+    },
+    update() {}, clearStatus() {}, reset() {}, knock() {}, lift() {}, stun() {}, slow() {}, light() {}, root() {}, paralyze() {}, silence() {}, chill() {}, poison() {}, blind() {}, knockDown() {}, pull() {}
+  };
+  Object.defineProperties(t, { x: { get: () => u.x }, y: { get: () => u.y }, z: { get: () => u.z }, dead: { get: () => u.dead } });
+  return t;
+}
 // 建立傀儡:外觀用既有 build;出場時播放與本機相同的光環與粒子
 function smnSpawn(seat, d) {
   const def = SUMMON_DEF[d.el], E = EL[d.el], kind = SUMMON_KINDS[d.el];
@@ -82,8 +101,9 @@ function smnSpawn(seat, d) {
     seat: +seat, seq: d.seq, el: d.el, def: def, E: E, scale: d.sc, body: body, root: root,
     x: d.x, y: d.y, z: d.z, yaw: d.yaw, tx: d.x, ty: d.y, tz: d.z, tyaw: d.yaw, st: d.st,
     state: 'spawn', spawnT: SMN_SPAWN_T, dead: false, fadeT: 0, age: 0,
-    atkT: 0, skT: 0, slamT: 0, shT: 0, healT: 0, clT: 0, fxK: 1, dmgK: 1, atkBase: 0, col: null
+    atkT: 0, skT: 0, slamT: 0, shT: 0, healT: 0, clT: 0, fxK: 1, dmgK: 1, atkBase: 0, col: null, hitT: 0, pendDmg: 0
   };
+  u.tgt = smnTargetOf(u);
   if (d.el === 'earth') { u.col = { x: d.x, z: d.z, r: .7 * d.sc, ref: u }; COLLIDERS.push(u.col); }   // 石頭人保留碰撞圈
   const gy = surfaceY(d.x, d.z, d.y + 1);
   burstRing(new V3(d.x, gy + .05, d.z), E.hex, def.size * d.sc * 1.2);
@@ -109,7 +129,7 @@ function smnUpdate(u, dt) {
     u.root.position.set(u.x, u.y - (1 - q) * .5, u.z);
     return;
   }
-  u.root.scale.setScalar(1);
+  u.hitT = Math.max(0, u.hitT - dt); u.root.scale.setScalar(u.hitT > 0 ? 1 + .25 * u.hitT / SMN_HIT_T : 1);
   u.root.position.set(u.x, u.y, u.z);
   u.state = u.st === 2 ? 'attack' : 'seek';
   const kind = SUMMON_KINDS[u.el];
@@ -124,9 +144,10 @@ function smnRemoveCollider(u) {
   u.col = null;
 }
 // 消失(擁有者的召喚物死亡 / 過期 / 節點刪除):既有 onDeath 特效 + 煙霧光環,然後淡出
+function smnUntarget(u) { const i = DUMMIES.indexOf(u.tgt); if (i >= 0) DUMMIES.splice(i, 1); }   // 離開命中名單(消散中 / 已離開的傀儡不可被打)
 function smnDie(u) {
   if (u.dead) return;
-  u.dead = true;
+  u.dead = true; smnUntarget(u);
   smnRemoveCollider(u);
   const kind = SUMMON_KINDS[u.el];
   const prev = NET_CTX; NET_CTX = u.seat;
@@ -157,11 +178,31 @@ function smnClearSeat(seat, instant) {
   const m = PUPPETS[seat];
   if (m) {
     m.forEach(u => {
-      if (instant) { u.dead = true; smnRemoveCollider(u); smnDispose(u); }
+      if (instant) { u.dead = true; smnUntarget(u); smnRemoveCollider(u); smnDispose(u); }
       else smnDie(u);
     });
   }
   delete PUPPETS[seat]; delete PUP_STR[seat];
+}
+
+/* ================= 本機命中傀儡 → 擁有者扣血(sh 事件) =================
+   本機攻擊命中傀儡時 pendDmg 累加;smnFlushHits 每幀把非零的送成 sh 事件(to = 擁有者座位,sq = 召喚物序號,d = 傷害)。
+   擁有者端 smnApplyHit 找到同 seq 的 SmUnit 呼叫 hurt(與來襲同一條路)。傷害數值 = 招式原傷害,不另加倍率。 */
+function smnFlushHits() {
+  for (const seat in PUPPETS) PUPPETS[seat].forEach(u => {
+    if (!(u.pendDmg > 0)) return;
+    Net.emitEv({ t: 'sh', to: u.seat, sq: u.seq, hq: ++smnHitSeq, d: Math.round(u.pendDmg * 10) / 10 });
+    u.pendDmg = 0;
+  });
+}
+function smnApplyHit(from, m) {
+  if (!window.NETON || !Net.me || +m.to !== Net.me) return;
+  const id = 'sh' + from + ':' + m.hq;
+  if (SMN_HIT_SEEN.has(id)) return;
+  SMN_HIT_SEEN.add(id); SMN_HIT_Q.push(id);
+  if (SMN_HIT_Q.length > 512) SMN_HIT_SEEN.delete(SMN_HIT_Q.shift());
+  const d = +m.d, u = SUMMONS.find(v => v.seq === (+m.sq));
+  if (u && d > 0) u.hurt(Math.min(d, 2000));
 }
 
 /* ================= 每幀入口(remote.js netTick 呼叫,只在 NETON) ================= */
@@ -178,7 +219,7 @@ function smnRecvTick(now) {
         const keep = new Set();
         for (const d of list) {
           let u = m.get(d.seq);
-          if (!u) { u = smnSpawn(seat, d); if (!u) continue; m.set(d.seq, u); }
+          if (!u) { u = smnSpawn(seat, d); if (!u) continue; m.set(d.seq, u); DUMMIES.push(u.tgt); }
           u.tx = d.x; u.ty = d.y; u.tz = d.z; u.tyaw = d.yaw; u.st = d.st;
           keep.add(d.seq);
         }
@@ -195,6 +236,7 @@ function smnRecvTick(now) {
 function netSmTick(dt) {
   if (!window.NETON || !Net.me) return;
   smnSendTick(dt);
+  smnFlushHits();
   smnRecvTick(Net.now());
   for (const seat in PUPPETS) PUPPETS[seat].forEach(u => smnUpdate(u, dt));
   smnFading(dt);

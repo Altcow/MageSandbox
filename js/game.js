@@ -205,8 +205,6 @@ addEventListener('keydown', e => {
   else if (e.code === 'KeyR') resetWorld();
   else if (e.code === 'Space') doJump();
   else if (e.code === 'KeyF') tryRoll();
-  else if (e.code === 'KeyT') strike();
-  else if (e.code === 'KeyY') toggleAuto();
   else if (e.code === 'KeyM') toggleSit();
   else if (e.code === 'KeyK') cycleClass(1);
   else if (e.code === 'KeyG') toggleChgMode();
