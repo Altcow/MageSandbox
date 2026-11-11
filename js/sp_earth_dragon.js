@@ -7,7 +7,7 @@
 // 依賴(全域):scene、terrainH、DUMMIES、LIGHTS、ARENA_R、camera(world.js);fire、smoke、addFx、rnd、fq、EL、IS_TOUCH、V3(fx.js / spells.js);
 //   hitEl、orbFly、claimLight、driveLight、endLight、STONE_MAT(spells.js);G、CFG、CHG、mage、dissolveOrb、flashLight、layFlat(game.js / world.js);THREE。
 
-const ED_SPEED = 22, ED_LEN = 20,ED_SLOW = .65, ED_SLOW_T = 3, ED_DMG = 70, ED_HW_EXTRA = .4;
+const ED_SPEED = 22, ED_LEN = 20,ED_SLOW = .65, ED_SLOW_T = 3, ED_DMG = 85, ED_HW_EXTRA = .4;   // ED_DMG 70 → 85(平衡可選 #10)
 const ED_SPREAD = [[0], [-6, 6], [0, -12, 12]];   // 份數 1 / 2 / 3 的偏角(度);3 道 = 中、左 −12°、右 +12°
 const ED_ZERO = new THREE.Matrix4().makeScale(0, 0, 0);   // InstancedMesh 空位:縮放為 0
 const ED_OBJ = new THREE.Object3D();                       // 共用暫存物件,組 instance 矩陣用

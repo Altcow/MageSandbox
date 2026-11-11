@@ -5,7 +5,7 @@
 // 載入順序:skills.js → resources.js → classes.js(classes.js 最後呼叫 startLoop)。resInit() 在載入時執行一次。
 
 const RES_MAX = { hp: 200, mp: 100, sp: 100 };
-const MAGE_COST = { bolt: 8, wall: 18, sky: 35, summon: 30 };   // 法師 MP 基準花費(依形狀;六屬性同價)
+const MAGE_COST = { bolt: 6, wall: 15, sky: 30, summon: 25 };   // 法師 MP 基準花費(依形狀;六屬性同價)
 const CLASS_COST = { quickShot: 6, shockArrow: 18, arrowRain: 30, powerSlash: 12, whirlwind: 20, shieldCharge: 25, backstab: 12, knives: 10, stealth: 20, scatter: 10, disengage: 18, snare: 15, flare: 25, parry: 12, slam: 20, leap: 25, unyield: 0, shadowStep: 15, smoke: 20, eviscerate: 15, decoy: 25 };   // 非法師 SP 基準花費(沒列到的招式預設 10)
 
 // 招式的資源種類與基準花費:法師 = MP(依 kind),其他職業 = SP(依招式 id)
@@ -14,8 +14,8 @@ function skillCost(i) {
   return G.cls === 'mage' ? { kind: 'mp', base: MAGE_COST[s.kind] || 0 } : { kind: 'sp', base: CLASS_COST[s.id] || 10 };
 }
 // 集氣花費:base × lerp(0.6, 1.0, q);無限資源 = 0
-const costAt = (base, q) => CFG.res.infinite ? 0 : base * lerp(.6, 1, q);
-const resCan = (kind, n) => CFG.res.infinite || G[kind] >= n - 1e-6;
+const costAt = (base, q) => (CFG.res.infinite && !window.NETON) ? 0 : base * lerp(.6, 1, q);
+const resCan = (kind, n) => (CFG.res.infinite && !window.NETON) || G[kind] >= n - 1e-6;
 
 // 不足回饋:條閃紅(0.8 s)+ 小字(同一種 1 s 內只顯示一次)
 const _denyT = { mp: -9, sp: -9 };
@@ -26,14 +26,14 @@ function resDeny(kind) {
 }
 // 扣資源:夠就扣並重置自然恢復的延遲計時;不夠就閃紅並回傳 false
 function resUse(kind, n) {
-  if (CFG.res.infinite) return true;
+  if ((CFG.res.infinite && !window.NETON)) return true;
   if (!resCan(kind, n)) { resDeny(kind); return false; }
   G[kind] = Math.max(0, G[kind] - n); G[kind + 'Idle'] = 0;
   return true;
 }
 // 集氣上限:目前資源能負擔的最大 q(0~1)。花費 = base × (0.6 + 0.4q) ≤ 資源 → q ≤ (資源 / base − 0.6) / 0.4
 function chargeCap() {
-  if (CFG.res.infinite) return 1;
+  if ((CFG.res.infinite && !window.NETON)) return 1;
   const c = skillCost(G.skill);
   return c.base > 0 ? clamp((G[c.kind] / c.base - .6) / .4, 0, 1) : 1;
 }
@@ -45,7 +45,7 @@ function resCapTxt() {
 
 // 跑步判斷(每幀):SP < 1 → 上鎖走路;上鎖後 SP 回到 15 才解鎖;移動時每秒扣 runCost
 function runAllowed(dt, moving) {
-  if (CFG.res.infinite) return true;
+  if ((CFG.res.infinite && !window.NETON)) return true;
   if (G.runLock) { if (G.sp < 15) return false; G.runLock = false; }
   if (G.sp < 1) { G.runLock = true; return false; }
   if (moving) { G.sp = Math.max(0, G.sp - CFG.res.runCost * dt); G.spIdle = 0; }
@@ -180,7 +180,7 @@ function resTick(dt) {
   if (G.invulnT > 0) { mage.setOpacity(.5 + .5 * Math.sin(G.time * 20)); _invFx = true; }   // 復活無敵:角色閃爍
   else if (_invFx) { _invFx = false; mage.setOpacity(mage.opq); }
   G.sitK = clamp(G.sitK + (G.sitting && G.down <= 0 ? dt / .5 : -dt / .3), 0, 1);
-  if (R.infinite) { G.mp = G.mpMax; G.sp = G.spMax; }
+  if (R.infinite && !window.NETON) { G.mp = G.mpMax; G.sp = G.spMax; }
   else {
     const full = G.sitting && G.sitK >= 1, k = resRegenK();   // 坐好才算打坐:倍率生效、不受延遲限制
     G.mpIdle += dt; G.spIdle += dt;
@@ -270,7 +270,7 @@ function updateResHUD() {
   const n = skillCount();
   slots.forEach((el, i) => {
     let poor = false;
-    if (i < n && !CFG.res.infinite) { const c = skillCost(i); poor = !resCan(c.kind, costAt(c.base, 0)); }
+    if (i < n && !(CFG.res.infinite && !window.NETON)) { const c = skillCost(i); poor = !resCan(c.kind, costAt(c.base, 0)); }
     tog(el, 'poor', poor);
     tog(el, 'ex', i < n && !isMage && exReady(i));
   });

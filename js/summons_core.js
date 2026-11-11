@@ -478,7 +478,7 @@ function castSummon(P, orb) {
   const dark = el === 'dark', pp = P.net ? casterPos(P) : smPP();
   const cx = dark ? pp.x : P.target.x, cz = dark ? pp.z : P.target.z, cy = dark ? pp.y : P.target.y;
   const gy = surfaceY(cx, cz, cy + 1), dir = typeof P.dir === 'number' ? P.dir : 0;
-  if (!P.net && G.cd && (G.cd.summon || 0) < SM_CD) G.cd.summon = SM_CD;   // 共用冷卻 8 s,從施放起算
+  const smSk = P.skill || {}, smKey = smSk.id || 'summon', smCd = smSk.cd || SM_CD; if (!P.net && G.cd && (G.cd[smKey] || 0) < smCd) G.cd[smKey] = smCd;   // 共用冷卻:讀招式的 cd(SPELLS),無則退回 SM_CD,從施放起算
   const c = { P, def, E, n, k, scale: P.thickK || 1, cx, cz, cy, px: Math.cos(dir), pz: -Math.sin(dir) };
   const go = P.net ? () => burstRing(new V3(cx, gy + .05, cz), E.hex, def.size * c.scale * 1.2) : () => { for (let i = 0; i < n; i++) smSpawn(c, i); };
   if (orb && typeof orbFly === 'function') orbFly(orb, new V3(cx, gy + 1.2, cz), .3, E, () => { dissolveOrb(orb, E); go(); });

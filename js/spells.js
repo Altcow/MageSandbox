@@ -19,40 +19,40 @@ const ELMOD = {
 const _f = q => CHG.fx(q), _pct = q => Math.round(50 * CHG.fx(q)), _m = (n, q) => (n * CHG.fx(q)).toFixed(1);
 const SPELLS = {
   water: [
-    { name: '水彈術', icon: '💧', img: 'assets/icons/sp_water_bolt.png', chant: '清泉之靈,凝於掌心,化為奔流之彈——', shout: '水彈術!', preview: q => '減速 ' + _pct(q) + '%' },
-    { name: '水幕術', icon: '🌊', img: 'assets/icons/sp_water_wall.png', chant: '深潭之水,湧泉而起,化作阻敵之幕——', shout: '水幕術!', preview: q => '減速 ' + _pct(q) + '%' },
-    { name: '水龍彈', icon: '🐉', img: 'assets/icons/sp_water_sky.png', chant: '深淵之龍,聽我呼喚,破浪而出——', shout: '水龍彈!', aim: 'line', blockAim: true, line: (q, rs, m) => ({ len: 3.5 * rs * CHG.size(q, m), hw: 1.2 * CHG.thick(q, m), off: 2, maxLen: 3.5 * rs * (m === 'B' ? .6 : 1), maxHw: 1.2 * (m === 'A' ? 1.6 : 1) }), unit: 'copies', unitName: '條', preview: q => '減速 ' + _pct(q) + '%' },
-    { name: '水精靈', icon: '🧚', img: 'assets/icons/summon_water.png', chant: '清泉之靈,應我之約,現身吧——', shout: '水精靈!', preview: q => '減速 ' + Math.round(30 * CHG.fx(q)) + '%' }
+    { name: '水彈術', icon: '💧', img: 'assets/icons/sp_water_bolt.png', chant: '清泉之靈,凝於掌心,化為奔流之彈——', shout: '水彈術!', cd: 1, preview: q => '減速 ' + _pct(q) + '%' },
+    { name: '水幕術', icon: '🌊', img: 'assets/icons/sp_water_wall.png', chant: '深潭之水,湧泉而起,化作阻敵之幕——', shout: '水幕術!', cd: 8, preview: q => '減速 ' + _pct(q) + '%' },
+    { name: '水龍彈', icon: '🐉', img: 'assets/icons/sp_water_sky.png', chant: '深淵之龍,聽我呼喚,破浪而出——', shout: '水龍彈!', aim: 'line', blockAim: true, line: (q, rs, m) => ({ len: 3.5 * rs * CHG.size(q, m), hw: 1.2 * CHG.thick(q, m), off: 2, maxLen: 3.5 * rs * (m === 'B' ? .6 : 1), maxHw: 1.2 * (m === 'A' ? 1.6 : 1) }), unit: 'copies', unitName: '條', cd: 10, preview: q => '減速 ' + _pct(q) + '%' },
+    { name: '水精靈', icon: '🧚', img: 'assets/icons/summon_water.png', chant: '清泉之靈,應我之約,現身吧——', shout: '水精靈!', cd: 10, preview: q => '減速 ' + Math.round(30 * CHG.fx(q)) + '%' }
   ],
   fire: [
-    { name: '火球術', icon: '🔥', img: 'assets/icons/sp_fire_bolt.png', chant: '火之精靈,聚於我手,化為灼熱之球——燃盡一切!', shout: '火球術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
-    { name: '火牆術', icon: '🧱', img: 'assets/icons/sp_fire_wall.png', chant: '烈焰之壁,拔地而起,焚盡來犯之敵——', shout: '火牆術!', preview: q => '燃燒 ' + _m(3, q) + ' s' },
-    { name: '隕石墜擊', icon: '☄️', img: 'assets/icons/sp_fire_sky.png', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石墜擊!', unit: 'copies', unitName: '顆', preview: q => '坑內減速 55%' },
-    { name: '多頭火蛇', icon: '🐍', img: 'assets/icons/summon_fire.png', chant: '烈焰之蛇,三首同心,盤踞於此——', shout: '多頭火蛇!', preview: q => '燃燒 ' + _m(1.5, q) + ' s' }
+    { name: '火球術', icon: '🔥', img: 'assets/icons/sp_fire_bolt.png', chant: '火之精靈,聚於我手,化為灼熱之球——燃盡一切!', shout: '火球術!', cd: 1, preview: q => '燃燒 ' + _m(3, q) + ' s' },
+    { name: '火牆術', icon: '🧱', img: 'assets/icons/sp_fire_wall.png', chant: '烈焰之壁,拔地而起,焚盡來犯之敵——', shout: '火牆術!', cd: 7, preview: q => '燃燒 ' + _m(3, q) + ' s' },
+    { name: '隕石墜擊', icon: '☄️', img: 'assets/icons/sp_fire_sky.png', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石墜擊!', unit: 'copies', unitName: '顆', cd: 10, preview: q => '坑內減速 55%' },
+    { name: '多頭火蛇', icon: '🐍', img: 'assets/icons/summon_fire.png', chant: '烈焰之蛇,三首同心,盤踞於此——', shout: '多頭火蛇!', cd: 10, preview: q => '燃燒 ' + _m(1.5, q) + ' s' }
   ],
   wind: [
-    { name: '風刃術', icon: '🌀', img: 'assets/icons/sp_wind_bolt.png', chant: '疾風之刃,隨我意行,斬裂虛空——', shout: '風刃術!', preview: q => '擊退 ' + _m(5, q) + ' m' },
-    { name: '颶風牆', icon: '🍃', img: 'assets/icons/sp_wind_wall.png', chant: '流轉之風,環繞成壁,拒敵於外——', shout: '風壁術!', preview: q => '推出 ' + _m(2.5, q) + ' m' },
-    { name: '風刃切割', icon: '🌬️', img: 'assets/icons/sp_wind_sky.png', chant: '天穹之風,化為千刃,斬斷前路——', shout: '風刃切割!', aim: 'line', blockAim: true, line: (q, rs, m) => ({ len: 20, hw: .5 * rs * CHG.size(q, m), off: 1, maxLen: 20, maxHw: .5 * rs * (m === 'B' ? .6 : 1) }), unit: 'copies', unitName: '波', preview: q => '傷害 ' + Math.round(100 * CHG.dmg(q)) },
-    { name: '鎌鼬', icon: '🦦', img: 'assets/icons/summon_wind.png', chant: '疾風之子,藏刃於風,來去無蹤——', shout: '鎌鼬!', preview: q => '真空刃 ' + Math.round(80 * CHG.dmg(q)) }
+    { name: '風刃術', icon: '🌀', img: 'assets/icons/sp_wind_bolt.png', chant: '疾風之刃,隨我意行,斬裂虛空——', shout: '風刃術!', cd: 0.8, preview: q => '擊退 ' + _m(5, q) + ' m' },
+    { name: '颶風牆', icon: '🍃', img: 'assets/icons/sp_wind_wall.png', chant: '流轉之風,環繞成壁,拒敵於外——', shout: '風壁術!', cd: 7, preview: q => '推出 ' + _m(2.5, q) + ' m' },
+    { name: '風刃切割', icon: '🌬️', img: 'assets/icons/sp_wind_sky.png', chant: '天穹之風,化為千刃,斬斷前路——', shout: '風刃切割!', aim: 'line', blockAim: true, line: (q, rs, m) => ({ len: 20, hw: .5 * rs * CHG.size(q, m), off: 1, maxLen: 20, maxHw: .5 * rs * (m === 'B' ? .6 : 1) }), unit: 'copies', unitName: '波', cd: 9, preview: q => '傷害 ' + Math.round(100 * CHG.dmg(q)) },
+    { name: '鎌鼬', icon: '🦦', img: 'assets/icons/summon_wind.png', chant: '疾風之子,藏刃於風,來去無蹤——', shout: '鎌鼬!', cd: 10, preview: q => '真空刃 ' + Math.round(80 * CHG.dmg(q)) }
   ],
   earth: [
-    { name: '岩彈術', icon: '🪨', img: 'assets/icons/sp_earth_bolt.png', chant: '沉眠之岩,醒於我手,化為重擊之石——', shout: '岩彈術!', preview: q => '擊飛 ' + _m(1.2, q) + ' m' },
-    { name: '石牆術', icon: '🗿', img: 'assets/icons/sp_earth_wall.png', chant: '大地之骨,拔地而起,築我屏障——', shout: '石牆術!', preview: q => '擊飛 ' + _m(1, q) + ' m' },
-    { name: '土龍術', icon: '🐉', img: 'assets/icons/sp_earth_sky.png', chant: '大地之龍,破土而出,裂地千里——', shout: '土龍術!', aim: 'line', blockAim: true, line: (q, rs, m) => ({ off: 1.5, len: 12 + 8 * q, hw: Math.max(.8, .3 * rs), maxLen: 20, maxHw: 1.8 }), unit: 'count', cntN: 3, unitName: '道', preview: q => '緩速 65% ・ 3 s' },
-    { name: '石頭人', icon: '🗿', img: 'assets/icons/summon_earth.png', chant: '大地之骨,化為巨像,為我而戰——', shout: '石頭人!', preview: q => '暈眩 ' + _m(.4, q) + ' s' }
+    { name: '岩彈術', icon: '🪨', img: 'assets/icons/sp_earth_bolt.png', chant: '沉眠之岩,醒於我手,化為重擊之石——', shout: '岩彈術!', cd: 1, preview: q => '擊飛 ' + _m(1.2, q) + ' m' },
+    { name: '石牆術', icon: '🗿', img: 'assets/icons/sp_earth_wall.png', chant: '大地之骨,拔地而起,築我屏障——', shout: '石牆術!', cd: 6, preview: q => '擊飛 ' + _m(1, q) + ' m' },
+    { name: '土龍術', icon: '🐉', img: 'assets/icons/sp_earth_sky.png', chant: '大地之龍,破土而出,裂地千里——', shout: '土龍術!', aim: 'line', blockAim: true, line: (q, rs, m) => ({ off: 1.5, len: 12 + 8 * q, hw: Math.max(.8, .3 * rs), maxLen: 20, maxHw: 1.8 }), unit: 'count', cntN: 3, unitName: '道', cd: 9, preview: q => '緩速 65% ・ 3 s' },
+    { name: '石頭人', icon: '🗿', img: 'assets/icons/summon_earth.png', chant: '大地之骨,化為巨像,為我而戰——', shout: '石頭人!', cd: 10, preview: q => '暈眩 ' + _m(.4, q) + ' s' }
   ],
   light: [
-    { name: '聖光彈', icon: '✨', img: 'assets/icons/sp_light_bolt.png', chant: '晨曦之光,凝為一點,穿透黑暗——', shout: '聖光彈!', preview: q => '連鎖 ' + Math.max(1, Math.round(2 * _f(q))) + ' 跳' },
-    { name: '聖域結界', icon: '🔆', img: 'assets/icons/sp_light_wall.png', chant: '神聖之光,劃地為界,照見一切——', shout: '聖域結界!', preview: q => '易傷 +' + Math.round(25 * _f(q)) + '%' },
-    { name: '聖光柱', icon: '🌟', img: 'assets/icons/sp_light_sky.png', chant: '天穹之光,垂落人間,審判降臨——', shout: '聖光柱!', unit: 'count', cntN: 10, unitName: '道', preview: q => '光柱 ' + CHG.count(10, q, curMode()) + ' 道' },
-    { name: '六翼熾天使', icon: '👼', img: 'assets/icons/summon_light.png', chant: '六翼之光,降臨守護,照我前路——', shout: '熾天使!', preview: q => '治癒 ' + Math.round(12 * _f(q)) + ' / 2 s' }
+    { name: '聖光彈', icon: '✨', img: 'assets/icons/sp_light_bolt.png', chant: '晨曦之光,凝為一點,穿透黑暗——', shout: '聖光彈!', cd: 0.8, preview: q => '連鎖 ' + Math.max(1, Math.round(2 * _f(q))) + ' 跳' },
+    { name: '聖域結界', icon: '🔆', img: 'assets/icons/sp_light_wall.png', chant: '神聖之光,劃地為界,照見一切——', shout: '聖域結界!', cd: 7, preview: q => '易傷 +' + Math.round(25 * _f(q)) + '%' },
+    { name: '聖光柱', icon: '🌟', img: 'assets/icons/sp_light_sky.png', chant: '天穹之光,垂落人間,審判降臨——', shout: '聖光柱!', unit: 'count', cntN: 10, unitName: '道', cd: 14, preview: q => '光柱 ' + CHG.count(10, q, curMode()) + ' 道' },
+    { name: '六翼熾天使', icon: '👼', img: 'assets/icons/summon_light.png', chant: '六翼之光,降臨守護,照我前路——', shout: '熾天使!', cd: 10, preview: q => '治癒 ' + Math.round(12 * _f(q)) + ' / 2 s' }
   ],
   dark: [
-    { name: '暗影彈', icon: '🟣', img: 'assets/icons/sp_dark_bolt.png', chant: '幽冥之影,聚於指尖,吞噬光明——', shout: '暗影彈!', preview: q => '吸引 ' + _m(1.5, q) + ' m' },
-    { name: '暗影幕', icon: '🌫️', img: 'assets/icons/sp_dark_wall.png', chant: '無光之幕,自深淵升起,束縛來者——', shout: '暗影幕!', preview: q => '吸向中線 ' + _m(3, q) + ' m/s' },
-    { name: '黑洞', icon: '🕳️', img: 'assets/icons/sp_dark_sky.png', chant: '虛無之核,吞星噬月,萬物歸一——', shout: '黑洞!', preview: q => '吸引 ' + _m(4, q) + ' m/s' },
-    { name: '暗影', icon: '👤', img: 'assets/icons/summon_dark.png', chant: '影中之影,自我足下,甦醒吧——', shout: '暗影!', preview: q => '侵蝕 ' + _m(4, q) + ' s' }
+    { name: '暗影彈', icon: '🟣', img: 'assets/icons/sp_dark_bolt.png', chant: '幽冥之影,聚於指尖,吞噬光明——', shout: '暗影彈!', cd: 1, preview: q => '吸引 ' + _m(1.5, q) + ' m' },
+    { name: '暗影幕', icon: '🌫️', img: 'assets/icons/sp_dark_wall.png', chant: '無光之幕,自深淵升起,束縛來者——', shout: '暗影幕!', cd: 8, preview: q => '吸向中線 ' + _m(3, q) + ' m/s' },
+    { name: '黑洞', icon: '🕳️', img: 'assets/icons/sp_dark_sky.png', chant: '虛無之核,吞星噬月,萬物歸一——', shout: '黑洞!', cd: 14, preview: q => '吸引 ' + _m(4, q) + ' m/s' },
+    { name: '暗影', icon: '👤', img: 'assets/icons/summon_dark.png', chant: '影中之影,自我足下,甦醒吧——', shout: '暗影!', cd: 10, preview: q => '侵蝕 ' + _m(4, q) + ' s' }
   ]
 };
 
@@ -409,7 +409,7 @@ function castWaterWall(P, orb) {
           if (Math.random() < .15) smoke.emit(x, s.gy + 1.2, z, rnd(-.2, .2), rnd(.3, .8), rnd(-.2, .2), 1.2, rnd(.8, 1.2), E.s0, E.s1, .25, 1.5, -.1, .5);
         }
       },
-      onTick: c => zoneTick(c, 6, 'water', { slow: 3, chill: 1 })
+      onTick: c => { c.hits = (c.hits || 0) + 1; zoneTick(c, 6, 'water', { slow: 3, chill: c.hits % 2 ? 1 : 0 }); }   // 寒意每 2 跳 +1(平衡可選 #12)
     })
   });
 }
@@ -594,9 +594,9 @@ function castHolyBolt(P, orb) {
     impact(end, Q) {
       const R = Q.r * .8, PARA = { para: 2.4 * Q.fxK };   // 首個目標與每個連鎖目標麻痺 1.2 → 2.4 s
       explode(end, R, Q.power, { dmg: 0, el: 'light', gy: Q.target.y, fxK: Q.fxK });
-      areaEl(end, R, 55, 'light', Q, {});
+      areaEl(end, R, 65, 'light', Q, {});   // 聖光彈 55 → 65(平衡可選 #9)
       const first = nearestDummy(end.x, end.z, R + .4);
-      if (first) { ctlFx(first, PARA, 0, 0); chainFrom(first, Math.max(1, Math.round(2 * Q.fxK)), 55 * Q.dmgK * .5, 'light', PARA); }
+      if (first) { ctlFx(first, PARA, 0, 0); chainFrom(first, Math.max(1, Math.round(2 * Q.fxK)), 65 * Q.dmgK * .5, 'light', PARA); }
     }
   });
 }
@@ -620,8 +620,11 @@ function castSanctuary(P, orb) {
 }
 // 聖光柱:能量球往上飛 → 多道小光柱(連鎖 1 跳)→ 中央大光柱(連鎖 1 → 3 跳)
 function castHolyPillar(P, orb) {
-  const E = EL.light, gy = P.target.y, R = P.r, n = CHG.count(10, P.q, P.mode), sched = [];
-  for (let i = 0; i < n; i++) sched.push({ t: .4 + (i / n) * 1.6 + prnd(P, 0, .15), big: false });
+  const E = EL.light, gy = P.target.y, R = P.r, n = CHG.count(10, P.q, P.mode), sched = [], SMALL_B = 25;   // 小柱傷害 45 → 25(平衡必調 #2)
+  for (let i = 0; i < n; i++) {   // 小柱落點在施放時決定,預警光圈才能先畫在落點上
+    const ang = prnd(P, 0, 6.283), rr = Math.sqrt(prnd(P, 0, 1)) * Math.max(1.4, R * .25);
+    sched.push({ t: .4 + (i / n) * 1.6 + prnd(P, 0, .15), big: false, x: P.target.x + Math.cos(ang) * rr, z: P.target.z + Math.sin(ang) * rr });
+  }
   sched.push({ t: 2.3, big: true });
   const pillar = (x, z, rad, big) => {
     const m = new THREE.Mesh(COL_GEO, new THREE.MeshBasicMaterial({ color: 0xfff6c0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
@@ -636,12 +639,12 @@ function castHolyPillar(P, orb) {
       if (t >= .58) { scene.remove(m); m.material.dispose(); return false; }
     });
   };
-  const small = () => {
-    const ang = prnd(P, 0, 6.283), rr = Math.sqrt(prnd(P, 0, 1)) * Math.max(1.4, R * .25), x = P.target.x + Math.cos(ang) * rr, z = P.target.z + Math.sin(ang) * rr;
+  const small = e => {
+    const x = e.x, z = e.z;
     pillar(x, z, .35 * P.thickK, false);
-    areaEl(new V3(x, gy, z), 1.0 * P.thickK, 45, 'light', P, {});
+    areaEl(new V3(x, gy, z), 1.0 * P.thickK, SMALL_B, 'light', P, {});
     const first = nearestDummy(x, z, 1.8);
-    if (first) chainFrom(first, 1, 45 * P.dmgK * .5, 'light');
+    if (first) chainFrom(first, 1, SMALL_B * P.dmgK * .5, 'light');
   };
   const big = () => {
     const rr = R * .8, x = P.target.x, z = P.target.z;
@@ -653,10 +656,22 @@ function castHolyPillar(P, orb) {
   };
   orbFly(orb, new V3(P.target.x, gy + 20, P.target.z), .45, E, () => {
     dissolveOrb(orb, E);
+    for (const e of sched) {   // 小柱落點預警:落下前 .35 s 地面光圈由空填滿(同隕石預警風格),落下後 .1 s 收掉
+      if (e.big) continue;
+      const wi = new Indicator(scene), t0 = Math.max(0, e.t - .35);
+      let k = 0;
+      addFx(dt => {
+        k += dt;
+        if (k < t0) return true;
+        wi.set(e.x, e.z, 0, 1.0 * P.thickK, 0, 0, Math.min(1, (k - t0) / (e.t - t0)), .45, E.hex, gy); wi.tick(k);
+        if (k >= e.t + .1) { disposeInd(wi); return false; }
+        return true;
+      });
+    }
     let t = 0;
     addFx(dt => {
       t += dt;
-      while (sched.length && t >= sched[0].t) { const e = sched.shift(); if (e.big) big(); else small(); }
+      while (sched.length && t >= sched[0].t) { const e = sched.shift(); if (e.big) big(); else small(e); }
       return !(!sched.length && t > 3.0);
     });
   });
@@ -754,7 +769,7 @@ function blackHoleOne(P, orb) {
             if (n < 2) { poisoned.set(d, n + 1); d.poison(3 * P.fxK, 1); }
           }
         }
-        if ((tick += dt) >= .25) { tick = 0; for (const d of DUMMIES) if (!d.dead && Math.hypot(d.x - C.x, d.z - C.z) < R) d.hit(6 * P.dmgK, 0, 0, 0, 'dark'); }
+        if ((tick += dt) >= .25) { tick = 0; for (const d of DUMMIES) if (!d.dead && Math.hypot(d.x - C.x, d.z - C.z) < R) d.hit(4 * P.dmgK, 0, 0, 0, 'dark'); }   // 每跳 6 → 4(平衡可選 #11)
         for (let i = 0; i < fq(8); i++) {
           const dd = new V3(rnd(-1, 1), rnd(-.3, 1), rnd(-1, 1)).normalize(), k = R * 1.2;
           const sx = C.x + dd.x * k, sy = C.y + dd.y * k, sz = C.z + dd.z * k;

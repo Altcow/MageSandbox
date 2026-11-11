@@ -10,7 +10,7 @@ const MAGE_SK = {};
 function mageSkill(i) {
   if (!SKILLS[i]) return SKILLS[i];
   const el = G.el, row = MAGE_SK[el] || (MAGE_SK[el] = []);
-  if (!row[i]) { const sp = SPELLS[el][i] || {}; row[i] = Object.assign({}, SKILLS[i], { aim: sp.aim || SKILLS[i].aim, line: sp.line, blockAim: sp.blockAim }); }
+  if (!row[i]) { const sp = SPELLS[el][i] || {}; row[i] = Object.assign({}, SKILLS[i], { aim: sp.aim || SKILLS[i].aim, line: sp.line, blockAim: sp.blockAim, cd: sp.cd != null ? sp.cd : SKILLS[i].cd }); }
   return row[i];
 }
 // 非法師快捷列:第 i 格 = 目前架勢 bars[stance][i] 指向的扁平 skills 索引(第 4 格絕技兩架勢共用);法師 = 格位本身
@@ -292,6 +292,7 @@ function setClass(c) {
   mage.setClassLook(c);
   G.skill = 0; G.lastSkill = 0; G.wallOff = 0;
   G.stance = 0; G.stanceCd = 0; G.stanceBoostT = 0; G.cr = 0;   // 換職業:架勢回 A、能量歸零
+  for (const k in G.cd) G.cd[k] = 0;   // 換職業:清空冷卻,避免殘留
   refreshHotbar(); refreshClsBar(); syncElBar();
   banner(C.name, clsHex(c));
 }

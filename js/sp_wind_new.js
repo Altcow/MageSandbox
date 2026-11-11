@@ -7,7 +7,7 @@
 
 const ww_N = { bolt: 5, wall: 4, sky: 3 };                             // 各形狀滿集氣份數(同 COPIES_N)
 const ww_ANG = [0, -6, 6, -12, 12].map(a => a * Math.PI / 180);       // 同 SHOT_ANG
-const ww_TAB = { bolt: .6, wall: .8, sky: .5 };                        // 份數 > 1 時的每份傷害倍率(同 CHG.perK)
+const ww_TAB = { bolt: .4, wall: .8, sky: .5 };                        // 份數 > 1 時的每份傷害倍率(同 CHG.perK;bolt 0.6 → 0.4,平衡必調 #3)
 const ww_CUT_V = 26, ww_CUT_LEN = 20;                                 // 風刃切割:波速(m/s)、掃過距離(m)
 let ww_R = null, ww_ghostN = 0;
 
@@ -68,7 +68,7 @@ function ww_hitFx(p, E) {
 
 /* ---------- 4. 風刃術:三片新月風刃 ---------- */
 // 每片沿固定軌跡飛行,不追蹤;中刃直線,左右刃 lat = ±1.0·sin(π·s/14)(s = 已飛距離)
-// B 模式多出的直線刃依 ww_ANG 排列,傷害 ×0.6;各片各自判定、命中第一個標靶即消失
+// B 模式多出的直線刃依 ww_ANG 排列,傷害 ×0.4;各片各自判定、命中第一個標靶即消失
 function castWindBolt(P, orb) {
   ww_init();
   const E = EL.wind, mz = ww_muzzle(P), dir = P.dir || 0, thick = P.thickK || 1, n = ww_copies('bolt', P);
@@ -78,7 +78,7 @@ function castWindBolt(P, orb) {
   flashLight(mz, E.hex, 2.5, .25, 10);
   const tg = P.target, hd = Math.hypot(tg.x - mz.x, tg.z - mz.z), kS = hd > 1 ? clamp((tg.y + 1.25 - mz.y) / hd, -.8, .8) : 0;   // 俯仰同 spells.js shotOne(設計 §4-2 C)
   const base = { E, scale: .35 * (P.r || 1) * thick / .75, hitR: .3 * thick, range: ww_range(P), spd: ww_speed(), knock: 5 * (P.fxK || 1) / 3, k: kS };
-  for (const b of blades) ww_blade(b, mz, Object.assign({}, base, { dmg: 60 * .45 * (P.dmgK || 1) * b.mul }));
+  for (const b of blades) ww_blade(b, mz, Object.assign({}, base, { dmg: 60 * .6 * (P.dmgK || 1) * b.mul }));   // 每片 60×0.45 → 60×0.6(平衡可選 #8)
 }
 // 一片風刃:b = { a 方向角, side 左 +1 / 右 -1 / 中 0, mul 傷害倍率 }
 function ww_blade(b, mz, o) {
@@ -217,14 +217,15 @@ function castWindCut(P, orb) {
   flashLight(new V3(ox, y0, oz), E.hex, 6, .4, 22);
   G.shake = Math.max(G.shake, .15 * CFG.shake);
   const maxS = blockDist(ox, oz, y0, sa, ca, ww_CUT_LEN, false);   // 障礙前停下(blockDist,world.js)
+  const hitSet = new Set();   // 同一施放的各波共用:同一目標只吃第 1 波(平衡可選 #13)
   for (let i = 0; i < n; i++) {
-    const w = { ox, oz, sa, ca, y0, hw: .5 * (P.r || 4), dmg, lead: i === 0, E, fxK: P.fxK || 1, maxS };
+    const w = { ox, oz, sa, ca, y0, hw: .5 * (P.r || 4), dmg, lead: i === 0, E, fxK: P.fxK || 1, maxS, hitSet };
     if (i === 0) ww_wave(w); else after(i * .22, () => ww_wave(w));
   }
 }
 // 一波:前緣沿方向推進,每幀掃過的帶狀區域內標靶各受一次傷害
 function ww_wave(w) {
-  const R = ww_init(), E = w.E, sa = w.sa, ca = w.ca, hw = w.hw, hitSet = new Set(), token = {};
+  const R = ww_init(), E = w.E, sa = w.sa, ca = w.ca, hw = w.hw, hitSet = w.hitSet || new Set(), token = {};
   const grp = new THREE.Group(), core = new THREE.Mesh(R.cutCore, R.matCore), mid = new THREE.Mesh(R.cutMid, R.matMid), out = new THREE.Mesh(R.cutMid, R.matOutC);
   core.rotation.x = mid.rotation.x = out.rotation.x = -Math.PI / 2; out.scale.setScalar(1.06);
   grp.add(core, mid, out); grp.scale.setScalar(hw); grp.rotation.y = Math.atan2(-ca, sa);

@@ -50,7 +50,7 @@ const SKILLS = [
   { id: 'fireball', name: '火球術', icon: '🔥', el: 'fire', shape: 'circle', kind: 'bolt', aim: 'dir', chant: '火之精靈,聚於我手,化為灼熱之球——燃盡一切!', shout: '火球術!' },
   { id: 'firewall', name: '火牆術', icon: '🧱', el: 'fire', shape: 'wall', kind: 'wall', chant: '烈焰之壁,拔地而起,焚盡來犯之敵——', shout: '火牆術!' },
   { id: 'meteor', name: '隕石術', icon: '☄️', el: 'fire', shape: 'circle', kind: 'sky', chant: '天外星辰,聽我召喚,墜落吧——毀滅之石!', shout: '隕石術!' },
-  { id: 'summon', name: '召喚', icon: '✨', el: 'fire', shape: 'circle', kind: 'summon', aim: 'circle', cd: 8, chant: '', shout: '' }
+  { id: 'summon', name: '召喚', icon: '✨', el: 'fire', shape: 'circle', kind: 'summon', aim: 'circle', cd: 10, chant: '', shout: '' }
 ];
 const sc = i => CFG.skills[baseOf(i)];   // 招式的數值表鍵(法師 = 自己的 id;職業暫時招式 = 沿用的 base)
 // 統一集氣倍率(C-0b)+ 集氣模式(設計 §2):q = 集氣比例 0~1;mode:'A' 變大 / 'B' 變多(只有法師有 mode,其他職業 undefined = 舊公式)
@@ -64,7 +64,7 @@ const CHG = {
                     : m === 'B' ? Math.max(1, Math.round(n * lerp(0.36, 1.5, q)))
                     : Math.max(1, Math.round(n * lerp(0.4, 1.0, q))),   // 子單位數量(石柱 / 聖光柱 / 箭等)
   copies: (N, q, m) => m === 'B' ? 1 + Math.round((N - 1) * q) : 1,      // 本體份數(發數 / 道數 / 顆數 / 隻數):只有 B 成長
-  perK: (n, shape) => n > 1 ? ({ bolt: .6, wall: .8, sky: .5, summon: .6 })[shape] : 1   // 份數 > 1 時每份傷害倍率
+  perK: (n, shape) => n > 1 ? ({ bolt: .4, wall: .8, sky: .5, summon: .6 })[shape] : 1   // 份數 > 1 時每份傷害倍率(bolt 0.6 → 0.4,平衡必調 #3)
 };
 const COPIES_N = { bolt: 5, wall: 4, sky: 3, summon: 2 };   // 各形狀 B 模式份數上限
 const curMode = () => G.cls === 'mage' ? G.chgMode : undefined;

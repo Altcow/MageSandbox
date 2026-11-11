@@ -330,7 +330,7 @@ function backstabLand(P) {
     if (dist < bd) { bd = dist; best = d; }
   }
   if (!best) return;   // 落點沒有標靶:只閃身
-  const mp = typeof RemotePlayer !== 'undefined' && best instanceof RemotePlayer;   // 多人對他人:背後 ×2.0~2.8、潛行 ×1.3(NET_RULES.bsBack / bsStealth,狀態效果文件之前的 §3-4)
+  const mp = typeof RemotePlayer !== 'undefined' && best instanceof RemotePlayer;   // 多人對他人:背後 ×2.0~2.8、潛行 ×1.15(NET_RULES.bsBack / bsStealth,狀態效果文件之前的 §3-4)
   const sb = G.shadowT > 0; if (sb) G.shadowT = 0;   // 暗影步後 1.5 s 內的下一刀視為背後
   const behind = behindOf(best, p) || sb;   // 標靶正面向量 · 指向攻擊者 ≤ -0.5(behindOf 在 skills_assassin.js)
   let dmg = 40 * P.dmgK;
@@ -354,13 +354,15 @@ function backstabLand(P) {
 function castKnives(P, orb) {
   const E = casterAura(P), cfg = CFG.skills.knives, n = CHG.count(7, P.q), A = P.r * Math.PI / 180, from = casterTip(P, new V3());
   if (orb) dissolveOrb(orb, E);
-  let hits = 0; const poisoned = new Set();
+  let hits = 0; const poisoned = new Set(), cnt = new Map();   // 同一次施放同一目標最多中 3 把(平衡必調 #4)
   for (let i = 0; i < n; i++) {
     const a = P.dir + (n === 1 ? 0 : lerp(-A / 2, A / 2, i / (n - 1)));
     const dx = Math.sin(a), dz = Math.cos(a), to = new V3(from.x + dx * cfg.range, from.y, from.z + dz * cfg.range);
     flyProjectile(from, to, 40, {
       mesh: arrowMesh(.5, .025, 0xc08aff, 1), hitR: .3, stuck: .05, fade: false, trail: IS_TOUCH ? 1 : 2, c0: E.c0, c1: E.c1, solid: true,
       onHit: d => {
+        const c = (cnt.get(d) || 0) + 1; cnt.set(d, c);
+        if (c > 3) return;   // 第 4 把起:刀仍插住,但不傷害、不中毒、不計連擊點
         d.hit(18 * P.dmgK, d.x - from.x, d.z - from.z, 0, null); hitFx(new V3(d.x, d.y + 1, d.z), 6);
         if (!poisoned.has(d)) { poisoned.add(d); d.poison(2, 1); }   // 中毒 1 層 2 s(同一標靶只 +1)
         hits++; if (!P.net && (hits === 1 || hits === 3)) gainEnergy(1);   // 連擊點:命中 ≥1 把 +1、≥3 把再 +1

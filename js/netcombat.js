@@ -136,7 +136,7 @@ function netFxTick(dt) {
    流程:攻擊者端 RemotePlayer.hit 等記入待送 → netCombatTick 每幀合併成一則 hit 事件(有命中的那一幀)→
    受害者端 netApplyHit:去重、否決(倒地 / 無敵 / 衝鋒盾)、扣血(playerHurt,傷害 × NET_RULES.dmgK)、套 debuff、回報 dmg →
    倒下:netOnDown 送 down 事件、房主計分(score/<座位> = "擊倒,死亡")、所有人看到擊殺訊息。 */
-const NET_RULES = { dmgK: .4, hitStun: .2, burnDmg: 2, poisonDmg: 1.2, cancelDmg: 10, vetoMs: 60, invKeepMs: 1500, scoreWinS: 8, ccCap: 1.5, ccDR: .5, ccWin: 4, ccMaxN: 3, ccImm: .5, hitStunGap: .5, slowCap: .65, bsBack: [2, 2.8], bsStealth: 1.3 };   // §8 預設:傷害倍率、硬直 0.2 s(0.5 s 內一次)、DOT 每 0.5 s(灼燒 / 每層中毒,狀態效果文件 §1-7)、集氣中斷門檻、否決時間窗、擊倒歸屬 8 s;控制總則見 status.js
+const NET_RULES = { dmgK: .4, hitStun: .2, burnDmg: 2, poisonDmg: 1.2, cancelDmg: 10, vetoMs: 60, invKeepMs: 1500, scoreWinS: 8, ccCap: 1.5, ccDR: .5, ccWin: 4, ccMaxN: 3, ccImm: .5, hitStunGap: .5, slowCap: .65, bsBack: [2, 2.8], bsStealth: 1.15 };   // §8 預設:傷害倍率、硬直 0.2 s(0.5 s 內一次)、DOT 每 0.5 s(灼燒 / 每層中毒,狀態效果文件 §1-7)、集氣中斷門檻、否決時間窗、擊倒歸屬 8 s;控制總則見 status.js
 // 自己的減速區不減速自己(§8 #8):world.js 的 addSlowZone 與 classes.js 的 zoneSlowAt 以 NET_ME 排除自己的區域
 Object.defineProperty(window, 'NET_ME', { get: () => (Net.me || 0), configurable: true });
 const netInputLocked = () => !!(window.NETON && window.NET_LOCK);   // 開戰倒數中,觸控鈕等事件式入口也要擋(§5-1)
