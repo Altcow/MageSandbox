@@ -11,9 +11,8 @@
   const CLS_NAME = Object.fromEntries(CLS);
   const EL = [['water', '水'], ['fire', '火'], ['wind', '風'], ['earth', '土'], ['light', '光'], ['dark', '暗']];
   const EL_NAME = Object.fromEntries(EL);
+  // 目前只啟用海島戰場(索引 0);月夜 / 叢林為停用場地(見 scenes.js SCENES_ARCHIVE),復原時把兩筆加回此陣列前面
   const SCENE_INFO = [
-    { name: '月夜訓練場', cls: 'sc-night' },
-    { name: '非洲叢林', cls: 'sc-jungle' },
     { name: '海島戰場', cls: 'sc-island' }
   ];
   const ROOM_ERR = {
@@ -36,7 +35,7 @@
   /* ================= 封面 UI ================= */
   const SOLO = /[?&]solo=1/.test(location.search);
   const roomQ = (() => { const m = /[?&]room=([^&#]*)/.exec(location.search); return m ? decodeURIComponent(m[1]).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) : ''; })();
-  const prevScene = (() => { const q = /[?&]scene=(\d)/.exec(location.search); return q ? +q[1] : (+lsGet('mageSandbox.scene') || 0); })();
+  const prevScene = (() => { const q = /[?&]scene=(\d)/.exec(location.search), v = q ? +q[1] : (+lsGet('mageSandbox.scene') || 0); return SCENE_INFO[v] ? v : 0; })();
 
   if (SOLO) {   // 單人練習直接進遊戲,不顯示封面
     window.COVER_ON = false;
@@ -57,7 +56,7 @@
   root.appendChild(sfxBar);
   const st = {
     view: 'title', cls: 'mage', el: (window.G && G.el) || 'fire', ready: false, room: null, isHost: false, myId: null,
-    max: 6, hasPassword: false, sceneIdx: 1, players: [], link: '', createScene: 1, createMax: 6, createPw: false
+    max: 6, hasPassword: false, sceneIdx: 0, players: [], link: '', createScene: 0, createMax: 6, createPw: false
   };
   if (CLS_NAME[lsGet('mageSandbox.cls')]) st.cls = lsGet('mageSandbox.cls');
 
@@ -148,6 +147,7 @@
     b.onclick = () => { st.createScene = i; renderCreate(); };
     sceneBox.appendChild(b);
   });
+  if (SCENE_INFO.length <= 1) sceneBox.parentElement.style.display = 'none';   // 只有一個場地:隱藏「場地」選擇列
   /* 人數 */
   document.querySelectorAll('#cvMax button').forEach(b => {
     b.onclick = () => { st.createMax = +b.dataset.n; renderCreate(); };
@@ -239,7 +239,7 @@
   }
   function enterLobby(res) {
     st.room = res.code; st.isHost = !!res.host; st.myId = res.me.id;
-    st.max = res.maxPlayers || 4; st.hasPassword = !!res.hasPassword; st.sceneIdx = res.scene | 0;
+    st.max = res.maxPlayers || 4; st.hasPassword = !!res.hasPassword; st.sceneIdx = SCENE_INFO[res.scene | 0] ? res.scene | 0 : 0;
     st.ready = false; st.link = res.link || '';
     $('cvRoomCode').textContent = res.code;
     $('cvLock').hidden = !st.hasPassword;
@@ -343,7 +343,7 @@
   /* 進入遊戲:套用場地、職業、屬性,收起封面 */
   function enterGame(sceneIdx) {
     stopCover();
-    setScene(sceneIdx, true);
+    setScene(SCENE_INFO[sceneIdx | 0] ? sceneIdx | 0 : 0, true);
     setClass(st.cls);
     if (st.cls === 'mage') setElement(st.el);
   }

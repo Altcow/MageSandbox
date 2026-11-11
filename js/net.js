@@ -13,8 +13,8 @@
 //   其他:now()、me、isHost、code、stub、online、idleMs(測試時可改短)
 (function () {
   const NET_PROTO = 1;          // 協定版本(meta.v)
-  const NET_BUILD = 19;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
-  const sceneMax = () => (typeof window.getSceneCount === 'function' ? window.getSceneCount() : 2) - 1;   // 場地索引上限(scenes.js)
+  const NET_BUILD = 20;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
+  const sceneMax = () => (typeof window.getSceneCount === 'function' ? window.getSceneCount() : 1) - 1;   // 場地索引上限(scenes.js)
   const HB_MS = 10000;          // 心跳間隔
   const STALE_MS = 25000;       // 心跳逾時:超過即視為離開
   const AWAY_MS = 90000;        // 背景(暫離)存活期限:players/<座位>/away 的時間戳在此內不視為離開(iOS 背景時計時器暫停,無法送心跳)

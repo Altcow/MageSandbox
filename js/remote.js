@@ -430,7 +430,7 @@ function enterMatch(ev) {
   if (typeof clearSummons === 'function') clearSummons();   // 新局開始:清掉殘留的召喚物(§6-3)
   const players = ev.players || [];
   const seats = players.map(p => p.id).sort((a, b) => a - b);
-  if (typeof window.getSceneIndex === 'function' && ev.scene != null && window.getSceneIndex() !== ev.scene) setScene(ev.scene, true);   // 換場地再來(N6):先切場景,出生點驗證才用新場地
+  if (typeof window.getSceneIndex === 'function' && window.getSceneIndex() !== 0) setScene(0, true);   // 單場地:別人送來的 ev.scene 一律夾回 0(海島);換場地再來(N6):先切場景,出生點驗證才用新場地
   spawnPts = validSpawnPts(players.length);
   const sp = assignSpawns(seats, spawnPts);
   const rd = Net.roundOf ? Net.roundOf() : null;

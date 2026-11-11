@@ -1,6 +1,6 @@
 'use strict';
-// 可切換場景:月夜訓練場 / 非洲叢林 / 海島戰場
-// 場景只負責「看起來」與碰撞物;標靶與玩法不動。切換:N 鍵、上方按鈕、?scene=0~2
+// 場景:目前只啟用海島戰場(SCENES 索引 0);月夜訓練場 / 非洲叢林 收在 SCENES_ARCHIVE(停用,見下方)
+// 場景只負責「看起來」與碰撞物;標靶與玩法不動。切換:N 鍵、上方按鈕(單場地時無場地按鈕)、?scene=N(目前只有 0)
 (function () {
   const TAU = Math.PI * 2, MOBILE = IS_TOUCH;
   let deco = null, cur = -1, fogState = null, fogK = 0;   // fogState:叢林霧區實例群組與飄動計時(buildJungle 建立)
@@ -256,13 +256,17 @@
   for (let k = 0; k < 8; k++) { const a = (22.5 + 45 * k) * Math.PI / 180; ISLAND_DUMMY.push([4 * Math.cos(a), 4 * Math.sin(a)]); }
   for (let k = 0; k < 16; k++) { const a = 22.5 * k * Math.PI / 180; ISLAND_DUMMY.push([7.5 * Math.cos(a), 7.5 * Math.sin(a)]); }
   const ISLAND_PROBES = [['C', 0, 0], ['NW', -10, 9], ['SE', 14, -12], ['M1', -13, -3]];
-  const ISLAND_BANDS = [[-1.5, 0x2a86ac], [0, 0x2f9fb4], [.5, 0x86d8c6], [.85, 0xf7f3e4], [1.2, 0xf1dca2], [1.65, 0xe6cf8c], [2.15, 0x8fd05a], [2.6, 0x6fbe3f], [3.6, 0x5fae3a], [4.8, 0x7cc650]];   // 海床 → 淺水 → 泡沫(waterY 下約 .15)→ 沙灘 → 草地 → 丘頂
-  let waterTex = null, waterT = 0;   // 海面波紋貼圖與計時(buildIsland 設、sceneTick 捲動、clearDeco 清)
+  const ISLAND_BANDS = [[-1.5, 0x7a7050], [0, 0xa89a70], [.6, 0x9a8c62], [.9, 0xb09c6a], [1.2, 0xf1dca2], [1.65, 0xe6cf8c], [2.15, 0x8fd05a], [2.6, 0x6fbe3f], [3.6, 0x5fae3a], [4.8, 0x7cc650]];   // 水下沙底(水色由海面 shader 負責)→ 濕沙帶(waterY 附近較暗)→ 乾沙 → 草地 → 丘頂;不畫泡沫帶
+  let seaU = null, seaTex = [];   // 海面 shader uniform 與自建貼圖(buildIsland 設、sceneTick 更新時間與視點、clearDeco 釋放)
 
-  const SCENES = [
+  // 已停用場地(保留為死碼,供日後復原):要恢復時,把這兩筆依原順序(月夜、叢林、海島)放回 SCENES,並同步恢復 cover.js 的 SCENE_INFO 與 sfx.js 的配樂判斷
+  const SCENES_ARCHIVE = [
     { name: '月夜訓練場', build: buildNight, terrain: [...SOUTH_T, ['hill', 42, 20, 2, 7, 2.5], ['hill', -40, 22, 4, 7, 3], ['hill', 36, -32, 3, 6, 2.5], ['mesa', -26, -18, 4, 4, 0, 8, 3.5], ['mesa', 26, -18, 4, 4, 0, 8, 3.5], ['hill', 0, -20, 2, 9, 2.5]], terrainLook: { cliff: 0x6a6f85, dark: .35 }, bridges: SOUTH_BR(.5, 'rope'), bridgeCol: [0x5a4632, 0xb8a070], bridgeGlow: 0x9fd0ff, summit: [-11, -38, 5, 0x9fd0ff], ground: nightGroundTex, cloud: { on: true, cover: .42, lit: [.7, .78, 1], shade: [.28, .24, .42] }, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', -25.5, -16, .9, .9, 5.3, 0, 3.5], ['box', -28.5, -19, 1.5, 1.5, 7, 0, 3.5], ['box', 25.5, -16, .9, .9, 5.3, 0, 3.5], ['cyl', 28.5, -19, .9, 7.2, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea, spawns: NIGHT_SPAWNS, terrainProbes: [['WS', -24, -16], ['ES', 24, -16], ['S', 0, -20]] },
     { name: '非洲叢林', build: buildJungle, terrain: JUNGLE_T, terrainLook: { cliff: 0x8a4a2a, dark: .3, bands: [[-1.5, 0x4a4630], [-.4, 0x6a6a3a], [.3, 0x86a04c], [3, 0x6f8f3e], [6, 0xa09a5c]], path: 0xb09468 }, bridges: [[-8.8, 16.5, -4.8, 14.6, 5.5, .8, .3, 'rope']], bridgeCol: [0x7a5a32, 0x3c5a22], ground: jungleDetail, cloud: { on: true, cover: .4, lit: [1, .97, .88], shade: [.6, .62, .7] }, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [.45, .28, .12], bt: .93, bk: .55, clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.0], sun: [-32, 24, 22], plats: [['deck', -2, 14, 3.2, 3.2, 5.5, 0, .4]], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 32, flatZone: [-5, -5, 5, 5], dummyPos: JUNGLE_DUMMY, spawns: JUNGLE_SPAWNS, bushes: JUNGLE_BUSH, fogZones: JUNGLE_FOG, terrainProbes: JUNGLE_PROBES },
-    { name: '海島戰場', build: buildIsland, terrain: ISLAND_T, terrainLook: { cliff: 0x9a8a6a, dark: 0, bands: ISLAND_BANDS }, waterY: ISLAND_WATER, ground: islandGroundTex, cloud: { on: true, cover: .45, lit: [1, 1, 1], shade: [.62, .7, .82] }, gtint: 0xffffff, fog: [0xa9dcd6, 60, 220], clear: 0xa9dcd6, hor: [.72, .88, .86], top: [.28, .62, .9], gnd: [.25, .5, .55], sunCol: [1, .92, .7], hemi: [0xbfe9ff, 0x4a6a3a, 1.1], dir: [0xfff1d6, 1.6], sun: [-30, 40, 18], bt: .93, bk: .55, plats: [], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 38, flatZone: [-6, -6, 6, 6], dummyPos: ISLAND_DUMMY, spawns: ISLAND_SPAWNS, terrainProbes: ISLAND_PROBES },
+  ];
+  // 目前生效場地:唯一一筆(索引 0)
+  const SCENES = [
+    { name: '海島戰場', build: buildIsland, atmo: true, terrain: ISLAND_T, terrainLook: { cliff: 0x9a8a6a, dark: 0, bands: ISLAND_BANDS }, waterY: ISLAND_WATER, ground: islandGroundTex, cloud: { on: true, cover: .45, lit: [1, 1, 1], shade: [.62, .7, .82] }, gtint: 0xffffff, fog: [0xa9dcd6, 60, 220], clear: 0xa9dcd6, hor: [.72, .88, .86], top: [.28, .62, .9], gnd: [.25, .5, .55], sunCol: [1, .92, .7], hemi: [0xbfe9ff, 0x4a6a3a, 1.1], dir: [0xfff1d6, 1.6], sun: [-30, 40, 18], bt: .93, bk: .55, plats: [], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 38, flatZone: [-6, -6, 6, 6], dummyPos: ISLAND_DUMMY, spawns: ISLAND_SPAWNS, terrainProbes: ISLAND_PROBES },
   ];
 
   // ---- 海島戰場 ----
@@ -271,31 +275,120 @@
     let s = seed >>> 0;
     return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   }
-  const WATER_STOPS = [[0, 0x4fd1c5], [40, 0x3ab8c4], [80, 0x2a9ab8], [160, 0x1d78a8], [300, 0x12508a]];   // 離原點距離 → 顏色:近岸淺綠藍 → 外海深藍
-  const _wc1 = new THREE.Color();
-  function waterColor(r, out) {
-    const n = WATER_STOPS.length;
-    for (let k = 0; k < n - 1; k++) {
-      const a = WATER_STOPS[k], b = WATER_STOPS[k + 1];
-      if (r <= b[0] || k === n - 2) return out.set(a[1]).lerp(_wc1.set(b[1]), clamp((r - a[0]) / (b[0] - a[0]), 0, 1));
-    }
-    return out;
+  // 海面深度(與 SEA_FS 同式):地形取樣;網格外以距離延伸成深海(20 m 內平滑過渡到 15 m)
+  function seaDepth(x, z, wy) {
+    const ext = Math.hypot(Math.max(Math.abs(x) - 60, 0), Math.max(Math.abs(z) - 60, 0)), k = clamp(ext / 20, 0, 1), s = k * k * (3 - 2 * k);
+    return Math.max(wy - terrainH(x, z), 0) * (1 - s) + 15 * s;
   }
+  // 淺灘波幅衰減(CPU 算好存成頂點屬性):深度 < .3 m 為 0(貼平沙灘),> 3 m 為 1
+  function seaShore(x, z, wy) { const t = clamp((seaDepth(x, z, wy) - .3) / 2.7, 0, 1); return t * t * (3 - 2 * t); }
+  // 海面 shader(ShaderMaterial):頂點 = Gerstner 波 + 淺灘衰減 + 遠處衰減;片段 = 深淺水色 / 菲涅爾 / 太陽閃光 / 泡沫 / 焦散 / 霧
+  // defines:NW 波組數、DESK 桌機(第 2 層泡沫 + 焦散)、LACE 蕾絲泡沫(低精度裝置關閉)
+  const SEA_VS = [
+    'attribute float aShore;uniform vec4 uWP[6];uniform vec2 uWA[6];uniform float uTime,uWaterY;varying vec3 vWP,vN;varying float vCrest;',
+    'void main(){vec2 xz=position.xz;vec3 dsp=vec3(0.),nn=vec3(0.,1.,0.);float cr=0.;',
+    'for(int i=0;i<NW;i++){vec2 D=uWP[i].xy;float k=uWP[i].z,w=uWP[i].w,A=uWA[i].x,Q=uWA[i].y;',
+    'float th=k*dot(D,xz)-w*uTime,s=sin(th),c=cos(th);',
+    'dsp+=vec3(Q*A*D.x*c,A*s,Q*A*D.y*c);nn+=vec3(-D.x*k*A*c,-Q*k*A*s,-D.y*k*A*c);cr+=Q*k*A*s;}',
+    'float g=aShore*(1.-smoothstep(120.,260.,length(xz)));',
+    'dsp*=g;nn=normalize(mix(vec3(0.,1.,0.),nn,g));',
+    'vec3 p=vec3(xz.x+dsp.x,uWaterY+dsp.y,xz.y+dsp.z);',
+    'vWP=p;vN=nn;vCrest=cr*g;gl_Position=projectionMatrix*viewMatrix*vec4(p,1.);}'
+  ].join('\n');
+  const SEA_FS = [
+    'uniform sampler2D uHM,uNoise;uniform vec3 uCam,uSunDir,uSunCol,uSkyHor,uSkyTop,uFogCol;uniform float uTime,uWaterY,uFogN,uFogF;varying vec3 vWP,vN;varying float vCrest;',
+    'void main(){vec3 V=normalize(uCam-vWP),L=normalize(uSunDir);',
+    'float dist=length(vWP-uCam),ext=length(max(abs(vWP.xz)-60.,0.));',
+    'float ht=texture2D(uHM,clamp(vWP.xz/121.+.5,0.,1.)).r*10.-2.;',
+    'float d=mix(max(uWaterY-ht,0.),15.,smoothstep(0.,20.,ext));',
+    'vec2 nu=vWP.xz*.21+uTime*vec2(.03,.02);',
+    'float g0=texture2D(uNoise,nu).g,gx=texture2D(uNoise,nu+vec2(.01,0.)).g-g0,gz=texture2D(uNoise,nu+vec2(0.,.01)).g-g0;',
+    'vec3 N=normalize(normalize(vN)+vec3(-gx,0.,-gz)*9.*(1.-smoothstep(60.,220.,dist)));',
+    'float ndl=max(dot(N,L),0.),w=exp(-d*.7);',
+    'vec3 col=mix(vec3(.015,.075,.165),vec3(.04,.42,.44),w);',
+    'col=mix(col,vec3(.85,.78,.55),clamp(exp(-d*1.6)*.85,0.,.85));',
+    'col*=.55+.45*ndl;',
+    'col+=vec3(.05,.45,.35)*pow(max(dot(-V,L),0.),4.)*smoothstep(.08,.5,vCrest)*(.4+.6*w)*.6;',
+    'vec3 Rf=reflect(-V,N);',
+    'col=mix(col,mix(uSkyHor,uSkyTop,smoothstep(0.,.55,Rf.y)),(.02+.98*pow(1.-max(dot(N,V),0.),5.))*.9);',
+    'float nh=max(dot(N,normalize(L+V)),0.);',
+    'col+=uSunCol*(pow(nh,240.)*2.4+pow(nh,40.)*.12);',
+    'float lc=1.,lc2=1.,crest=smoothstep(.08,.24,vCrest),sb=(1.-smoothstep(.12,.4,abs(d-(.25+.9*(.5+.5*sin(uTime*.8))))))*(1.-smoothstep(1.,1.8,d))+(1.-smoothstep(0.,.35,d))*.6;',
+    '#if LACE',
+    'lc=1.-smoothstep(.02,.22,texture2D(uNoise,vWP.xz*.06+uTime*vec2(.02,.012)).r);',
+    '#if DESK',
+    'lc2=1.-smoothstep(.02,.22,texture2D(uNoise,vWP.xz*.19+uTime*vec2(-.03,.04)).r);',
+    '#endif',
+    '#endif',
+    'float fd=1.-smoothstep(120.,240.,dist),foam=(crest+sb)*lc*fd;',
+    '#if DESK',
+    'foam+=(crest*.6+sb*.5)*lc2*fd;',
+    'vec2 cu=vWP.xz*.11+uTime*vec2(.05,-.03);',
+    'float cau=(1.-smoothstep(.02,.2,texture2D(uNoise,cu).r))*(1.-smoothstep(.02,.2,texture2D(uNoise,cu*1.7+vec2(.3)).r));',
+    'col+=vec3(.55,1.,.9)*cau*.35*(1.-smoothstep(.5,4.,d))*ndl;',
+    '#endif',
+    'col=mix(col,vec3(.93,.97,.96)*(.75+.25*ndl),clamp(foam,0.,.9));',
+    'float fg=smoothstep(uFogN,uFogF,dist);col=mix(col,uFogCol,fg);',
+    'gl_FragColor=vec4(col,mix(mix(.55,.93,smoothstep(.4,3.,d)),1.,fg));}'
+  ].join('\n');
   // 海面 1 個 draw call;島樹幹 / 冠各 1 群組;灌木 / 沙灘石 / 遠島共用 1 群組(Icosahedron 實例)= 共 4 個 draw call
   function buildIsland(S) {
     const R = srand(20261111), rr = (a, b) => a + (b - a) * R(), pk = a => a[Math.floor(R() * a.length)];
-    // 海面:700 m 平面,頂點色依離原點距離漸層;波紋 = 可平鋪 fbm 貼圖,sceneTick 每幀捲動 UV(單層,桌機與手機相同)
-    const wg = new THREE.PlaneGeometry(700, 700, 56, 56), wp = wg.attributes.position, wc = new Float32Array(wp.count * 3), wcol = new THREE.Color();
-    for (let i = 0; i < wp.count; i++) { waterColor(Math.hypot(wp.getX(i), wp.getY(i)), wcol); wc[i * 3] = wcol.r; wc[i * 3 + 1] = wcol.g; wc[i * 3 + 2] = wcol.b; }
-    wg.setAttribute('color', new THREE.BufferAttribute(wc, 3));
-    const wtex = canvasTex(128, (g, s) => {
-      const a = tnFbm(s, 4, 3, 211), b = tnNoise(s, 16, 16, 223), img = g.createImageData(s, s), d = img.data;
-      for (let i = 0; i < s * s; i++) { const c = clamp((a[i] * .6 + b[i] * .4 - .5) * 4, 0, 1), v = (.8 + .2 * c) * 255; d[i * 4] = v; d[i * 4 + 1] = v; d[i * 4 + 2] = v; d[i * 4 + 3] = 255; }
-      g.putImageData(img, 0, 0);
-    });
-    const wmat = new THREE.MeshBasicMaterial({ map: rep(wtex, 70, 70), vertexColors: true, transparent: true, opacity: .7, depthWrite: false });
-    const water = mesh(wg, wmat, 0, S.waterY, 0, false); water.rotation.x = -Math.PI / 2; water.renderOrder = 2; water.receiveShadow = false;
-    waterTex = wtex; waterT = 0;
+    // 海面:同心圓放射網格(r 0~900 m、12 圈指數分佈;桌機 64 段、手機 32 段),ShaderMaterial 1 個 draw call;見 SEA_VS / SEA_FS
+    const SEG = MOBILE ? 32 : 64, RR = [0], sPos = [], sShore = [], sIdx = [];
+    for (let k = 0; k < 12; k++) RR.push(4 * Math.pow(225, k / 11));   // 4 m → 900 m 指數分佈
+    RR.forEach(r => { for (let s = 0; s < SEG; s++) { const a = s / SEG * TAU, x = Math.cos(a) * r, z = Math.sin(a) * r; sPos.push(x, 0, z); sShore.push(seaShore(x, z, S.waterY)); } });
+    for (let k = 0; k < RR.length - 1; k++) for (let s = 0; s < SEG; s++) {
+      const a = k * SEG + s, b = k * SEG + (s + 1) % SEG, c = (k + 1) * SEG + s, d = (k + 1) * SEG + (s + 1) % SEG;
+      sIdx.push(a, b, c, b, d, c);
+    }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(sPos, 3));
+    sg.setAttribute('aShore', new THREE.Float32BufferAttribute(sShore, 1));
+    sg.setIndex(sIdx);
+    // 地形高度圖:TER.H → 121×121 Luminance(編碼 (h+2)/10),線性濾波、夾緊;buildIsland 時產生一次
+    const hd = new Uint8Array(TER.N * TER.N);
+    for (let q = 0; q < hd.length; q++) hd[q] = Math.round(clamp((TER.H[q] + 2) / 10, 0, 1) * 255);
+    const hmTex = new THREE.DataTexture(hd, TER.N, TER.N, THREE.LuminanceFormat, THREE.UnsignedByteType);
+    hmTex.minFilter = hmTex.magFilter = THREE.LinearFilter; hmTex.generateMipmaps = false; hmTex.needsUpdate = true;
+    // 海面噪聲貼圖 128²:R = Worley 邊緣(泡沫蕾絲)、G = fbm(微法線 / 細紋)、B = F1;8×8 週期 Worley,確定性亂數
+    const nTex = (() => {
+      const N = 128, C = 8, rn = srand(20261112), J = [], dat = new Uint8Array(N * N * 4), fb = tnFbm(N, 4, 3, 611);
+      for (let q = 0; q < C * C; q++) J.push([rn(), rn()]);
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const px = x / N * C, py = y / N * C, ix = Math.floor(px), iy = Math.floor(py);
+        let f1 = 9, f2 = 9;
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+          const cx = ix + ox, cy = iy + oy, j = J[((cy + C) % C) * C + (cx + C) % C];
+          const dx = cx + j[0] - px, dy = cy + j[1] - py, dd = Math.sqrt(dx * dx + dy * dy);
+          if (dd < f1) { f2 = f1; f1 = dd; } else if (dd < f2) f2 = dd;
+        }
+        const q = (y * N + x) * 4;
+        dat[q] = clamp((f2 - f1) / .25, 0, 1) * 255; dat[q + 1] = fb[y * N + x] * 255; dat[q + 2] = clamp(f1, 0, 1) * 255; dat[q + 3] = 255;
+      }
+      const t = new THREE.DataTexture(dat, N, N, THREE.RGBAFormat);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true;
+      return t;
+    })();
+    // 低精度裝置降級:2 組波、無蕾絲泡沫;手機 3 組波、1 層泡沫;桌機 6 組波、2 層泡沫 + 焦散
+    const lowP = renderer.capabilities.precision !== 'highp', NWU = lowP ? 2 : (MOBILE ? 3 : 6);
+    const SEA_L = [70, 28, 12, 5, 2.5, 18], SEA_DIR = [.35, .9, -.6, 1.5, 2.3, -1.9], wpv = [], wav = [];
+    for (let q = 0; q < 6; q++) {
+      const k = TAU / SEA_L[q], A = .009 * SEA_L[q], Q = Math.min(1, .95 / (k * A * NWU)), dir = SEA_DIR[q];
+      wpv.push(Math.cos(dir), Math.sin(dir), k, Math.sqrt(9.81 * k) * .9);   // ω = √(g·k) × 風速係數 .9
+      wav.push(q < NWU ? A : 0, Q);
+    }
+    const sk = sky.material.uniforms;
+    seaU = {
+      uWP: { value: new Float32Array(wpv) }, uWA: { value: new Float32Array(wav) }, uTime: { value: 0 }, uWaterY: { value: S.waterY },
+      uHM: { value: hmTex }, uNoise: { value: nTex }, uCam: { value: new THREE.Vector3() },
+      uSunDir: sk.uSunDir, uSunCol: sk.uSunCol, uSkyHor: sk.uHor, uSkyTop: sk.uTop,   // 與天空共用 uniform(太陽方向 / 色、天色)
+      uFogCol: { value: scene.fog.color }, uFogN: { value: scene.fog.near }, uFogF: { value: scene.fog.far }
+    };
+    seaTex = [hmTex, nTex];
+    const water = new THREE.Mesh(sg, new THREE.ShaderMaterial({ uniforms: seaU, vertexShader: SEA_VS, fragmentShader: SEA_FS, transparent: true, depthWrite: false,
+      defines: { NW: NWU, DESK: !MOBILE && !lowP ? 1 : 0, LACE: lowP ? 0 : 1 } }));
+    water.frustumCulled = false; water.renderOrder = 2; water.receiveShadow = false; deco.add(water);
     // 遠島:3 座,位於地形網格外 90~140 m;沙底 + 草丘(低面數、不投影、不碰撞)
     const IG = new THREE.IcosahedronGeometry(1, 0), misc = [];
     [[30, 96], [140, 118], [250, 128]].forEach(([deg, r]) => {
@@ -495,7 +588,7 @@
     deco = null;
     for (let i = COLLIDERS.length - 1; i >= 0; i--) if (COLLIDERS[i].deco) COLLIDERS.splice(i, 1);
     for (let i = PLATFORMS.length - 1; i >= 0; i--) if (PLATFORMS[i].deco) PLATFORMS.splice(i, 1);
-    BRAZIERS.length = 0; BUSHES.length = 0; FOGZ.length = 0; fogState = null; waterTex = null;
+    BRAZIERS.length = 0; BUSHES.length = 0; FOGZ.length = 0; fogState = null; seaU = null; seaTex.forEach(t => t.dispose()); seaTex = [];
   }
   let groundTex = null;
   const loadEl = document.createElement('div'); loadEl.id = 'sceneLoading'; loadEl.textContent = '載入場景…';
@@ -525,6 +618,7 @@
     u.uHor.value.setRGB(S.hor[0], S.hor[1], S.hor[2]); u.uTop.value.setRGB(S.top[0], S.top[1], S.top[2]); u.uGnd.value.setRGB(S.gnd[0], S.gnd[1], S.gnd[2]);
     u.uSunCol.value.setRGB(S.sunCol[0], S.sunCol[1], S.sunCol[2]); u.uSunDir.value.set(S.sun[0], S.sun[1], S.sun[2]).normalize();
     const cl = S.cloud; u.uCloudOn.value = cl && cl.on && !S.indoor ? 1 : 0;
+    u.uAtmo.value = S.atmo ? 1 : 0;   // 大氣模式只給海島(world.js sky 的 uAtmo)
     if (cl) { u.uCover.value = cl.cover; u.uCloudLit.value.setRGB(cl.lit[0], cl.lit[1], cl.lit[2]); u.uCloudShade.value.setRGB(cl.shade[0], cl.shade[1], cl.shade[2]); }
     skyStars.visible = skyMoon.visible = !!S.stars;
     hemi.color.setHex(S.hemi[0]); hemi.groundColor.setHex(S.hemi[1]); hemi.intensity = S.hemi[2];
@@ -546,7 +640,7 @@
     if (PLAT_DBG) { platWire(); terrainAudit(S); }
     applyBloomScene();
     SCORCH.forEach(s => { scene.remove(s.m); s.m.material.dispose(); }); SCORCH.length = 0;
-    [...document.querySelectorAll('#sceneBar button')].forEach((b, k) => b.classList.toggle('on', k === i));
+    [...document.querySelectorAll('#sceneBar button[data-scene]')].forEach((b, k) => b.classList.toggle('on', k === i));
     sfx.setScene(i);
     try { localStorage.setItem('mageSandbox.scene', i); } catch (e) { }
     if (window.banner && window.G) window.banner(S.name, '#ffe3b0');
@@ -560,7 +654,7 @@
   // 每幀(game.js 主迴圈 updatePlayer 之後):草叢半透明(自己或鏡頭在草裡)、霧區視距與霧片飄動(設計_叢林地圖 §4-3、§4-4)
   window.sceneTick = dt => {
     if (cur < 0) return;
-    if (waterTex) { waterT += dt; waterTex.offset.set(waterT * .012, waterT * .008); }   // 海面波紋捲動(島戰場)
+    if (seaU) { seaU.uTime.value += dt; seaU.uCam.value.copy(camera.position); seaU.uFogN.value = scene.fog.near; seaU.uFogF.value = scene.fog.far; }   // 海面 shader:時間與視點(島戰場)
     const S = SCENES[cur], p = mage.root.position, cp = camera.position;
     for (const b of BUSHES) {
       const near = Math.hypot(p.x - b.x, p.z - b.z) < b.r + 1 || Math.hypot(cp.x - b.x, cp.z - b.z) < b.r + 1, want = near ? .35 : 1;
@@ -588,7 +682,8 @@
 
   // 場景按鈕
   const bar = document.createElement('div'); bar.id = 'sceneBar';
-  SCENES.forEach((s, k) => { const b = document.createElement('button'); b.textContent = s.name; b.onclick = () => setScene(k); bar.appendChild(b); });
+  // 單一場地時不建場地按鈕(只留畫質鈕);多筆時照舊逐一建立
+  if (SCENES.length > 1) SCENES.forEach((s, k) => { const b = document.createElement('button'); b.dataset.scene = k; b.textContent = s.name; b.onclick = () => setScene(k); bar.appendChild(b); });
   document.body.appendChild(bar);
   addEventListener('keydown', e => { if (window.COVER_ON || window.NETON) return; if (e.code === 'KeyN' && !e.ctrlKey && !e.repeat && e.target.tagName !== 'INPUT') setScene(cur + 1); });
 
@@ -617,5 +712,5 @@
 
   let start = 0;
   try { const q = /[?&]scene=(\d)/.exec(location.search); start = q ? +q[1] : (+localStorage.getItem('mageSandbox.scene') || 0); } catch (e) { }
-  setScene(start);
+  setScene(SCENES[start] ? start : 0);
 })();

@@ -165,7 +165,7 @@ const sfx = (() => {
   function startMusic() {
     stopMusic();
     if (!running() || !cfg().music) return;
-    const mode = scene >= 1 ? 'jungle' : 'moon', t = ctx.currentTime, nodes = [];
+    const mode = 'jungle', t = ctx.currentTime, nodes = [];   // 單場地(海島,索引 0)用叢林/白天配樂;'moon' 分支保留
     const g = ctx.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(1, t + 3); g.connect(mBus);
     const pad = mode === 'jungle' ? [73.42, 110, 146.83] : [55, 82.41, 110];
     pad.forEach((f, i) => {
@@ -194,7 +194,7 @@ const sfx = (() => {
   function sync() {
     levels();
     if (!cfg().music || !running()) { stopMusic(); return; }
-    const mode = scene >= 1 ? 'jungle' : 'moon';
+    const mode = 'jungle';
     if (!mus || mus.mode !== mode) startMusic();
   }
   function setScene(i) { scene = i | 0; sync(); }

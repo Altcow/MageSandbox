@@ -178,7 +178,7 @@
       fog: [scene.fog.color.getHex(), scene.fog.near, scene.fog.far],
       hemi: [hemi.color.getHex(), hemi.groundColor.getHex(), hemi.intensity],
       moon: [moonLight.color.getHex(), moonLight.intensity, moonLight.castShadow],
-      sky: [U.uHor.value.clone(), U.uTop.value.clone(), U.uGnd.value.clone(), U.uSunCol.value.clone()], skyVis: sky.visible
+      sky: [U.uHor.value.clone(), U.uTop.value.clone(), U.uGnd.value.clone(), U.uSunCol.value.clone()], skyVis: sky.visible, atmo: U.uAtmo.value
     };
     // 隱藏場景內既有物件(含主角與關卡);天空與光源保留
     scene.children.forEach(c => { if (c.visible && c !== sky && !c.isLight) { saved.hide.push(c); c.visible = false; } });
@@ -186,6 +186,7 @@
     scene.fog.color.setHex(0x1b2238); scene.fog.near = 13; scene.fog.far = 44;
     U.uHor.value.setRGB(.24, .2, .4); U.uTop.value.setRGB(.03, .05, .16); U.uGnd.value.setRGB(.12, .1, .2); U.uSunCol.value.setRGB(0, 0, 0);
     sky.visible = true;
+    U.uAtmo.value = 0;   // 封面用夜空色,關閉海島大氣模式(stop() 還原)
     hemi.color.setHex(0x8a9bff); hemi.groundColor.setHex(0x2a2438); hemi.intensity = .75;
     moonLight.color.setHex(0xaab8ff); moonLight.intensity = .95; moonLight.castShadow = false;   // 封面不畫陰影(省 draw call)
     torchL = LIGHTS.slice(0, 3).map((L, k) => { L.color.setHex(0xff8a2a); L.position.set(TORCH[k].x, 1.9, TORCH[k].z); L.distance = 14; return L; });
@@ -204,7 +205,7 @@
     s.lights.forEach(o => { o.L.color.setHex(o.c); o.L.intensity = o.i; o.L.distance = o.d; });
     scene.fog.color.setHex(s.fog[0]); scene.fog.near = s.fog[1]; scene.fog.far = s.fog[2];
     const U = sky.material.uniforms;
-    U.uHor.value.copy(s.sky[0]); U.uTop.value.copy(s.sky[1]); U.uGnd.value.copy(s.sky[2]); U.uSunCol.value.copy(s.sky[3]);
+    U.uHor.value.copy(s.sky[0]); U.uTop.value.copy(s.sky[1]); U.uGnd.value.copy(s.sky[2]); U.uSunCol.value.copy(s.sky[3]); U.uAtmo.value = s.atmo;
     sky.visible = s.skyVis;
     hemi.color.setHex(s.hemi[0]); hemi.groundColor.setHex(s.hemi[1]); hemi.intensity = s.hemi[2];
     moonLight.color.setHex(s.moon[0]); moonLight.intensity = s.moon[1]; moonLight.castShadow = s.moon[2];

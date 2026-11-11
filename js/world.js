@@ -47,13 +47,19 @@ const cloudTex = (() => {
 const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 24, 16), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
   uniforms: { uHor: { value: new THREE.Color(.24, .2, .4) }, uTop: { value: new THREE.Color(.03, .05, .16) }, uGnd: { value: new THREE.Color(.12, .1, .2) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(0, 0, 0) },
-    uCloud: { value: cloudTex }, uTime: { value: 0 }, uCover: { value: .5 }, uCloudOn: { value: 0 }, uCloudLit: { value: new THREE.Color(1, 1, 1) }, uCloudShade: { value: new THREE.Color(.7, .7, .7) } },
+    uCloud: { value: cloudTex }, uTime: { value: 0 }, uCover: { value: .5 }, uCloudOn: { value: 0 }, uCloudLit: { value: new THREE.Color(1, 1, 1) }, uCloudShade: { value: new THREE.Color(.7, .7, .7) }, uAtmo: { value: 0 } },
   vertexShader: 'varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
   fragmentShader: [
     '#define CLOUD_TAPS ' + CLOUD_TAPS,
-    'uniform vec3 uHor,uTop,uGnd,uSunDir,uSunCol,uCloudLit,uCloudShade;uniform sampler2D uCloud;uniform float uTime,uCover,uCloudOn;varying vec3 vP;',
-    'void main(){vec3 n=normalize(vP);float h=n.y;vec3 c=mix(uHor,uTop,smoothstep(0.,.55,h));c=mix(uGnd,c,smoothstep(-.1,.05,h));',
-    'vec3 sd=normalize(uSunDir);float s=max(dot(n,sd),0.);c+=uSunCol*(pow(s,6.)*.18+pow(s,160.)*.6);',
+    'uniform vec3 uHor,uTop,uGnd,uSunDir,uSunCol,uCloudLit,uCloudShade;uniform sampler2D uCloud;uniform float uTime,uCover,uCloudOn,uAtmo;varying vec3 vP;',
+    // 大氣模式(uAtmo = 1,海島):Rayleigh 天空 + Mie 光暈 + 太陽圓盤;地平線與 uHor 同色以接霧
+    'vec3 atmo(vec3 n,float h,vec3 sd){float cs=dot(n,sd),k=smoothstep(-.1,.3,sd.y),hp=max(h,0.);float od=min(1./(hp+.12),8.),ph=.75*(1.+cs*cs);',
+    'vec3 c=(1.-exp(-vec3(.15,.6,1.6)*od))*ph*.8*(.25+.75*k);float mie=.0287/pow(max(1.64-1.6*cs,1e-3),1.5);',
+    'c+=uSunCol*mie*.12*k*(.4+.6*exp(-hp*4.));c+=uSunCol*(smoothstep(.9995,.9998,cs)*2.4+pow(max(cs,0.),6.)*.1)*k;',
+    'return mix(c,uHor,(1.-smoothstep(0.,.12,h))*.8);}',
+    'void main(){vec3 n=normalize(vP);float h=n.y;vec3 sd=normalize(uSunDir);float s=max(dot(n,sd),0.);',
+    'vec3 c=mix(uHor,uTop,smoothstep(0.,.55,h));if(uAtmo>.5)c=atmo(n,h,sd);c=mix(uGnd,c,smoothstep(-.1,.05,h));',
+    'if(uAtmo<.5)c+=uSunCol*(pow(s,6.)*.18+pow(s,160.)*.6);',
     'if(uCloudOn>.5&&h>.02){float t=1./max(h,.04);vec2 p=n.xz*t+vec2(uTime*.9,uTime*.35);',
     'vec2 a=texture2D(uCloud,p*.12).rg;float dens=a.r*.6+a.g*.4;',
     '#if CLOUD_TAPS==2',
