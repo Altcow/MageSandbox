@@ -589,6 +589,8 @@ function updateCasting(dt) {
 /* ================= 玩家移動 ================= */
 // 地形水平阻擋:往上坡度超過上限(地面)或高差超過 STEP_UP(空中)就擋;先試只走 x、再試只走 z
 function terrainBlocked(x, z, x0, z0, y) {
+  const wy = window.WATER_Y;   // 島戰場:海 = 牆(水深處擋住;起點已在水中則放行,避免卡死)
+  if (wy != null && terrainH(x, z) < wy - .15 && terrainH(x0, z0) >= wy - .15) return true;
   const rise = terrainH(x, z) - y; if (rise <= .02) return false;
   if (!G.ground) return rise > STEP_UP;
   const d = Math.hypot(x - x0, z - z0); return d > 1e-5 && rise / d > TER_MAX_TAN;

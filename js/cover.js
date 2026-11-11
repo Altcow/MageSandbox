@@ -13,7 +13,8 @@
   const EL_NAME = Object.fromEntries(EL);
   const SCENE_INFO = [
     { name: '月夜訓練場', cls: 'sc-night' },
-    { name: '非洲叢林', cls: 'sc-jungle' }
+    { name: '非洲叢林', cls: 'sc-jungle' },
+    { name: '海島戰場', cls: 'sc-island' }
   ];
   const ROOM_ERR = {
     notfound: (e, code) => '找不到房間 ' + code + ',請確認房號,或房間已關閉',

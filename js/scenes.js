@@ -1,6 +1,6 @@
 'use strict';
-// 可切換場景:月夜訓練場 / 非洲叢林
-// 場景只負責「看起來」與碰撞物;標靶與玩法不動。切換:N 鍵、上方按鈕、?scene=0~1
+// 可切換場景:月夜訓練場 / 非洲叢林 / 海島戰場
+// 場景只負責「看起來」與碰撞物;標靶與玩法不動。切換:N 鍵、上方按鈕、?scene=0~2
 (function () {
   const TAU = Math.PI * 2, MOBILE = IS_TOUCH;
   let deco = null, cur = -1, fogState = null, fogK = 0;   // fogState:叢林霧區實例群組與飄動計時(buildJungle 建立)
@@ -55,6 +55,17 @@
     t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(45, 45); t.anisotropy = 8;
     return t;
   };
+
+  // 海島地面:草地為主,顏色主要交給頂點色,貼圖只給中性微綠明暗與草葉細紋;平鋪 30 次
+  const islandGroundTex = () => rep(canvasTex(256, (g, s) => {
+    const lo = tnFbm(s, 4, 4, 311), mid = tnFbm(s, 12, 3, 323), blade = tnNoise(s, 96, 96, 331), blade2 = tnNoise(s, 48, 48, 337);
+    const img = g.createImageData(s, s), d = img.data;
+    for (let i = 0; i < s * s; i++) {
+      const v = .9 + (lo[i] - .5) * .14 + (blade[i] - .5) * .08 + (blade2[i] - .5) * .05;
+      d[i * 4] = v * 255; d[i * 4 + 1] = v * (1 + (mid[i] - .5) * .12) * 255; d[i * 4 + 2] = v * .86 * 255; d[i * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  }), 30, 30);
 
   /* ---------- 場景 ---------- */
   // 月夜(設計_大面積地形 §3-1):石柱 28 根、外圈樹 70 棵(樹幹 / 樹冠各 1 群組,不投影)、火盆 7 座,全部實例化
@@ -229,11 +240,99 @@
   const SOUTH_T = [['hill', -11, -38, 3, 10, 5], ['hill', 13, -38, 5, 3, 5], ['trench', 0, -30, 0, -40, 3, 3.5, 9, -4]];
   const SOUTH_BR = (sag, style) => [[-8.6, -38, 8.6, -38, 5.05, .8, sag, style]];
   const NIGHT_SPAWNS = [[-22, 13], [24, -13], [-11, -6], [-27, -13], [22, 13], [0, -20], [9, -6], [-21, -20], [-25, 0], [13, -22], [26, 0], [-10, -24]];   // 12 點;省略 y(自動取地形高、驗坡度),與稻草人至少 9 m(設計_大面積地形 §4-2 E)
+  // ---- 海島戰場:海面 waterY = 1.0;海床 h ≈ 0(網格外也是 0);島面高原 h = 2.6(h = 1.0 的岸線約在 r 28);掩體丘 h ≈ 4;岸坡緩 ----
+  const ISLAND_WATER = 1;
+  const ISLAND_T = [
+    ['hill', 0, 0, 20, 14, 2.6],          // I1 中央高原(r < 20 平坦戰場)
+    ['hill', -10, 9, 6, 8, 1.8],          // I2 西北岬
+    ['hill', 14, -12, 4, 7, 1.6],         // I3 東南岬
+    ['hill', -16, -14, 3, 6, 1.2],        // I4 西南小岬
+    ['hill', -13, -3, 2.5, 10, 4],        // M1 掩體丘(西)
+    ['hill', 12, 10, 1.5, 9, 3.6],        // M2 掩體丘(東北)
+    ['noise', .25, 14, 30]                // 微起伏(中央 r < 14 不加)
+  ];
+  const ISLAND_SPAWNS = [[0, 14], [-6, 12], [-14, 8], [-4, -12], [6, -12], [16, -4], [18, 4], [4, 18], [-2, -18], [-12, 14], [10, -6], [0, -10]];   // 12 點;省略 y(自動取地形高、驗坡度)
+  const ISLAND_DUMMY = [];   // 單人稻草人 24 個:內圈 8 個 r4、外圈 16 個 r7.5(中央平地 r≤6 附近,y 由 clearStatus 取地形高)
+  for (let k = 0; k < 8; k++) { const a = (22.5 + 45 * k) * Math.PI / 180; ISLAND_DUMMY.push([4 * Math.cos(a), 4 * Math.sin(a)]); }
+  for (let k = 0; k < 16; k++) { const a = 22.5 * k * Math.PI / 180; ISLAND_DUMMY.push([7.5 * Math.cos(a), 7.5 * Math.sin(a)]); }
+  const ISLAND_PROBES = [['C', 0, 0], ['NW', -10, 9], ['SE', 14, -12], ['M1', -13, -3]];
+  const ISLAND_BANDS = [[-1.5, 0x2a86ac], [0, 0x2f9fb4], [.5, 0x86d8c6], [.85, 0xf7f3e4], [1.2, 0xf1dca2], [1.65, 0xe6cf8c], [2.15, 0x8fd05a], [2.6, 0x6fbe3f], [3.6, 0x5fae3a], [4.8, 0x7cc650]];   // 海床 → 淺水 → 泡沫(waterY 下約 .15)→ 沙灘 → 草地 → 丘頂
+  let waterTex = null, waterT = 0;   // 海面波紋貼圖與計時(buildIsland 設、sceneTick 捲動、clearDeco 清)
+
   const SCENES = [
     { name: '月夜訓練場', build: buildNight, terrain: [...SOUTH_T, ['hill', 42, 20, 2, 7, 2.5], ['hill', -40, 22, 4, 7, 3], ['hill', 36, -32, 3, 6, 2.5], ['mesa', -26, -18, 4, 4, 0, 8, 3.5], ['mesa', 26, -18, 4, 4, 0, 8, 3.5], ['hill', 0, -20, 2, 9, 2.5]], terrainLook: { cliff: 0x6a6f85, dark: .35 }, bridges: SOUTH_BR(.5, 'rope'), bridgeCol: [0x5a4632, 0xb8a070], bridgeGlow: 0x9fd0ff, summit: [-11, -38, 5, 0x9fd0ff], ground: nightGroundTex, cloud: { on: true, cover: .42, lit: [.7, .78, 1], shade: [.28, .24, .42] }, gtint: 0xffffff, fog: [0x3d3466, 50, 160], hor: [.24, .2, .4], top: [.03, .05, .16], gnd: [.12, .1, .2], sunCol: [0, 0, 0], stars: true, clear: 0x000000, hemi: [0x8a9bff, 0x2a2438, .75], dir: [0xaab8ff, .95], sun: [-20, 40, 15], plats: [['box', -25.5, -16, .9, .9, 5.3, 0, 3.5], ['box', -28.5, -19, 1.5, 1.5, 7, 0, 3.5], ['box', 25.5, -16, .9, .9, 5.3, 0, 3.5], ['cyl', 28.5, -19, .9, 7.2, 3.5]], platCol: 0x454a62, platTrim: 0xb8c0ea, spawns: NIGHT_SPAWNS, terrainProbes: [['WS', -24, -16], ['ES', 24, -16], ['S', 0, -20]] },
     { name: '非洲叢林', build: buildJungle, terrain: JUNGLE_T, terrainLook: { cliff: 0x8a4a2a, dark: .3, bands: [[-1.5, 0x4a4630], [-.4, 0x6a6a3a], [.3, 0x86a04c], [3, 0x6f8f3e], [6, 0xa09a5c]], path: 0xb09468 }, bridges: [[-8.8, 16.5, -4.8, 14.6, 5.5, .8, .3, 'rope']], bridgeCol: [0x7a5a32, 0x3c5a22], ground: jungleDetail, cloud: { on: true, cover: .4, lit: [1, .97, .88], shade: [.6, .62, .7] }, gtint: 0xffffff, fog: [0x7a8450, 35, 135], hor: [.85, .72, .5], top: [.25, .5, .55], gnd: [.2, .25, .15], sunCol: [.45, .28, .12], bt: .93, bk: .55, clear: 0x7a8450, hemi: [0xa8d890, 0x3a3018, .85], dir: [0xffd9a0, 1.0], sun: [-32, 24, 22], plats: [['deck', -2, 14, 3.2, 3.2, 5.5, 0, .4]], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 32, flatZone: [-5, -5, 5, 5], dummyPos: JUNGLE_DUMMY, spawns: JUNGLE_SPAWNS, bushes: JUNGLE_BUSH, fogZones: JUNGLE_FOG, terrainProbes: JUNGLE_PROBES },
+    { name: '海島戰場', build: buildIsland, terrain: ISLAND_T, terrainLook: { cliff: 0x9a8a6a, dark: 0, bands: ISLAND_BANDS }, waterY: ISLAND_WATER, ground: islandGroundTex, cloud: { on: true, cover: .45, lit: [1, 1, 1], shade: [.62, .7, .82] }, gtint: 0xffffff, fog: [0xa9dcd6, 60, 220], clear: 0xa9dcd6, hor: [.72, .88, .86], top: [.28, .62, .9], gnd: [.25, .5, .55], sunCol: [1, .92, .7], hemi: [0xbfe9ff, 0x4a6a3a, 1.1], dir: [0xfff1d6, 1.6], sun: [-30, 40, 18], bt: .93, bk: .55, plats: [], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 38, flatZone: [-6, -6, 6, 6], dummyPos: ISLAND_DUMMY, spawns: ISLAND_SPAWNS, terrainProbes: ISLAND_PROBES },
   ];
 
+  // ---- 海島戰場 ----
+  // 確定性亂數(mulberry32):島上所有座標(含碰撞樹幹)都由 srand 決定,多人所有客戶端一致
+  function srand(seed) {
+    let s = seed >>> 0;
+    return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  const WATER_STOPS = [[0, 0x4fd1c5], [40, 0x3ab8c4], [80, 0x2a9ab8], [160, 0x1d78a8], [300, 0x12508a]];   // 離原點距離 → 顏色:近岸淺綠藍 → 外海深藍
+  const _wc1 = new THREE.Color();
+  function waterColor(r, out) {
+    const n = WATER_STOPS.length;
+    for (let k = 0; k < n - 1; k++) {
+      const a = WATER_STOPS[k], b = WATER_STOPS[k + 1];
+      if (r <= b[0] || k === n - 2) return out.set(a[1]).lerp(_wc1.set(b[1]), clamp((r - a[0]) / (b[0] - a[0]), 0, 1));
+    }
+    return out;
+  }
+  // 海面 1 個 draw call;島樹幹 / 冠各 1 群組;灌木 / 沙灘石 / 遠島共用 1 群組(Icosahedron 實例)= 共 4 個 draw call
+  function buildIsland(S) {
+    const R = srand(20261111), rr = (a, b) => a + (b - a) * R(), pk = a => a[Math.floor(R() * a.length)];
+    // 海面:700 m 平面,頂點色依離原點距離漸層;波紋 = 可平鋪 fbm 貼圖,sceneTick 每幀捲動 UV(單層,桌機與手機相同)
+    const wg = new THREE.PlaneGeometry(700, 700, 56, 56), wp = wg.attributes.position, wc = new Float32Array(wp.count * 3), wcol = new THREE.Color();
+    for (let i = 0; i < wp.count; i++) { waterColor(Math.hypot(wp.getX(i), wp.getY(i)), wcol); wc[i * 3] = wcol.r; wc[i * 3 + 1] = wcol.g; wc[i * 3 + 2] = wcol.b; }
+    wg.setAttribute('color', new THREE.BufferAttribute(wc, 3));
+    const wtex = canvasTex(128, (g, s) => {
+      const a = tnFbm(s, 4, 3, 211), b = tnNoise(s, 16, 16, 223), img = g.createImageData(s, s), d = img.data;
+      for (let i = 0; i < s * s; i++) { const c = clamp((a[i] * .6 + b[i] * .4 - .5) * 4, 0, 1), v = (.8 + .2 * c) * 255; d[i * 4] = v; d[i * 4 + 1] = v; d[i * 4 + 2] = v; d[i * 4 + 3] = 255; }
+      g.putImageData(img, 0, 0);
+    });
+    const wmat = new THREE.MeshBasicMaterial({ map: rep(wtex, 70, 70), vertexColors: true, transparent: true, opacity: .7, depthWrite: false });
+    const water = mesh(wg, wmat, 0, S.waterY, 0, false); water.rotation.x = -Math.PI / 2; water.renderOrder = 2; water.receiveShadow = false;
+    waterTex = wtex; waterT = 0;
+    // 遠島:3 座,位於地形網格外 90~140 m;沙底 + 草丘(低面數、不投影、不碰撞)
+    const IG = new THREE.IcosahedronGeometry(1, 0), misc = [];
+    [[30, 96], [140, 118], [250, 128]].forEach(([deg, r]) => {
+      const a = deg * Math.PI / 180, x = Math.cos(a) * r, z = Math.sin(a) * r;
+      misc.push([x, S.waterY - .3, z, 0, 14, .9, 14, 0, 0, 0xe6d096]);
+      misc.push([x + rr(-2, 2), S.waterY + .6, z + rr(-2, 2), rr(0, 3), 8.5, 3.6, 8.5, 0, 0, 0x5f9a3a]);
+    });
+    // 樹:只放陸地(h > waterY + .6)、離出生點 ≥ 4 m、彼此 ≥ 3 m、避開中央稻草人區(r < 8)
+    const NT = MOBILE ? 20 : 36, trees = [];
+    for (let t = 0; trees.length < NT && t < 1200; t++) {
+      const a = rr(0, TAU), r = rr(8, 26), x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (terrainH(x, z) < S.waterY + .6) continue;
+      if (S.spawns.some(p => Math.hypot(p[0] - x, p[1] - z) < 4) || trees.some(q => Math.hypot(q[0] - x, q[1] - z) < 3)) continue;
+      trees.push([x, z]);
+    }
+    const TRUNK = [0x6b4f36, 0x7a5a3c], LEAF_D = [0x2f6b2c, 0x3a7a34], LEAF_L = [0x5fa04a, 0x74b04e], BUSH = [0x3a7a34, 0x4f8a3a, 0x5fa04a];
+    const trunksI = [], canI = [];
+    trees.forEach(([x, z]) => {
+      const g = terrainH(x, z), h = rr(4, 6.5), t = rr(.55, .75), L = 2 + Math.floor(R() * 2);   // 粗樹幹 + 2~3 層扁球冠(深淺綠)
+      trunksI.push([x, g + h / 2, z, 0, t, h, t, 0, 0, pk(TRUNK)]); col(x, z, .6);
+      for (let q = 0; q < L; q++) { const cr = rr(2.2, 3) * (1 - q * .2); canI.push([x + rr(-.4, .4), g + h - .8 + q * 1.1, z + rr(-.4, .4), rr(0, 3), cr, cr * .62, cr, 0, 0, q === L - 1 ? pk(LEAF_L) : pk(LEAF_D)]); }
+    });
+    // 灌木(陸地,無碰撞)、沙灘邊小石(水線附近,無碰撞)
+    for (let i = 0, t = 0, NB = MOBILE ? 24 : 40; i < NB && t < 800; t++) {
+      const a = rr(0, TAU), r = rr(6, 26), x = Math.cos(a) * r, z = Math.sin(a) * r, y = terrainH(x, z);
+      if (y < S.waterY + .5) continue; i++;
+      const s = rr(1, 1.8); misc.push([x, y + s * .3, z, rr(0, 3), s, s * .7, s, 0, 0, pk(BUSH)]);
+    }
+    for (let i = 0, t = 0, NS = MOBILE ? 16 : 30; i < NS && t < 800; t++) {
+      const a = rr(0, TAU), r = rr(10, 32), x = Math.cos(a) * r, z = Math.sin(a) * r, y = terrainH(x, z);
+      if (y < S.waterY - .25 || y > S.waterY + .45) continue; i++;
+      const s = rr(.35, .8); misc.push([x, y + s * .15, z, rr(0, 3), s * rr(1, 1.4), s * .7, s, 0, 0, pk([0x8a8478, 0x9a9488, 0x7a7468])]);
+    }
+    inst(IG, mat(0xffffff, { roughness: 1 }), misc, false);
+    inst(new THREE.CylinderGeometry(.8, 1, 1, 6), mat(0xffffff, { roughness: 1 }), trunksI);
+    inst(new THREE.IcosahedronGeometry(1, 1), mat(0xffffff, { roughness: 1 }), canI);
+  }
   // 組內網格(坡道 / 樓板用):座標為組的本地座標
   const gmesh = (parent, geo, material, x, y, z, rz) => { const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); if (rz) m.rotation.z = rz; m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
   // 可站立高台:box [kind,x,z,hx,hz,top,yaw,base] / cyl [kind,x,z,r,top,base];base = 外觀底部(丘上 / 沼澤用),有 base 即 onHill
@@ -396,7 +495,7 @@
     deco = null;
     for (let i = COLLIDERS.length - 1; i >= 0; i--) if (COLLIDERS[i].deco) COLLIDERS.splice(i, 1);
     for (let i = PLATFORMS.length - 1; i >= 0; i--) if (PLATFORMS[i].deco) PLATFORMS.splice(i, 1);
-    BRAZIERS.length = 0; BUSHES.length = 0; FOGZ.length = 0; fogState = null;
+    BRAZIERS.length = 0; BUSHES.length = 0; FOGZ.length = 0; fogState = null; waterTex = null;
   }
   let groundTex = null;
   const loadEl = document.createElement('div'); loadEl.id = 'sceneLoading'; loadEl.textContent = '載入場景…';
@@ -431,6 +530,7 @@
     hemi.color.setHex(S.hemi[0]); hemi.groundColor.setHex(S.hemi[1]); hemi.intensity = S.hemi[2];
     moonLight.color.setHex(S.dir[0]); moonLight.intensity = S.dir[1];
     window.SUNOFF.x = S.sun[0]; window.SUNOFF.y = S.sun[1]; window.SUNOFF.z = S.sun[2];
+    window.WATER_Y = S.waterY == null ? null : S.waterY; groundRing.visible = S.waterY == null;   // 水面:game.js terrainBlocked 讀 WATER_Y(海 = 牆);島戰場隱藏外圍草環
     groundTex = S.ground(); ground.material.map = groundTex; ground.material.color.setHex(S.gtint == null ? 0xffffff : S.gtint); ground.material.needsUpdate = true;
     deco = new THREE.Group(); scene.add(deco);
     setTerrain(FLAT ? [] : S.terrain, S.terrainLook);
@@ -460,6 +560,7 @@
   // 每幀(game.js 主迴圈 updatePlayer 之後):草叢半透明(自己或鏡頭在草裡)、霧區視距與霧片飄動(設計_叢林地圖 §4-3、§4-4)
   window.sceneTick = dt => {
     if (cur < 0) return;
+    if (waterTex) { waterT += dt; waterTex.offset.set(waterT * .012, waterT * .008); }   // 海面波紋捲動(島戰場)
     const S = SCENES[cur], p = mage.root.position, cp = camera.position;
     for (const b of BUSHES) {
       const near = Math.hypot(p.x - b.x, p.z - b.z) < b.r + 1 || Math.hypot(cp.x - b.x, cp.z - b.z) < b.r + 1, want = near ? .35 : 1;
