@@ -54,6 +54,7 @@
   press('btnNear', () => { G.zoom = G.zoom > .4 ? .3 : 1; $('btnNear').classList.toggle('on', G.zoom < .4); });   // 手機:近距離視角 / 恢復(同桌機 B 鍵)
   press('btnMode', toggleChgMode);   // 手機:集氣模式 A / B
   press('btnWeap', () => { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); });   // 集氣中此鈕變「取消」
+  document.querySelectorAll('.tb,#btnAtk').forEach(el => { el.addEventListener('pointerdown', () => el.classList.add('dn')); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, () => el.classList.remove('dn'))); });   // 新版介面:按下版貼圖用
   // ---- 觸控拖曳轉視角 ----
   const cv = renderer.domElement; let cid = null, cx = 0, cy = 0, tapT = -1e9, tapX = 0, tapY = 0;
   const tps = new Map(); let pinchD = 0;   // 畫面上的觸控點;兩指同時按在畫面 = 雙指縮放(拉近 / 拉遠),縮放時不轉視角
