@@ -504,6 +504,11 @@ body.hud2 .slot.ex{box-shadow:0 0 10px #ffd24a}
 body.hud2 #netTimer{border:2px solid transparent;border-image:url(assets/ui/capsule.png) 41 fill / 17px stretch;background:none}
 body.hud2 #pRes .rb.hp{height:14px;box-sizing:border-box;border:4px solid transparent;border-image:url(assets/ui/hpframe.png) 26 fill / 7px stretch;background:none;border-radius:0}
 body.hud2 #pRes .rb.hp i{border-radius:0}
+/* 小地圖(js/minimap.js):右上角圓形;body.mm = 顯示中。桌機地點標籤讓到小地圖下方、手機版隱藏(小地圖已表示位置) */
+#miniMap{position:fixed;right:calc(env(safe-area-inset-right,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 8px);z-index:4;pointer-events:none;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+#miniMap canvas{display:block}
+body.mm:not(.touch) #locTag{top:136px}
+body.hud2.touch.mm #locTag{display:none}
 </style>
 </head>
 <body class="cover">
@@ -675,6 +680,7 @@ body.hud2 #pRes .rb.hp i{border-radius:0}
 <script src="js/netcfg.js"></script>
 <script src="js/net.js"></script>
 <script src="js/remote.js"></script>
+<script src="js/minimap.js"></script>
 <script src="js/netcombat.js"></script>
 <script src="js/netsummon.js"></script>
 <script src="js/qr.js"></script>

@@ -1162,6 +1162,10 @@ function buildPanel() {
     const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = document.body.classList.contains('hud2');
     inp.onchange = () => { document.body.classList.toggle('hud2', inp.checked); try { localStorage.setItem('mageSandbox.hud2', inp.checked ? '1' : '0'); } catch (e) { } };
     row.appendChild(inp); root.appendChild(row);
+    const row2 = document.createElement('div'); row2.className = 'row'; const lab2 = document.createElement('label'); lab2.textContent = '小地圖(單人)'; row2.appendChild(lab2);   // 小地圖開關(minimap.js;多人對戰一律顯示)
+    const inp2 = document.createElement('input'); inp2.type = 'checkbox'; try { inp2.checked = localStorage.getItem('mageSandbox.minimap') === '1'; } catch (e) { }
+    inp2.onchange = () => { try { localStorage.setItem('mageSandbox.minimap', inp2.checked ? '1' : '0'); } catch (e) { } if (window.mmRefresh) mmRefresh(); };
+    row2.appendChild(inp2); root.appendChild(row2);
   }
   PANEL.forEach(r => {
     if (r.length === 1) { const h = document.createElement('h4'); h.textContent = r[0]; root.appendChild(h); return; }
@@ -1196,6 +1200,7 @@ function frame(now) {
   if (G.perfT > 0) G.perfT = Math.max(0, G.perfT - dt);   // 完美閃避加速計時(perfectDodge / classTick 的 spdK)
   classTick(dt); resTick(dt); updatePlayer(dt); if (window.sceneTick) sceneTick(dt); updateAim(dt); updateCasting(dt);
   mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK });
+  if (window.footRingTick) footRingTick();   // 腳下色圈(remote.js)
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);
   if (window.NETON) netTick(dt);   // 多人:送出快照、開戰倒數(remote.js);單人不執行
   fire.update(dt); smoke.update(dt); updateDmgTexts(dt); updateHUD(); updateResHUD();

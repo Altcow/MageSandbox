@@ -15,7 +15,7 @@ const SPAWN_PTS = [[0, 22], [12.6, 18], [20.7, 7.5], [21.3, -5.7], [-21.3, -5.7]
 
 let spawnPts = [];               // 本場合格的出生點(enterMatch 時算好)
 let sendAcc = 0, sendSeq = 0, roundT0 = 0, cdLast = '', cdEl = null, stashed = null;
-let BLOB_GEO = null, BLOB_MAT = null;
+let BLOB_GEO = null, BLOB_MAT = null, FOOT_RING_GEO = null;
 
 /* ================= 快照編碼(§9-3):欄位依序位元打包,再轉 base64url ================= */
 const qn = (v, lo, hi, bits) => Math.round(clamp((v - lo) / (hi - lo), 0, 1) * ((1 << bits) - 1));
@@ -122,14 +122,57 @@ function blobShared() {
   BLOB_GEO = new THREE.CircleGeometry(.55, 16);
   BLOB_MAT = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: .45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 }
-function nameTexture(text, color, suffix) {
+// 名牌(設計_介面與畫風改版 §3-3):深藍圓角膠囊底 + 白字粗外框 + 職業色左側小條;color(座位色)目前不繪製,bar = 職業色字串
+function nameTexture(text, color, suffix, bar) {
   const c = document.createElement('canvas'); c.width = 384; c.height = 64;
   const g = c.getContext('2d'), s = suffix ? text + suffix : text;
-  g.font = 'bold 28px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,.8)'; g.strokeText(s, 192, 34);
-  g.fillStyle = color; g.fillText(s, 192, 34);
+  let fs = 28; g.font = 'bold ' + fs + 'px sans-serif';
+  while (fs > 16 && g.measureText(s).width > 280) { fs -= 2; g.font = 'bold ' + fs + 'px sans-serif'; }
+  const tw = g.measureText(s).width, w = Math.min(372, Math.round(tw + 56)), h = 46, x0 = Math.round(192 - w / 2), y0 = 9, r = h / 2;
+  g.beginPath(); g.moveTo(x0 + r, y0); g.arcTo(x0 + w, y0, x0 + w, y0 + h, r); g.arcTo(x0 + w, y0 + h, x0, y0 + h, r); g.arcTo(x0, y0 + h, x0, y0, r); g.arcTo(x0, y0, x0 + w, y0, r); g.closePath();
+  g.fillStyle = 'rgba(16,24,58,.82)'; g.fill(); g.lineWidth = 2; g.strokeStyle = 'rgba(120,160,255,.55)'; g.stroke();
+  g.fillStyle = bar || color; g.beginPath(); g.arc(x0 + 15, y0 + r, 7, 0, Math.PI * 2); g.fill();   // 職業色小條(圓端)
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.lineWidth = 6; g.strokeStyle = 'rgba(8,12,34,.95)'; g.strokeText(s, 204, 33);
+  g.fillStyle = '#fff'; g.fillText(s, 204, 33);
   return new THREE.CanvasTexture(c);
 }
+// 腳下色圈(§3-3):扁平圓環,職業色;bright = 自己用較亮較大的版本。每人一個材質(顏色 / 透明度各自調)
+function footRing(hex, bright) {
+  if (!FOOT_RING_GEO) FOOT_RING_GEO = new THREE.RingGeometry(.5, .68, 32);
+  const col = new THREE.Color(hex); if (bright) col.lerp(new THREE.Color(0xffffff), .35);
+  const m = new THREE.Mesh(FOOT_RING_GEO, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: bright ? .95 : .75, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  m.renderOrder = 2; m.userData.base = bright ? .95 : .75; m.userData.k = bright ? 1.15 : 1; m.visible = false; scene.add(m);
+  return m;
+}
+function placeRing(m, x, y, z, op) {
+  const gy = surfaceY(x, z, y + .5), h = Math.max(0, y - gy);
+  layFlat(m, x, gy, z, .5, 0, .045); m.scale.setScalar(m.userData.k * (1 - .4 * Math.min(1, h / 3)));
+  m.material.opacity = m.userData.base * op; m.visible = op > .01;
+}
+// 本機角色腳下色圈(game.js frame 每幀呼叫);潛行 / 草叢半透明時跟著淡出,封面時隱藏
+let selfRing = null, selfRingCls = '';
+function footRingTick() {
+  if (!selfRing) selfRing = footRing(0xffffff, true);
+  if (selfRingCls !== G.cls) { selfRingCls = G.cls; selfRing.material.color.set(clsHex(G.cls)).lerp(new THREE.Color(0xffffff), .35); }
+  const p = mage.root.position;
+  if (document.body.classList.contains('cover')) { selfRing.visible = false; return; }
+  placeRing(selfRing, p.x, p.y, p.z, clamp(mage.opq, 0, 1) * (G.down > 0 ? .4 : 1));
+}
+window.footRingTick = footRingTick;
+// 觀看者(本機)看某遠端角色時的隱藏判定,remote.js 與 minimap.js 共用(minimap 讀 RemotePlayer.mapVis):
+//   inSm 煙霧彈(圈內的人對圈外觀看者半隱形)、hid 草叢隱身(revealed = 集氣 / 出手 / 照亮 / 被打現形中)、blind 自己致盲、fogFar 霧中且 > 10 m;
+//   blindFar = 名牌 / 血條要隱藏(致盲 8 m 外、霧中 10 m 外)。d = 觀看者到名牌高度(y + 2.6)的 3D 距離
+function netSeen(x, y, z, revealed) {
+  const me = mage.root.position, d = Math.hypot(x - me.x, y + 2.6 - me.y, z - me.z);
+  const bi = bushAt(x, z, y), myBi = bushAt(me.x, me.z, me.y), blind = G.blindT > 0, fogFar = (fogAt(x, z) || fogAt(me.x, me.z)) && d > 10;
+  return {
+    inSm: typeof smokeAt === 'function' && smokeAt(x, z) && !smokeAt(me.x, me.z),
+    hid: bi >= 0 && bi !== myBi && Math.hypot(x - me.x, z - me.z) > 2.5 && !revealed,
+    blind: blind, fogFar: fogFar, blindFar: (blind && d > 8) || fogFar
+  };
+}
+window.netSeen = netSeen;
 function disposeTree(o) {
   o.traverse(c => { if (c.geometry && !c.isSprite) c.geometry.dispose(); if (c.material) c.material.dispose(); });
 }
@@ -150,13 +193,14 @@ class RemotePlayer {
     blobShared();
     this.shadow = new THREE.Mesh(BLOB_GEO, BLOB_MAT); this.shadow.renderOrder = 1; scene.add(this.shadow);
     const color = NAME_COLORS[(this.seat - 1) % NAME_COLORS.length];
-    this.nameTex = nameTexture(this.name, color, ''); this._awayT = null; this._offT = null; this._tag = ''; this._color = color;
+    this._clsHex = clsHex(this.cls); this.nameTex = nameTexture(this.name, color, '', this._clsHex); this._awayT = null; this._offT = null; this._tag = ''; this._color = color; this.mapVis = false;
+    this.ring = footRing(this._clsHex, false);
     this.nameSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.nameTex, transparent: true, depthWrite: false }));
     this.nameSpr.scale.set(2.4, .4, 1); this.nameSpr.renderOrder = 30; scene.add(this.nameSpr);
     this.bar = new THREE.Group(); scene.add(this.bar);
-    const bg = new THREE.Mesh(new THREE.PlaneGeometry(1, .12), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .6, depthTest: false }));
-    this.fg = new THREE.Mesh(new THREE.PlaneGeometry(.94, .08), new THREE.MeshBasicMaterial({ color: 0xe03030, depthTest: false }));
-    this.shBar = new THREE.Mesh(new THREE.PlaneGeometry(.94, .08), new THREE.MeshBasicMaterial({ color: 0x66c8ff, depthTest: false }));
+    const bg = new THREE.Mesh(new THREE.PlaneGeometry(1, .2), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .7, depthTest: false }));
+    this.fg = new THREE.Mesh(new THREE.PlaneGeometry(.94, .16), new THREE.MeshBasicMaterial({ color: 0xe03030, depthTest: false }));
+    this.shBar = new THREE.Mesh(new THREE.PlaneGeometry(.94, .16), new THREE.MeshBasicMaterial({ color: 0x66c8ff, depthTest: false }));
     bg.renderOrder = 20; this.fg.renderOrder = 21; this.shBar.renderOrder = 22;
     this.fg.position.z = .001; this.shBar.position.z = .002;
     this.bar.add(bg, this.fg, this.shBar);
@@ -172,7 +216,7 @@ class RemotePlayer {
     this.burn = 0; this.windT = 0; this.hpShow = 0; this.flash = 0; this.slowT = 0; this.slowPct = 0; this.zSlow = 0; this.zHex = 0;
     this.litT = 0; this.stunT = 0; this.erodeT = 0; this.downT = 0; this.downK = 0; this.ox = this.oz = 0;
     this.mage.root.position.set(this.px, this.py, this.pz); this.mage.yaw = this.yaw;
-    this.g.visible = false; this.shadow.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false;
+    this.g.visible = false; this.shadow.visible = false; this.ring.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false;
   }
   // 內插緩衝 = 1.5 × 對方送出間隔(10 Hz → 150 ms,2.5 Hz → 600 ms)
   delayMs() { return clamp(Math.round((this._iv || 100) * 1.5), 150, 600); }
@@ -180,8 +224,8 @@ class RemotePlayer {
   get y() { return this.py; }
   get z() { return this.pz; }
   _noShadow() { this.mage.root.traverse(o => { if (o.isMesh) o.castShadow = false; }); }
-  _awayTex() { if (!this._awayT) this._awayT = nameTexture(this.name, this._color, '(暫離)'); return this._awayT; }
-  _offTex() { if (!this._offT) this._offT = nameTexture(this.name, this._color, '(離線中)'); return this._offT; }
+  _awayTex() { if (!this._awayT) this._awayT = nameTexture(this.name, this._color, '(暫離)', this._clsHex); return this._awayT; }
+  _offTex() { if (!this._offT) this._offT = nameTexture(this.name, this._color, '(離線中)', this._clsHex); return this._offT; }
   _ingest(now) {
     const s = Net.snapOf(this.seat);
     if (typeof s !== 'string' || s === this.lastStr) return;
@@ -213,20 +257,20 @@ class RemotePlayer {
       else if (rt <= B[0].t) p = B[0];
       else { let j = 1; while (B[j].t < rt) j++; const a = B[j - 1], b = B[j]; p = mixPose(a, b, (rt - a.t) / ((b.t - a.t) || 1)); }
     }
-    if (stale || !p) { this.gf = 0; this.dead = true; this.g.visible = false; this.shadow.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false; stVisHide(this); return; }
+    if (stale || !p) { this.gf = 0; this.dead = true; this.mapVis = false; this.g.visible = false; this.shadow.visible = false; this.ring.visible = false; this.nameSpr.visible = false; this.bar.visible = false; this.glow.visible = false; stVisHide(this); return; }
     const g = p.g, stealth = !!(g & 2), away = !!(g & 256), down = !!(g & 64), inv = !!(g & 32);
     this.dead = down || away;
     this.gf = g; this.stE = p.e | 0; this.guard = !!(g & 512); this.lit = !!(g & 1024); this.unyield = !!(g & 2048); this.stanceB = !!(g & 4096);   // 新旗標欄位(S 批只記值,呈現留給寫手)                                                   // 快照旗標(netcombat.js 的位移招式特效用)
     this.px = p.x; this.py = p.y; this.pz = p.z; this.yaw = p.r;
     this.col.x = p.x; this.col.z = p.z;
     this.hp = p.hp; this.sh = p.sh;
-    const inSm = typeof smokeAt === 'function' && smokeAt(p.x, p.z) && !smokeAt(mage.root.position.x, mage.root.position.z);   // 煙霧彈(skills_assassin.js):圈內的人對圈外觀看者半隱形
-    // 草叢隱身(設計_叢林地圖 §4-3):對方在草叢內、離我 > 2.5 m、未集氣 / 出手 / 照亮 → 隱形;被打(hp 下降)1 s、集氣出手 0.6 s 內現形
-    const me = mage.root.position, bi = bushAt(p.x, p.z, p.y), myBi = bushAt(me.x, me.z, me.y);
+    // 煙霧彈(skills_assassin.js)、草叢隱身(設計_叢林地圖 §4-3)、致盲 / 霧中:判定抽成 netSeen(小地圖共用)。草叢:對方在草叢內、離我 > 2.5 m、未集氣 / 出手 / 照亮 → 隱形;被打(hp 下降)1 s、集氣出手 0.6 s 內現形
+    const me = mage.root.position;
     if (this._lastHp != null && p.hp < this._lastHp) this._revealUntil = now + 1000;
     this._lastHp = p.hp;
     if ((g & 128) || p.c >= .05) this._revealUntil = now + 600;
-    const hid = bi >= 0 && bi !== myBi && Math.hypot(p.x - me.x, p.z - me.z) > 2.5 && !(g & 128) && p.c < .05 && !(g & 1024) && now > (this._revealUntil || 0);
+    const seen = netSeen(p.x, p.y, p.z, !!(g & 1024) || now <= (this._revealUntil || 0)), inSm = seen.inSm, hid = seen.hid;
+    this.mapVis = !stealth && !inSm && !hid && !seen.blind && !seen.fogFar;   // 小地圖是否畫這個人的點(minimap.js)
     const op = stealth ? .08 : (inSm ? .35 : ((away || off) ? .4 : 1));
     if (op !== this._op) { this._op = op; this.mage.setOpacity(op); this._noShadow(); }
     this.mage.root.position.set(p.x, p.y, p.z); this.mage.yaw = p.r;
@@ -246,7 +290,7 @@ class RemotePlayer {
     this.nameSpr.position.set(p.x, p.y + 2.6, p.z);
     const tag = off ? 'off' : (away ? 'away' : '');
     if (tag !== this._tag) { this._tag = tag; this.nameSpr.material.map = off ? this._offTex() : (away ? this._awayTex() : this.nameTex); this.nameSpr.material.needsUpdate = true; }
-    const blindFar = (G.blindT > 0 && mage.root.position.distanceTo(this.nameSpr.position) > 8) || ((fogAt(p.x, p.z) || fogAt(me.x, me.z)) && me.distanceTo(this.nameSpr.position) > 10);   // 致盲:8 m 外隱藏名牌與血條(§3-3);霧中(設計 §4-4):10 m 外同樣隱藏
+    const blindFar = seen.blindFar;   // 致盲:8 m 外隱藏名牌與血條(§3-3);霧中(設計 §4-4):10 m 外同樣隱藏
     const cd = camera.position.distanceTo(this.nameSpr.position), fa = clamp((NET_TIER.nameFade[1] - cd) / (NET_TIER.nameFade[1] - NET_TIER.nameFade[0]), 0, 1);   // 名牌距離淡出(30→45 m)
     this.nameSpr.material.opacity = fa;
     this.nameSpr.visible = vis && !blindFar && fa > 0;
@@ -263,6 +307,7 @@ class RemotePlayer {
       layFlat(this.shadow, p.x, gy, p.z, .5, 0, .03);
       this.shadow.scale.setScalar(1 - .5 * Math.min(1, h / 3));
     }
+    placeRing(this.ring, p.x, p.y, p.z, vis ? ((away || off) ? .4 : 1) : 0);   // 腳下色圈:跟假影同條件(潛行 / 煙霧 / 草叢 / 無敵閃爍時隱藏,不洩漏位置)
     // 集氣光球在武器尖端(§2-3)
     this.glow.visible = vis && p.q > .01;
     if (this.glow.visible) { this.mage.tipWorld(this._tmp); this.glow.position.copy(this._tmp); this.glow.scale.setScalar(.15 + .6 * p.q); }
@@ -315,6 +360,7 @@ class RemotePlayer {
   destroy() {
     scene.remove(this.g); disposeTree(this.g);
     scene.remove(this.shadow);
+    scene.remove(this.ring); this.ring.material.dispose();
     scene.remove(this.nameSpr); this.nameSpr.material.dispose(); this.nameTex.dispose(); if (this._awayT) this._awayT.dispose(); if (this._offT) this._offT.dispose();
     scene.remove(this.bar); disposeTree(this.bar);
     scene.remove(this.glow); this.glow.material.dispose();
