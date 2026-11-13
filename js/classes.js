@@ -268,8 +268,9 @@ function classTick(dt) {
 function clsHex(c) { return '#' + (CLASSES[c].aura || EL.fire).hex.toString(16).padStart(6, '0'); }
 function buildClsBar() {
   const bar = document.createElement('div'); bar.id = 'clsBar';
-  CLASS_ORDER.forEach(c => { const b = document.createElement('button'); b.innerHTML = '<img class="ci" src="assets/icons/cls_' + c + '.png" alt="' + CLASSES[c].icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))"> ' + CLASSES[c].name; b.tabIndex = -1; b.onclick = () => { setClass(c); b.blur(); }; bar.appendChild(b); });
+  CLASS_ORDER.forEach(c => { const b = document.createElement('button'); b.innerHTML = '<img class="ci" src="assets/icons/cls_' + c + '.png" alt="' + CLASSES[c].icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))"> ' + CLASSES[c].name; b.tabIndex = -1; b.onclick = () => { setClass(c); b.blur(); document.body.classList.remove('cls-open'); }; bar.appendChild(b); });
   document.body.appendChild(bar);
+  const tg = document.createElement('button'); tg.id = 'clsTog'; tg.tabIndex = -1; tg.title = '職業'; tg.onclick = () => { document.body.classList.toggle('cls-open'); tg.blur(); }; document.body.appendChild(tg);   // hud2 職業收合鈕(顯示 / 隱藏由 CSS 控制)
 }
 function refreshClsBar() {
   const bar = document.getElementById('clsBar'); if (!bar) return;
@@ -277,6 +278,8 @@ function refreshClsBar() {
     const c = CLASS_ORDER[i], on = c === G.cls, hx = clsHex(c);
     b.classList.toggle('on', on); b.style.borderColor = on ? hx : ''; b.style.boxShadow = on ? '0 0 10px ' + hx : '';
   });
+  const tg = document.getElementById('clsTog'); if (tg) { tg.innerHTML = '<img src="assets/icons/cls_' + G.cls + '.png" alt="' + CLASSES[G.cls].icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))">'; tg.style.borderColor = clsHex(G.cls); }
+  const av = document.getElementById('pAv'); if (av) { const u = 'assets/icons/cls_' + G.cls + '.png'; if (av.getAttribute('src') !== u) { av.style.visibility = ''; av.setAttribute('src', u); } av.style.borderColor = clsHex(G.cls); }   // hud2 玩家卡頭像
 }
 function syncElBar() { const eb = document.getElementById('elBar'); if (eb) eb.style.display = CLASSES[G.cls].elements ? '' : 'none'; syncModeUI(); }   // 屬性列只給法師(任務 C 的 #elBar)
 

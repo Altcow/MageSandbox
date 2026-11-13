@@ -291,7 +291,7 @@ function netOnClear() {
   G.hp = G.hpMax; G.shield = 0; G.shieldT = 0; G.down = 0; G.invulnT = 0;
   NET_INV_LOG.length = 0;
   if (netKillBox) netKillBox.replaceChildren();
-  if (netBoard) netBoard.style.display = 'none';
+  if (netBoard) { netBoard.style.display = 'none'; netBoard.classList.remove('open'); }
   if (typeof resInit === 'function') resInit();   // 新局 / 離開:HP、MP、SP 回滿(單人時的傷勢不帶進對戰)
   netRoundReset();                                 // N6:結算畫面、回合計時、同分排名記錄
 }
@@ -314,7 +314,7 @@ function netUiBox(id, css) {
   return el;
 }
 function netKillAdd(txt, col) {
-  if (!netKillBox) netKillBox = netUiBox('netKill', 'position:fixed;left:12px;top:' + (IS_TOUCH ? 120 : 170) + 'px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;z-index:14;pointer-events:none');
+  if (!netKillBox) netKillBox = netUiBox('netKill', '');   // 位置與外觀由 index.html 的 #netKill 規則決定(hud2)
   const d = document.createElement('div');
   d.textContent = txt;
   d.style.cssText = 'padding:3px 10px;border-radius:6px;background:rgba(10,12,30,.6);color:' + col + ';font:600 15px sans-serif;text-shadow:0 0 4px #000;white-space:nowrap';
@@ -331,7 +331,7 @@ function netKillMsg(by, victim, k) {
 }
 // 6 人以內全部列出;7 人以上列前 5 名加自己(§5-2)。內容只在變動時重建
 function netBoardTick(now) {
-  if (!netBoard) netBoard = netUiBox('netBoard', 'position:fixed;left:50%;top:40px;transform:translateX(-50%);min-width:180px;background:rgba(10,12,30,.6);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;font:13px sans-serif;color:#ffe3b0;text-shadow:0 0 3px #000;pointer-events:none;z-index:14;display:none');
+  if (!netBoard) { netBoard = netUiBox('netBoard', 'display:none'); netBoard.addEventListener('click', () => netBoard.classList.toggle('open')); }   // 位置與外觀由 index.html 的 #netBoard 規則決定;hud2 下點一下展開 / 收起完整計分板
   if (!window.NETON || !Net.me) { netBoard.style.display = 'none'; return; }
   if (now - netBoardT < 200) return;
   netBoardT = now;
@@ -341,16 +341,19 @@ function netBoardTick(now) {
   rows.sort((a, b) => b.k - a.k || a.d - b.d || a.seat - b.seat);
   let show = rows;
   if (rows.length > 6) { show = rows.slice(0, 5); const me = rows.find(r => r.seat === Net.me); if (!show.includes(me)) show.push(me); }
-  const key = show.map(r => r.seat + ':' + r.name + ':' + r.k + '/' + r.d).join('|') + '#' + rows.length;
+  const mine = rows.find(r => r.seat === Net.me), rank = rows.indexOf(mine) + 1;
+  const key = show.map(r => r.seat + ':' + r.name + ':' + r.k + '/' + r.d).join('|') + '#' + rows.length + '@' + rank;
   netBoard.style.display = '';
   if (key === netBoardKey) return;
   netBoardKey = key;
   netBoard.replaceChildren();
+  const sum = document.createElement('div'); sum.className = 'nbS'; sum.textContent = '第 ' + rank + ' 名  ' + mine.k + ' / ' + mine.d; netBoard.appendChild(sum);   // hud2 的一行排名(舊版 CSS 隱藏)
+  const tbl = document.createElement('div'); tbl.className = 'nbT'; netBoard.appendChild(tbl);
   const add = (a, b, me) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:14px;justify-content:space-between;white-space:nowrap' + (me ? ';color:#fff' : '');
     const x = document.createElement('span'), y = document.createElement('span');
-    x.textContent = a; y.textContent = b; row.appendChild(x); row.appendChild(y); netBoard.appendChild(row);
+    x.textContent = a; y.textContent = b; row.appendChild(x); row.appendChild(y); tbl.appendChild(row);
   };
   add('名字', '擊倒 / 死亡', false);
   show.forEach(r => add(r.name, r.k + ' / ' + r.d, r.seat === Net.me));
@@ -398,7 +401,7 @@ function netFinishRound() {
 function netRoundTick() {
   const on = !!(window.NETON && Net.me);
   if (on !== netSceneOn) {   // 對戰中隱藏場景按鈕(§5-6;畫質鈕保留)
-    netSceneOn = on;
+    netSceneOn = on; document.body.classList.toggle('netmatch', on);   // hud2:對戰中隱藏職業列
     document.querySelectorAll('#sceneBar > button').forEach(b => { if (b.id !== 'qBtn') b.style.display = on ? 'none' : ''; });
   }
   if (!on) { netTimer(null); netResult(null); return; }
@@ -412,7 +415,7 @@ function netRoundTick() {
 
 function netTimer(ms) {
   if (ms == null) { if (netTimerEl) netTimerEl.style.display = 'none'; return; }
-  if (!netTimerEl) netTimerEl = netUiBox('netTimer', 'position:fixed;left:50%;top:8px;transform:translateX(-50%);font:700 22px sans-serif;text-shadow:0 0 4px #000;pointer-events:none;z-index:14;display:none');
+  if (!netTimerEl) netTimerEl = netUiBox('netTimer', 'display:none');   // 位置與外觀由 index.html 的 #netTimer 規則決定
   const s = Math.max(0, Math.ceil(ms / 1000)), txt = '剩餘 ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   if (txt !== netTimerTxt) { netTimerTxt = txt; netTimerEl.textContent = txt; }
   netTimerEl.style.color = s <= 10 ? '#ff5050' : '#ffe3b0';

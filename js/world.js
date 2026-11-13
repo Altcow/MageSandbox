@@ -3,6 +3,10 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, IS_TOUCH ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// 色調映射(ACES):壓住高光過曝;r128 逐材質套用(RenderPass 進 RT 時也有效),自訂 ShaderMaterial 要自己 #include / 呼叫 toneMapping
+renderer.toneMapping = THREE.NoToneMapping; renderer.toneMappingExposure = 1;   // 試過 ACES:全場景變灰、飽和度掉太多(使用者要鮮豔畫風),改回不套色調映射
+// 加法混合(法術發光)材質不做色調映射,保留亮度給泛光
+(function () { let _b = new WeakMap(); Object.defineProperty(THREE.Material.prototype, 'blending', { get() { return _b.has(this) ? _b.get(this) : THREE.NormalBlending; }, set(v) { _b.set(this, v); this.toneMapped = v !== THREE.AdditiveBlending; }, configurable: true }); })();
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x3d3466, 50, 160);

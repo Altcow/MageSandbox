@@ -342,6 +342,7 @@
     'col+=vec3(.55,1.,.9)*cau*.35*(1.-smoothstep(.5,4.,d))*ndl;',
     '#endif',
     'col=mix(col,vec3(.8,.84,.83)*(.72+.2*ndl),clamp(foam,0.,.7));',
+    '#ifdef TONE_MAPPING','col=toneMapping(col);','#endif',   // 與地形同一套 ACES,且在霧混合之前(霧色與天空不做映射)
     'float fg=smoothstep(uFogN,uFogF,dist);col=mix(col,uFogCol,fg);',
     'gl_FragColor=vec4(col,mix(mix(.55,.93,smoothstep(.4,3.,d)),1.,fg));}'
   ].join('\n');
@@ -739,7 +740,7 @@
   try { const v = localStorage.getItem('mageSandbox.q'); if (v != null && +v >= 0 && +v <= 2) quality = +v; } catch (e) { }
   const qBtn = document.createElement('button'); qBtn.id = 'qBtn'; bar.appendChild(qBtn);
   function applyQuality() {
-    qBtn.textContent = '畫質:' + QN[quality];
+    qBtn.textContent = '畫質:' + QN[quality]; qBtn.dataset.q = QN[quality];   // hud2 手機版以 data-q 顯示單字
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, [1, 1.25, IS_TOUCH ? 1.5 : 2][quality]));
     moonLight.castShadow = quality > 0;
     const ms = [512, 1024, IS_TOUCH ? 1024 : 2048][quality];

@@ -1156,6 +1156,13 @@ function getPath(o, p) { return p.split('.').reduce((a, k) => a[k], o); }
 function setPath(o, p, v) { const ks = p.split('.'), l = ks.pop(); ks.reduce((a, k) => a[k], o)[l] = v; }
 function buildPanel() {
   const root = document.getElementById('panel'); root.innerHTML = '';
+  {   // 新版介面開關(body.hud2,存 localStorage mageSandbox.hud2;關閉 = 舊版版面)
+    const h = document.createElement('h4'); h.textContent = '介面'; root.appendChild(h);
+    const row = document.createElement('div'); row.className = 'row'; const lab = document.createElement('label'); lab.textContent = '新版介面'; row.appendChild(lab);
+    const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = document.body.classList.contains('hud2');
+    inp.onchange = () => { document.body.classList.toggle('hud2', inp.checked); try { localStorage.setItem('mageSandbox.hud2', inp.checked ? '1' : '0'); } catch (e) { } };
+    row.appendChild(inp); root.appendChild(row);
+  }
   PANEL.forEach(r => {
     if (r.length === 1) { const h = document.createElement('h4'); h.textContent = r[0]; root.appendChild(h); return; }
     const row = document.createElement('div'); row.className = 'row'; const lab = document.createElement('label'); lab.textContent = r[1]; row.appendChild(lab);

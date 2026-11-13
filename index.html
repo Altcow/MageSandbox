@@ -373,9 +373,111 @@ body.touch #btnWeap{right:calc(115px + env(safe-area-inset-right));bottom:calc(7
 .cv-pick-btn{width:68px}
 .cv-clsrow,.cv-elrow{gap:6px}
 }
+/* ===== 新版 HUD(body.hud2)步驟 A:版面重排。預設開啟,P 面板「新版介面」可切回舊版;舊規則保留不動 ===== */
+/* 定位基準:施法鈕中心 C = 距右 SR+66、距下 SB+66(直向 +58);副鈕以極座標排在 C 的左上弧線上 */
+body.hud2{--sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px);--sb:env(safe-area-inset-bottom,0px);--st:env(safe-area-inset-top,0px)}
+/* 對戰 HUD(netcombat.js 原本寫在 inline style,位置與外觀改由這裡控制;display 仍由 JS 切換) */
+#netTimer{position:fixed;left:50%;top:8px;transform:translateX(-50%);font:700 22px sans-serif;text-shadow:0 0 4px #000;pointer-events:none;z-index:14}
+#netBoard{position:fixed;left:50%;top:40px;transform:translateX(-50%);min-width:180px;background:rgba(10,12,30,.6);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;font:13px sans-serif;color:#ffe3b0;text-shadow:0 0 3px #000;pointer-events:none;z-index:14}
+#netBoard .nbS{display:none}
+#netKill{position:fixed;left:12px;top:170px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;z-index:14;pointer-events:none}
+body.touch #netKill{top:120px}
+#clsTog{display:none}
+#clsTog img{width:26px;height:26px;object-fit:contain;pointer-events:none}
+#pAv{display:none}
+body.cover #clsTog{display:none !important}
+body.hud2.netmatch #clsBar,body.hud2.netmatch #clsTog{display:none !important}   /* 對戰中職業鎖定,隱藏職業列 */
+/* 計時膠囊、排名一行(點開完整計分板)、擊殺訊息 */
+body.hud2 #netTimer{top:calc(var(--st) + 6px);height:34px;line-height:30px;padding:0 14px;box-sizing:border-box;border-radius:17px;border:2px solid #ffd23c;background:rgba(16,24,58,.72);font-size:20px;white-space:nowrap}
+body.hud2 #netBoard{pointer-events:auto;cursor:pointer;left:calc(50% + 74px);top:calc(var(--st) + 6px);transform:none;min-width:0;height:34px;padding:0 12px;box-sizing:border-box;border-radius:17px;border:2px solid rgba(120,160,255,.45);background:rgba(16,24,58,.72);font:700 14px/30px sans-serif;white-space:nowrap}
+body.hud2 #netBoard .nbS{display:block}
+body.hud2 #netBoard .nbT{display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:190px;box-sizing:border-box;padding:6px 10px;border-radius:10px;background:rgba(16,24,58,.94);border:1px solid rgba(120,160,255,.35);font:13px/1.5 sans-serif}
+body.hud2 #netBoard.open .nbT{display:block}
+body.hud2 #netKill{left:50%;top:calc(var(--st) + 48px);transform:translateX(-50%);align-items:center}
+/* 玩家卡:頭像+血/魔/體力三條 */
+body.hud2 #pRes{display:grid;grid-template-columns:48px 1fr;column-gap:8px;align-content:center;width:210px;box-sizing:border-box;padding:6px 8px;border-radius:14px;background:rgba(16,24,58,.72);border:1px solid rgba(120,160,255,.35)}
+body.hud2 #pAv{display:block;grid-column:1;grid-row:1 / span 4;align-self:center;width:48px;height:48px;box-sizing:border-box;border-radius:50%;border:3px solid #7fb4ff;background:rgba(0,0,0,.35);object-fit:contain}
+body.hud2 #pRes>:not(#pAv){grid-column:2}
+body.hud2 #pDownTx:empty{display:none}
+body.hud2 #pRes .ri{display:none}
+body.hud2 #pRes .rn{display:none}
+body.hud2 #pRes #pHPn{display:block;flex:0 0 46px;font-size:10px;line-height:1}
+body.hud2 #pRes .rb.hp{height:10px}
+body.hud2 #pRes .rb.mp,body.hud2 #pRes .rb.sp{height:6px}
+/* 桌機:只換外觀,位置沿用精簡版;場地/畫質鈕讓出中央給計時 */
+body.hud2:not(.touch) #pRes{width:190px;grid-template-columns:40px 1fr}
+body.hud2:not(.touch) #pAv{width:40px;height:40px}
+body.hud2:not(.touch) #stBar{top:84px}
+body.hud2:not(.touch) #sceneBar{left:auto;right:calc(50% + 100px);transform:none}
+/* ---- 橫向手機(預設觸控版面) ---- */
+body.hud2.touch #pRes{left:calc(var(--sl) + 10px);top:calc(var(--st) + 8px)}
+body.hud2.touch #stBar{left:calc(var(--sl) + 10px);top:calc(var(--st) + 72px);bottom:auto}
+body.hud2.touch #info{left:calc(var(--sl) + 10px);top:calc(var(--st) + 100px);right:auto}
+body.hud2.touch #locTag{left:auto;right:calc(var(--sr) + 8px);top:calc(var(--st) + 8px);width:92px;max-width:none;box-sizing:border-box;text-align:right;white-space:normal;font-size:10px;line-height:1.3}   /* 小地圖預留位(步驟 C 前先放地點標籤) */
+body.hud2.touch #gear{left:auto;bottom:auto;top:calc(var(--st) + 8px);right:calc(var(--sr) + 108px);width:36px;height:36px;line-height:34px;font-size:18px;box-sizing:border-box;z-index:5}
+body.hud2.touch #sceneBar{left:calc(50% - 90px);right:auto;transform:none;top:calc(var(--st) + 6px);gap:4px}
+body.hud2.touch #sceneBar button{padding:0 10px;min-height:34px;font-size:12px}
+body.hud2.touch #sceneBar #qBtn{position:fixed;left:auto;transform:none;top:calc(var(--st) + 52px);right:calc(var(--sr) + 108px);width:36px;height:36px;min-height:0;padding:0;border-radius:50%;font-size:0}
+body.hud2.touch #qBtn::after{content:attr(data-q);font-size:13px;font-weight:700}
+body.hud2.touch #btnNear{left:auto;bottom:auto;top:calc(var(--st) + 108px);right:calc(var(--sr) + 20px);width:40px;height:40px;font-size:11px;box-sizing:border-box}
+body.hud2.touch #clsTog{display:flex;position:fixed;top:calc(var(--st) + 108px);right:calc(var(--sr) + 68px);width:40px;height:40px;padding:0;box-sizing:border-box;align-items:center;justify-content:center;border-radius:50%;border:2px solid rgba(160,200,255,.6);background:rgba(30,40,90,.7);color:#fff;font:inherit;font-size:11px;z-index:5;cursor:pointer}
+body.hud2.touch #clsBar{display:none;left:auto;transform:none;top:calc(var(--st) + 108px);right:calc(var(--sr) + 116px);gap:4px}
+body.hud2.touch.cls-open #clsBar{display:flex}
+body.hud2.touch #clsBar button{padding:0 8px;min-height:40px;font-size:12px}
+body.hud2.touch #clsBar img.ci{width:16px;height:16px;vertical-align:-3px}
+body.hud2.touch #hotbar{left:auto;top:auto;transform:none;right:calc(var(--sr) + 276px);bottom:calc(var(--sb) + 12px);gap:8px}
+body.hud2.touch .slot{width:56px;height:56px;box-sizing:border-box;border-width:2px;border-radius:12px}
+body.hud2.touch .slot .ic{font-size:24px;line-height:28px}
+body.hud2.touch #elBar{top:auto;left:auto;transform:none;right:calc(var(--sr) + 276px);bottom:calc(var(--sb) + 76px);gap:6px}
+body.hud2.touch .elc{width:34px;height:34px;box-sizing:border-box;border-width:2px;font-size:17px}
+body.hud2.touch #chargeBox{top:auto;left:auto;transform:none;right:calc(var(--sr) + 276px);bottom:calc(var(--sb) + 120px);width:248px;font-size:12px}
+body.hud2.touch #stickBase{left:calc(var(--sl) + 24px);bottom:calc(var(--sb) + 20px);width:124px;height:124px;box-sizing:border-box;border-width:2px}
+body.hud2.touch #stickKnob{width:52px;height:52px}
+body.hud2.touch .tb{box-sizing:border-box;border-width:2px;background:rgba(30,40,90,.7)}
+body.hud2.touch #btnAtk{right:calc(var(--sr) + 16px);bottom:calc(var(--sb) + 16px);width:100px;height:100px;box-sizing:border-box;border:3px solid #ffd23c;font-size:20px}
+body.hud2.touch #btnRoll{right:calc(var(--sr) + 142px);bottom:calc(var(--sb) + 34px);width:64px;height:64px;font-size:14px}
+body.hud2.touch #btnWeap{right:calc(var(--sr) + 114px);bottom:calc(var(--sb) + 114px);width:56px;height:56px;font-size:13px}
+body.hud2.touch #btnJump{right:calc(var(--sr) + 34px);bottom:calc(var(--sb) + 142px);width:64px;height:64px;font-size:14px}
+body.hud2.touch #btnSit{right:calc(var(--sr) + 223px);bottom:calc(var(--sb) + 28px);width:44px;height:44px}
+body.hud2.touch #btnMode{left:auto;right:calc(var(--sr) + 116px);bottom:calc(var(--sb) + 198px);width:44px;height:44px}
+body.hud2.touch #panel{top:calc(var(--st) + 8px);bottom:auto;right:calc(var(--sr) + 156px);max-height:calc(100vh - var(--st) - var(--sb) - 16px)}
+/* ---- 直向手機:同邏輯縮小(C 距右 SR+58、距下 SB+58;施法 92、副鈕 56/52、外圈 40) ---- */
+@media (orientation:portrait){
+body.hud2.touch #pRes{width:160px;grid-template-columns:40px 1fr;column-gap:6px}
+body.hud2.touch #pAv{width:40px;height:40px}
+body.hud2.touch #pRes #pHPn{display:none}
+body.hud2.touch #netTimer{left:calc(50% + 15px);transform:translateX(-50%);font-size:15px;padding:0 8px}
+body.hud2.touch #netBoard{left:calc(50% + 15px);transform:translateX(-50%);top:calc(var(--st) + 46px);height:28px;font-size:13px;line-height:24px;padding:0 10px}
+body.hud2.touch #netBoard .nbT{left:50%;transform:translateX(-50%)}
+body.hud2.touch #netKill{top:calc(var(--st) + 84px)}
+body.hud2.touch #info{top:calc(var(--st) + 140px)}
+body.hud2.touch #locTag{width:76px}
+body.hud2.touch #gear{right:calc(var(--sr) + 92px)}
+body.hud2.touch #sceneBar{left:calc(var(--sl) + 10px);top:calc(var(--st) + 100px)}
+body.hud2.touch #sceneBar #qBtn{right:calc(var(--sr) + 92px)}
+body.hud2.touch #btnNear{top:calc(var(--st) + 92px);right:calc(var(--sr) + 24px)}
+body.hud2.touch #clsTog{top:calc(var(--st) + 92px);right:calc(var(--sr) + 68px)}
+body.hud2.touch #clsBar{top:calc(var(--st) + 92px)}
+body.hud2.touch #clsBar button{font-size:11px;padding:0 6px}
+body.hud2.touch #hotbar{left:50%;right:auto;transform:translateX(-50%);bottom:calc(var(--sb) + 236px);gap:6px}
+body.hud2.touch .slot{width:52px;height:52px}
+body.hud2.touch #elBar{left:50%;right:auto;transform:translateX(-50%);bottom:calc(var(--sb) + 296px);gap:6px}
+body.hud2.touch .elc{width:30px;height:30px;font-size:15px}
+body.hud2.touch #chargeBox{left:50%;right:auto;transform:translateX(-50%);bottom:calc(var(--sb) + 334px);width:220px}
+body.hud2.touch #stickBase{left:calc(var(--sl) + 14px);bottom:calc(var(--sb) + 14px);width:112px;height:112px}
+body.hud2.touch #stickKnob{width:48px;height:48px}
+body.hud2.touch #btnAtk{right:calc(var(--sr) + 12px);bottom:calc(var(--sb) + 12px);width:92px;height:92px;font-size:18px}
+body.hud2.touch #btnRoll{right:calc(var(--sr) + 126px);bottom:calc(var(--sb) + 30px);width:56px;height:56px;font-size:13px}
+body.hud2.touch #btnWeap{right:calc(var(--sr) + 100px);bottom:calc(var(--sb) + 100px);width:52px;height:52px;font-size:12px}
+body.hud2.touch #btnJump{right:calc(var(--sr) + 30px);bottom:calc(var(--sb) + 126px);width:56px;height:56px;font-size:13px}
+body.hud2.touch #btnSit{right:calc(var(--sr) + 187px);bottom:calc(var(--sb) + 25px);width:40px;height:40px}
+body.hud2.touch #btnMode{right:calc(var(--sr) + 101px);bottom:calc(var(--sb) + 174px);width:40px;height:40px}
+body.hud2.touch #panel{top:calc(var(--st) + 140px);right:calc(var(--sr) + 8px);width:min(290px,calc(100vw - 16px));box-sizing:border-box}
+}
 </style>
 </head>
 <body class="cover">
+<script>try{if(localStorage.getItem('mageSandbox.hud2')!=='0')document.body.classList.add('hud2')}catch(e){document.body.classList.add('hud2')}</script>
 <button id="hintBtn" title="操作說明 (H)">?</button>
 <div id="hint">
 <b>WASD</b> 移動 ・ <b>Shift</b> 跑<br>
@@ -401,6 +503,7 @@ body.touch #btnWeap{right:calc(115px + env(safe-area-inset-right));bottom:calc(7
 <div id="stBar"></div>
 <div id="stFx"></div>
 <div id="pRes">
+  <img id="pAv" alt="" onerror="this.style.visibility='hidden'">
   <div id="pDownTx"></div>
   <div class="rr"><img class="ri" src="assets/icons/ui_hp.png" alt=""><div class="rb hp" id="pHP"><i class="fg" id="pHPfg"></i><i id="pShield"></i></div><span class="rn" id="pHPn"></span></div>
   <div class="rr"><img class="ri" id="pMPi" src="assets/icons/ui_mp.png" alt=""><div class="rb mp" id="pMP"><i class="fg" id="pMPfg"></i></div><span class="rn" id="pMPn"></span></div>
