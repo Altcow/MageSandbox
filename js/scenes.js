@@ -745,6 +745,7 @@
     moonLight.castShadow = quality > 0;
     const ms = [512, 1024, IS_TOUCH ? 1024 : 2048][quality];
     if (moonLight.shadow.mapSize.x !== ms) { moonLight.shadow.mapSize.set(ms, ms); if (moonLight.shadow.map) { moonLight.shadow.map.dispose(); moonLight.shadow.map = null; } }
+    if (typeof setOutlineAll === 'function') setOutlineAll(quality > 1);   // 角色描邊:只有「高」(多人 12 人約 +360 draw call,手機中檔不開)
     if (window.CFG) CFG.bloom = quality === 2;   // 泛光只在「高」開(最吃 GPU)
     window.SHADOWN = [0, 2, 1][quality];          // 陰影重畫頻率:低=不畫、中=隔格、高=每格
     _minDt = quality === 0 ? 33 : 16;             // 幀率上限:低 30、中高 60(高更新率螢幕也不超過 60)

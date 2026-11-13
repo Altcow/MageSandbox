@@ -133,7 +133,7 @@ try { const v = localStorage.getItem('mageSandbox.el'); if (EL_ORDER.includes(v)
 try { const m = localStorage.getItem('mageSandbox.chgMode'); if (m === 'A' || m === 'B') G.chgMode = m; } catch (e) { }
 
 /* ================= 角色與場景物件 ================= */
-const mage = new Mage(scene);
+const mage = new Mage(scene); mage.olReg();
 mage.setElementColor(EL[G.el].hex);
 const ind = new Indicator(scene);
 const indPool = [new Indicator(scene), new Indicator(scene), new Indicator(scene), new Indicator(scene)];   // 集氣 B 牆的多道預覽(第 1~3 道用)
@@ -1073,6 +1073,7 @@ document.getElementById('modeTag').onclick = toggleChgMode;   // 桌機點擊切
 // 把 0~255 色碼的 #rrggbb 調暗(k 為倍率)
 function dimHex(c, k) { const n = parseInt(c.slice(1), 16); return '#' + [16, 8, 0].map(s => Math.round(((n >> s) & 255) * k).toString(16).padStart(2, '0')).join(''); }
 const xhairEl = document.getElementById('xhair'), lockMsgEl = document.getElementById('lockMsg');
+const atkIcEl = document.querySelector('#btnAtk .ci');
 let hotbarInit = false;   // SPELLS 在 spells.js(晚於 game.js 載入),快捷列第一次更新時才填入
 function updateHUD() {
   if (!hotbarInit) { hotbarInit = true; refreshHotbar(); }
@@ -1087,6 +1088,10 @@ function updateHUD() {
     if (lockMsgEl._s !== ls) { lockMsgEl._s = ls; lockMsgEl.style.display = ls; }
     const lt = G.lockErr ? '再點一次' : '點擊回到遊戲';
     if (lockMsgEl._t !== lt) { lockMsgEl._t = lt; lockMsgEl.textContent = lt; }
+  }
+  if (document.body.classList.contains('hud2')) {   // 新版介面:施法鈕中央疊目前選中招式的圖示(只在變動時寫 DOM)
+    const ix = G.skill >= 0 ? G.skill : (G.lastSkill || 0), sp = ix < skillCount() ? spellOf(ix) : null, ik = sp ? (sp.img || sp.icon || '') : '';
+    if (atkIcEl._k !== ik) { atkIcEl._k = ik; atkIcEl.innerHTML = sp && sp.img ? '<img src="' + sp.img + '" alt="' + sp.icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))">' : (sp ? sp.icon : ''); }
   }
   const E = auraEl(), on = G.state === 'charging', q = G.charge, max = on && q >= 1;
   slots.forEach((el, i) => {

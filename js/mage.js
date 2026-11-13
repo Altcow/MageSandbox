@@ -1,4 +1,29 @@
 'use strict';
+// ---- 角色描邊(反轉殼,畫質中 / 高才建立,設計_介面與畫風改版 §3-4)----
+// 每個身體網格底下掛一個子殼:頂點沿「依位置合併後的平均法線」外推 OL_T、只畫背面、純深色;殼不投影、不參與射線。
+// 殼是網格的子物件 → 職業外型 / 武器切換的 visible 自動跟著;外推量寫在殼幾何裡(角色本地單位),不隨鏡頭距離變。
+// 只有 olReg() 登記過的 Mage(本機與遠端玩家)會有殼;封面烘焙、分身模型不登記,不受影響。
+const OL_GEO = new Map(), OL_SET = new Set(), OL_T = .02; let OL_ON = false;
+function outlineGeo(g) {
+  const key = g.parameters ? g.type + JSON.stringify(g.parameters) : g.uuid;
+  let o = OL_GEO.get(key); if (o) return o;
+  const pos = g.attributes.position, nor = g.attributes.normal, n = pos.count, acc = new Map(), ks = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const k = ks[i] = Math.round(pos.getX(i) * 1e3) + ',' + Math.round(pos.getY(i) * 1e3) + ',' + Math.round(pos.getZ(i) * 1e3);
+    let a = acc.get(k); if (!a) acc.set(k, a = [0, 0, 0]);
+    a[0] += nor.getX(i); a[1] += nor.getY(i); a[2] += nor.getZ(i);
+  }
+  const out = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const a = acc.get(ks[i]), l = Math.hypot(a[0], a[1], a[2]) || 1;
+    out[i * 3] = pos.getX(i) + a[0] / l * OL_T; out[i * 3 + 1] = pos.getY(i) + a[1] / l * OL_T; out[i * 3 + 2] = pos.getZ(i) + a[2] / l * OL_T;
+  }
+  o = new THREE.BufferGeometry(); o.setAttribute('position', new THREE.BufferAttribute(out, 3));
+  if (g.index) o.setIndex(g.index.clone());
+  OL_GEO.set(key, o); return o;
+}
+// 畫質切換(scenes.js applyQuality)呼叫:所有已登記的角色即時建立 / 移除外殼
+function setOutlineAll(on) { on = !!on; if (on === OL_ON) return; OL_ON = on; OL_SET.forEach(m => m._olApply(on)); }
 // 占位法師(程式生成)。之後換成 GLB 模型時,只要保留這些介面:
 //   root / yaw / weapon / setWeapon() / update(dt, anim) / tipWorld(out) / glow
 class Mage {
@@ -144,14 +169,29 @@ class Mage {
     this.torso.forEach(m => { m.scale.x = m.userData.bx * k; m.scale.z = m.userData.bz * k; });
     this.robeLow.visible = this.hemRing.visible = look === 'mage' || look === 'swordsman';
   }
+  // 描邊:登記 / 取消登記(取消時一併移除外殼,remote.js destroy 在 dispose 前呼叫,避免釋放共用的殼幾何)
+  olReg() { OL_SET.add(this); if (OL_ON) this._olApply(true); }
+  olUnreg() { OL_SET.delete(this); this._olApply(false); }
+  _olApply(on) {
+    if (on === !!this._olShells) return;
+    if (!on) { this._olShells.forEach(sh => { sh.parent.remove(sh); }); this._olShells = null; this._olMat.dispose(); this._olMat = null; return; }
+    const mat = this._olMat = new THREE.MeshBasicMaterial({ color: 0x0b0f24, side: THREE.BackSide }), list = [];
+    mat.visible = this._opA === undefined || this._opA >= .999;
+    this.body.traverse(o => { if (o.isMesh && o.geometry.attributes.normal && !o.material.isMeshBasicMaterial) list.push(o); });
+    this._olShells = list.map(o => {
+      const sh = new THREE.Mesh(outlineGeo(o.geometry), mat); sh.castShadow = sh.receiveShadow = false; sh.matrixAutoUpdate = false; sh.raycast = () => { };
+      sh.userData.ol = true; o.add(sh); return sh;
+    });
+  }
   setRobeColor(hex) { this.robeM.color.setHex(hex); this.robe2M.color.setHex(hex).multiplyScalar(.75); }
   tipWorld(out) { const A = { staff: this.tipAnchor, book: this.orbAnchor, bow: this.bowTip, swordShield: this.swordTip, daggers: this.dagTip }[this.weapon] || this.orbAnchor; A.getWorldPosition(out); return out; }
   setElementColor(hex) { this.gemMat.color.setHex(hex); this.gemMat.emissive.setHex(hex); this.staffGlow.material.color.setHex(hex); this.bookGlow.material.color.setHex(hex); }
 
   // 潛行半透明(a:1 = 正常):只改身體的一般混合材質,加亮光暈不動
   setOpacity(a) {
+    this._opA = a; if (this._olMat) this._olMat.visible = a >= .999;   // 描邊殼:半透明 / 潛行 / 閃爍時整個隱藏(不洩漏輪廓)
     this.body.traverse(o => {
-      const m = o.material; if (!m || m.blending === THREE.AdditiveBlending) return;
+      const m = o.material; if (!m || m.blending === THREE.AdditiveBlending || o.userData.ol) return;
       const u = m.userData; if (u.o0 === undefined) { u.o0 = m.opacity; u.t0 = m.transparent; u.d0 = m.depthWrite; }
       m.transparent = a < 1 || u.t0; m.opacity = u.o0 * a; m.depthWrite = a >= 1 ? u.d0 : false; o.castShadow = a >= 1;
     });

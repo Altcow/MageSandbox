@@ -189,6 +189,7 @@ class RemotePlayer {
     this.mage.setRobeColor(C.robe);
     this.mage.setElementColor(auraOf(this.cls, this.el).hex);
     this.g = this.mage.root;
+    this.mage.olReg();                                                      // 描邊(畫質中 / 高)
     this._noShadow();                                                       // 遠端一律不投影(§2-3)
     blobShared();
     this.shadow = new THREE.Mesh(BLOB_GEO, BLOB_MAT); this.shadow.renderOrder = 1; scene.add(this.shadow);
@@ -358,7 +359,7 @@ class RemotePlayer {
   reset() {}
   die() {}
   destroy() {
-    scene.remove(this.g); disposeTree(this.g);
+    this.mage.olUnreg(); scene.remove(this.g); disposeTree(this.g);
     scene.remove(this.shadow);
     scene.remove(this.ring); this.ring.material.dispose();
     scene.remove(this.nameSpr); this.nameSpr.material.dispose(); this.nameTex.dispose(); if (this._awayT) this._awayT.dispose(); if (this._offT) this._offT.dispose();

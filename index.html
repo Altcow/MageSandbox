@@ -492,6 +492,10 @@ body.hud2 #btnMode img.bi{position:relative}
 body.hud2 #btnAtk{border:0 !important;background:url(assets/ui/b_cast.png) center/100% 100% no-repeat !important;box-shadow:none;color:#fff8e8;text-shadow:0 2px 3px rgba(80,20,0,.8)}
 body.hud2 #btnAtk.dn{background-image:url(assets/ui/b_cast_dn.png) !important}
 body.hud2 #btnAtk small{display:none}
+#btnAtk .ci{display:none}
+body.hud2 #btnAtk .ci{display:flex;align-items:center;justify-content:center;width:55%;height:55%;font-size:30px;line-height:1;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(60,15,0,.7))}
+body.hud2 #btnAtk .ci img{width:100%;height:100%;object-fit:contain}
+body.hud2 #btnAtk .ct{font-size:11px;line-height:1;margin-top:1px;pointer-events:none}
 body.hud2 #btnJump,body.hud2 #btnRoll{border:0 !important;box-shadow:none;font-size:0;color:transparent;background:url(assets/ui/b_jump.png) center/100% 100% no-repeat !important}
 body.hud2 #btnJump.dn{background-image:url(assets/ui/b_jump_dn.png) !important}
 body.hud2 #btnRoll{background-image:url(assets/ui/b_roll.png) !important}
@@ -547,7 +551,7 @@ body.hud2.touch.mm #locTag{display:none}
 <div id="dmgLayer"></div>
 <div id="touchUI">
   <div id="stickBase"><div id="stickKnob"></div></div>
-  <div id="btnAtk">施法<small>按住集氣<br>上下滑調範圍</small></div>
+  <div id="btnAtk"><span class="ci"></span><span class="ct">施法</span><small>按住集氣<br>上下滑調範圍</small></div>
   <div class="tb" id="btnRoll">翻滾</div>
   <div class="tb" id="btnJump">跳</div>
   <div class="tb sm" id="btnWeap">換裝</div>
