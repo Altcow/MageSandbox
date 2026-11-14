@@ -1049,11 +1049,16 @@ function updateCamera(dt) {
 }
 
 /* ================= HUD ================= */
+// 觸控即時點選:手指按下就切換(不等 click);另一指按著搖桿移動時,瀏覽器常不補第二指的 click,導致移動中切不了招式
+function fastTap(el, fn) {
+  el.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; e.preventDefault(); el._pt = performance.now(); fn(); });
+  el.onclick = () => { if (performance.now() - (el._pt || 0) < 700) return; fn(); };
+}
 const hotbar = document.getElementById('hotbar');
 SKILLS.forEach((s, i) => {
   const d = document.createElement('div'); d.className = 'slot';
   d.innerHTML = '<b>' + (i + 1) + '</b><span class="ic">' + s.icon + '</span><span class="nm">' + s.name + '</span><div class="cdmask"></div><span class="cdt"></span><i></i>';
-  d.onclick = () => selectSkill(i); hotbar.appendChild(d);
+  fastTap(d, () => selectSkill(i)); hotbar.appendChild(d);
 });
 const slots = [...hotbar.children], cBox = document.getElementById('chargeBox'), cFill = document.getElementById('chargeFill'), cTxt = document.getElementById('chargeTxt'), infoEl = document.getElementById('info'), chantEl = document.getElementById('chant');
 const btnJumpEl = document.getElementById('btnJump'), btnRollEl = document.getElementById('btnRoll'), btnWeapEl = document.getElementById('btnWeap');
@@ -1062,7 +1067,7 @@ const elBar = document.getElementById('elBar');
 EL_ORDER.forEach((k, i) => {
   const d = document.createElement('div'); d.className = 'elc';
   d.innerHTML = '<b>' + (i + 4) + '</b><span>' + (EL[k].img ? '<img src="' + EL[k].img + '" alt="' + EL[k].ch + '" style="width:26px;height:26px" onerror="this.replaceWith(document.createTextNode(this.alt))">' : EL[k].ch) + '</span>';
-  d.onclick = () => setElement(k); elBar.appendChild(d);
+  fastTap(d, () => setElement(k)); elBar.appendChild(d);
 });
 const elBtns = [...elBar.children];
 document.getElementById('modeTag').onclick = toggleChgMode;   // 桌機點擊切換集氣模式

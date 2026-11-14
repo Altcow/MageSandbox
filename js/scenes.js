@@ -265,6 +265,8 @@
   const ISLAND_PROBES = [['C', 0, 0], ['NW', -24, 17], ['SE', 25, -18], ['M1', -15, -4], ['E', 36, 3]];
   // 沙色:降亮度、提高飽和,不接近白色(避免泛光);乾沙 / 濕沙交錯的細帶讓沙地看得出起伏;草地偏深;丘頂灰綠岩色
   const ISLAND_BANDS = [[-1.5, 0x5e5238], [.85, 0x7a6a45], [1.05, 0x8f7a4c], [1.25, 0xb89a5a], [1.4, 0x9a8450], [1.6, 0xc9a868], [1.85, 0xa8905a], [2.2, 0x8fa860], [2.7, 0x6fa048], [4.2, 0x5f8a44], [5.6, 0x7a8068], [6.6, 0x8a8a78]];
+  const _dimC = (c, k) => ((((c >> 16) & 255) * k) << 16) | ((((c >> 8) & 255) * k) << 8) | ((c & 255) * k);
+  for (const b of ISLAND_BANDS) b[1] = _dimC(b[1], .6);   // 地形整體調暗(施法光圈要看得清楚;2026-11-14)
   // 固定表(多人一致):樹 60 棵(手機前 34 棵,依序排好);木屋 4 座;岩 9 顆;擱淺船 2 艘;漂流木 8 根 [x, z, yaw, 長]
   const ISLAND_TREES = [[-33.1,2.8],[-25.9,0.7],[-27.4,8.6],[-31,8.6],[-30.7,1],[-28.5,2],[-25.2,9.2],[-28.1,-0.2],[14.4,19.2],[22.4,21.6],[15.5,23.7],[18.5,28.7],[18.8,17.5],[21.3,17.7],[23.9,17.5],[25.8,20.2],[-5.7,-32.4],[-8,-31],[-6,-28],[-10.4,-29.6],[-3.1,-29.4],[-3.8,-26.3],[-3.3,-32],[-9.8,-32.6],[2.5,34.1],[-25.8,-24.6],[30.4,15.3],[28.5,-11.4],[-15.3,-5],[35.8,10.4],[-9.2,-20.5],[6,29.4],[15.2,-28],[3.3,-25.9],[-24.5,5.6],[-30.5,6.4],[-26.4,4],[-23.7,0.1],[-22.4,4.5],[-22.8,7],[19.7,26.5],[19.5,20.6],[17.7,23.8],[16.5,18.5],[14,21.8],[17.2,26.2],[-8,-34],[-7.9,-26.8],[-5.8,-34.8],[-1.1,-30.4],[-5.9,-25.5],[-1.8,-27.6],[-27.5,14.1],[8.6,-27.1],[-5.6,31.2],[-35.3,12.7],[-14.8,-22.1],[-24.9,21.7],[-0.1,-37.4],[-11,27.9]];
   const ISLAND_HUTS = [[-22, -12], [10, -9], [-6, 17], [7, 20]];   // 破舊木屋(6×5 m,yaw 0)
@@ -280,7 +282,7 @@
   ];
   // 目前生效場地:唯一一筆(索引 0)
   const SCENES = [
-    { name: '海島戰場', build: buildIsland, atmo: true, terrain: ISLAND_T, terrainLook: { cliff: 0x9a8a6a, dark: 0, bands: ISLAND_BANDS, sandNoise: { amp: .1, band: [1.1, 1.9] } }, waterY: ISLAND_WATER, ground: islandGroundTex, cloud: { on: true, cover: .45, lit: [1, 1, 1], shade: [.62, .7, .82] }, gtint: 0xffffff, fog: [0xa9dcd6, 60, 220], clear: 0xa9dcd6, hor: [.72, .88, .86], top: [.28, .62, .9], gnd: [.25, .5, .55], sunCol: [1, .92, .7], hemi: [0xbfe9ff, 0x4a6a3a, 1.1], dir: [0xfff1d6, 1.6], sun: [-30, 40, 18], bt: 1.1, bk: .55, plats: [], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 56, flatZone: [-6, -6, 6, 6], dummyPos: ISLAND_DUMMY, spawns: ISLAND_SPAWNS, terrainProbes: ISLAND_PROBES },
+    { name: '海島戰場', build: buildIsland, atmo: true, terrain: ISLAND_T, terrainLook: { cliff: 0x5c5340, dark: 0, bands: ISLAND_BANDS, sandNoise: { amp: .1, band: [1.1, 1.9] } }, waterY: ISLAND_WATER, ground: islandGroundTex, cloud: { on: true, cover: .45, lit: [1, 1, 1], shade: [.62, .7, .82] }, gtint: 0x8a8a8a, fog: [0xa9dcd6, 60, 220], clear: 0xa9dcd6, hor: [.72, .88, .86], top: [.28, .62, .9], gnd: [.25, .5, .55], sunCol: [1, .92, .7], hemi: [0xbfe9ff, 0x4a6a3a, .6], dir: [0xfff1d6, 1.0], sun: [-30, 40, 18], bt: 1.1, bk: .55, plats: [], platCol: 0x7d7868, platTrim: 0xb3ad94, arenaR: 56, flatZone: [-6, -6, 6, 6], dummyPos: ISLAND_DUMMY, spawns: ISLAND_SPAWNS, terrainProbes: ISLAND_PROBES },
   ];
 
   // ---- 海島戰場 ----
