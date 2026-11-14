@@ -285,7 +285,7 @@ let saveTimer = 0; function saveCfgSoon() { clearTimeout(saveTimer); saveTimer =
 
 function selectSkill(i) {
   if (i >= skillCount()) return;
-  if (G.cls !== 'mage' && curSkill(i).instant && (G.state === 'ready' || G.state === 'charging')) { castInstant(i); return; }   // 瞬發招(非法師):按下即發動
+  if (G.cls !== 'mage' && curSkill(i).instant && G.inputMode !== 'stick' && (G.state === 'ready' || G.state === 'charging')) { castInstant(i); return; }   // 瞬發招(非法師):桌機按鍵即發動;觸控 / 手把只切換招式,按施法鈕才發動(避免切換誤觸耗冷卻)
   if (G.state !== 'ready') return;
   if (G.skill === i) G.skill = -1; else setSkill(i);
 }
