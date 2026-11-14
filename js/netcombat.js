@@ -291,7 +291,7 @@ function netOnClear() {
   G.hp = G.hpMax; G.shield = 0; G.shieldT = 0; G.down = 0; G.invulnT = 0;
   NET_INV_LOG.length = 0;
   if (netKillBox) netKillBox.replaceChildren();
-  if (netBoard) { netBoard.style.display = 'none'; netBoard.classList.remove('open'); }
+  if (netBoard) { netBoard.style.display = 'none'; netBoardKey = ''; }
   if (typeof resInit === 'function') resInit();   // 新局 / 離開:HP、MP、SP 回滿(單人時的傷勢不帶進對戰)
   netRoundReset();                                 // N6:結算畫面、回合計時、同分排名記錄
 }
@@ -329,34 +329,32 @@ function netKillMsg(by, victim, k) {
   netKillAdd(txt, col);
   sfx.play('kill');
 }
-// 6 人以內全部列出;7 人以上列前 5 名加自己(§5-2)。內容只在變動時重建
+// 右上角排名表 #netRank:擊殺多→死亡少排序,前 6 名;自己不在前 6 時末列補自己(含名次)。內容只在變動時重建
 function netBoardTick(now) {
-  if (!netBoard) { netBoard = netUiBox('netBoard', 'display:none'); netBoard.addEventListener('click', () => netBoard.classList.toggle('open')); }   // 位置與外觀由 index.html 的 #netBoard 規則決定;hud2 下點一下展開 / 收起完整計分板
-  if (!window.NETON || !Net.me) { netBoard.style.display = 'none'; return; }
+  if (!netBoard) netBoard = netUiBox('netRank', 'display:none');   // netBoard 變數現指右上角 #netRank;位置與外觀由 index.html 的 #netRank 規則決定
+  if (!window.NETON || !Net.me) { netBoard.style.display = 'none'; netBoardKey = ''; return; }
   if (now - netBoardT < 200) return;
   netBoardT = now;
   const S = Net.scores(), rows = [{ seat: Net.me, name: Net.nameOf(Net.me) }];
   Object.keys(REMOTES).forEach(k => rows.push({ seat: +k, name: REMOTES[k].name }));
   rows.forEach(r => { const a = String(S[r.seat] || '0,0').split(','); r.k = +a[0] || 0; r.d = +a[1] || 0; });
   rows.sort((a, b) => b.k - a.k || a.d - b.d || a.seat - b.seat);
-  let show = rows;
-  if (rows.length > 6) { show = rows.slice(0, 5); const me = rows.find(r => r.seat === Net.me); if (!show.includes(me)) show.push(me); }
   const mine = rows.find(r => r.seat === Net.me), rank = rows.indexOf(mine) + 1;
-  const key = show.map(r => r.seat + ':' + r.name + ':' + r.k + '/' + r.d).join('|') + '#' + rows.length + '@' + rank;
+  const show = rows.slice(0, 6);
+  if (rank > 6) show.push(mine);
+  const key = show.map(r => r.seat + ':' + r.name + ':' + r.k + '/' + r.d).join('|') + '@' + rank;
   netBoard.style.display = '';
   if (key === netBoardKey) return;
   netBoardKey = key;
   netBoard.replaceChildren();
-  const sum = document.createElement('div'); sum.className = 'nbS'; sum.textContent = '第 ' + rank + ' 名  ' + mine.k + ' / ' + mine.d; netBoard.appendChild(sum);   // hud2 的一行排名(舊版 CSS 隱藏)
-  const tbl = document.createElement('div'); tbl.className = 'nbT'; netBoard.appendChild(tbl);
-  const add = (a, b, me) => {
+  const add = (a, k, d, me) => {
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:14px;justify-content:space-between;white-space:nowrap' + (me ? ';color:#fff' : '');
-    const x = document.createElement('span'), y = document.createElement('span');
-    x.textContent = a; y.textContent = b; row.appendChild(x); row.appendChild(y); tbl.appendChild(row);
+    row.className = me ? 'nrR nrMe' : 'nrR';
+    [a, k, d].forEach((t, i) => { const s = document.createElement('span'); s.textContent = t; if (i === 0) s.className = 'nrN'; row.appendChild(s); });
+    netBoard.appendChild(row);
   };
-  add('名字', '擊倒 / 死亡', false);
-  show.forEach(r => add(r.name, r.k + ' / ' + r.d, r.seat === Net.me));
+  add('姓名', '擊殺', '死亡', false);
+  show.forEach((r, i) => add((i === 6 ? rank + '.' : '') + (function (n) { n = String(n || ""); return n.length > 6 ? n.slice(0, 6) + "…" : n; })(r.name), r.k, r.d, r.seat === Net.me));
 }
 
 Net.on('ev', netOnEv);

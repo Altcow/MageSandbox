@@ -13,7 +13,7 @@
 //   其他:now()、me、isHost、code、stub、online、idleMs(測試時可改短)
 (function () {
   const NET_PROTO = 1;          // 協定版本(meta.v)
-  const NET_BUILD = 35;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
+  const NET_BUILD = 36;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
   const sceneMax = () => (typeof window.getSceneCount === 'function' ? window.getSceneCount() : 1) - 1;   // 場地索引上限(scenes.js)
   const HB_MS = 10000;          // 心跳間隔
   const STALE_MS = 25000;       // 心跳逾時:超過即視為離開

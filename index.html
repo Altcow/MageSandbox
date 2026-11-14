@@ -381,8 +381,13 @@ body.touch #btnWeap{right:calc(115px + env(safe-area-inset-right));bottom:calc(7
 body.hud2{--sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px);--sb:env(safe-area-inset-bottom,0px);--st:env(safe-area-inset-top,0px)}
 /* 對戰 HUD(netcombat.js 原本寫在 inline style,位置與外觀改由這裡控制;display 仍由 JS 切換) */
 #netTimer{position:fixed;left:50%;top:8px;transform:translateX(-50%);font:700 22px sans-serif;text-shadow:0 0 4px #000;pointer-events:none;z-index:14}
-#netBoard{position:fixed;left:50%;top:40px;transform:translateX(-50%);min-width:180px;background:rgba(10,12,30,.6);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;font:13px sans-serif;color:#ffe3b0;text-shadow:0 0 3px #000;pointer-events:none;z-index:14}
-#netBoard .nbS{display:none}
+#netRank{position:fixed;right:calc(env(safe-area-inset-right,0px) + 8px);top:160px;width:128px;box-sizing:border-box;background:rgba(10,12,30,.3);padding:3px 6px;border-radius:6px;color:#dfe6ff;font:11px/1.45 sans-serif;pointer-events:none;z-index:4}
+#netRank .nrR{display:flex;gap:4px;white-space:nowrap}
+#netRank .nrN{flex:1;min-width:0;overflow:hidden}
+#netRank .nrR span:nth-child(n+2){width:26px;text-align:right}
+#netRank .nrR:first-child{opacity:.7}
+#netRank .nrMe{color:#ffd23c;font-weight:700}
+body.touch #netRank,body.hud2.touch #netRank{top:calc(var(--st,0px) + 8px);right:calc(var(--sr,0px) + 106px);width:120px;font-size:10px;line-height:1.25}
 #netKill{position:fixed;left:12px;top:170px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;z-index:14;pointer-events:none}
 body.touch #netKill{top:120px}
 #clsTog{display:none}
@@ -392,10 +397,6 @@ body.cover #clsTog{display:none !important}
 body.hud2.netmatch #clsBar,body.hud2.netmatch #clsTog{display:none !important}   /* 對戰中職業鎖定,隱藏職業列 */
 /* 計時膠囊、排名一行(點開完整計分板)、擊殺訊息 */
 body.hud2 #netTimer{top:calc(var(--st) + 6px);height:34px;line-height:30px;padding:0 14px;box-sizing:border-box;border-radius:17px;border:2px solid #ffd23c;background:rgba(16,24,58,.72);font-size:20px;white-space:nowrap}
-body.hud2 #netBoard{pointer-events:auto;cursor:pointer;left:calc(50% + 74px);top:calc(var(--st) + 6px);transform:none;min-width:0;height:34px;padding:0 12px;box-sizing:border-box;border-radius:17px;border:2px solid rgba(120,160,255,.45);background:rgba(16,24,58,.72);font:700 14px/30px sans-serif;white-space:nowrap}
-body.hud2 #netBoard .nbS{display:block}
-body.hud2 #netBoard .nbT{display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:190px;box-sizing:border-box;padding:6px 10px;border-radius:10px;background:rgba(16,24,58,.94);border:1px solid rgba(120,160,255,.35);font:13px/1.5 sans-serif}
-body.hud2 #netBoard.open .nbT{display:block}
 body.hud2 #netKill{left:50%;top:calc(var(--st) + 48px);transform:translateX(-50%);align-items:center}
 /* 玩家卡:頭像+血/魔/體力三條 */
 body.hud2 #pRes{display:grid;grid-template-columns:48px 1fr;column-gap:8px;align-content:center;width:210px;box-sizing:border-box;padding:6px 8px;border-radius:14px;background:rgba(16,24,58,.72);border:1px solid rgba(120,160,255,.35)}
@@ -450,8 +451,6 @@ body.hud2.touch #pRes{width:160px;grid-template-columns:40px 1fr;column-gap:6px}
 body.hud2.touch #pAv{width:40px;height:40px}
 body.hud2.touch #pRes #pHPn{display:none}
 body.hud2.touch #netTimer{left:calc(50% + 15px);transform:translateX(-50%);font-size:15px;padding:0 8px}
-body.hud2.touch #netBoard{left:calc(50% + 15px);transform:translateX(-50%);top:calc(var(--st) + 46px);height:28px;font-size:13px;line-height:24px;padding:0 10px}
-body.hud2.touch #netBoard .nbT{left:50%;transform:translateX(-50%)}
 body.hud2.touch #netKill{top:calc(var(--st) + 84px)}
 body.hud2.touch #info{top:calc(var(--st) + 140px)}
 body.hud2.touch #locTag{width:76px}
@@ -694,6 +693,13 @@ body.hud2.touch.mm #locTag{display:none}
 <script src="js/cover_bg.js"></script>
 <script src="js/cover.js"></script>
 <script>if("serviceWorker" in navigator&&location.protocol==="https:"){var hadCtl=!!navigator.serviceWorker.controller;navigator.serviceWorker.register("sw.js").catch(function(){});navigator.serviceWorker.addEventListener("controllerchange",function(){if(!hadCtl)return;if(window.__swReloaded)return;window.__swReloaded=1;if(document.body.classList.contains("cover")&&!window.NETON){location.reload();return}var t=document.createElement("div");t.textContent="有新版本,點此更新";t.style.cssText="position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;background:#1a2a55;color:#fff;padding:8px 16px;border-radius:18px;font:14px sans-serif;cursor:pointer;box-shadow:0 2px 10px #0008";t.onclick=function(){location.reload()};document.body.appendChild(t)})}</script>
+<script>/* 新版檢查:開啟 / 切回頁面時比對線上 version.json 與目前快取版本,有新版就顯示按鈕,點下去清快取重載 */
+(function(){if(!("serviceWorker" in navigator)||location.protocol!=="https:"||!window.caches)return;var shown=0,busy=0;
+function cur(ks){var m=0;ks.forEach(function(k){var r=/^magesandbox-v(\d+)$/.exec(k);if(r)m=Math.max(m,+r[1])});return m}
+function force(){Promise.all([navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}),caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))})]).catch(function(){}).then(function(){location.reload()})}
+function chk(){if(shown||busy)return;busy=1;fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(j){return caches.keys().then(function(ks){var c=cur(ks);if(c&&j&&j.v>c)show(j.v)})}).catch(function(){}).then(function(){busy=0})}
+function show(v){shown=1;var t=document.createElement("div");t.textContent="有新版本 v"+v+",點此更新";t.style.cssText="position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;background:#1a2a55;color:#ffd23c;padding:10px 18px;border-radius:20px;font:15px sans-serif;cursor:pointer;box-shadow:0 2px 10px #0008;border:1px solid #ffd23c";t.onclick=force;document.body.appendChild(t)}
+setTimeout(chk,4000);document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")chk()})})();</script>
 <script>
 (function(){var h=document.getElementById('hint'),b=document.getElementById('hintBtn');
 try{if(innerWidth<900)h.style.display='none';}catch(e){}
