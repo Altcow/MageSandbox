@@ -41,7 +41,7 @@ const CLASSES = {
       mkSkill('scatter', '散射', '🎇', { img: 'assets/icons/cls_archer_scatter.png', aim: 'line', line: (q, rs) => { const L = CFG.skills.scatter.range; return { len: L, hw: L * Math.sin(rs * CHG.size(q) * Math.PI / 360), off: .6, maxLen: L, maxHw: L * Math.sin(rs * Math.PI / 360) }; }, chant: '箭矢扇開……', shout: '散射!', cast: castScatter, preview: q => '箭 ' + CHG.count(5, q) + ' 支・每支 ' + (.6 * CHG.fx(q)).toFixed(1) + ' m 擊退' }),
       mkSkill('disengage', '後躍射擊', '🦘', { img: 'assets/icons/cls_archer_disengage.png', instant: true, aim: 'none', cd: 7, chant: '', shout: '後躍射擊!', cast: castDisengage, preview: () => '後躍 5 m・纏絆 2 s' }),
       mkSkill('snare', '捕獸夾', '🪤', { img: 'assets/icons/cls_archer_snare.png', aim: 'circle', cd: 4, chant: '機關就位……', shout: '捕獸夾!', cast: castSnare, preview: q => '定身 ' + lerp(.75, 1.5, q).toFixed(2) + ' s・照亮 3 s' }),
-      mkSkill('flare', '照明信號箭', '🎆', { img: 'assets/icons/cls_archer_flare.png', aim: 'circle', cd: 15, chant: '信號升空……', shout: '照明信號箭!', cast: castFlare, preview: q => '照亮 ' + lerp(3, 6, q).toFixed(1) + ' s・照明區 4 s' })],
+      mkSkill('flare', '魔法箭矢', '🎆', { img: 'assets/icons/cls_archer_flare.png', aim: 'line', line: () => { const L = CFG.skills.flare.range; return { len: L, hw: .25, off: .6, maxLen: L, maxHw: .25 }; }, cd: 15, chant: '箭上附魔……', shout: '魔法箭矢!', cast: castMagicArrow, preview: () => '隨機 火/冰/風/雷・傷害 ' + CFG.skills.flare.damage })],
     stances: [{ name: '鷹眼', icon: '🦅', mwc: false, spdK: 1, chgSpdK: 1 }, { name: '游擊', icon: '🍃', mwc: true, spdK: 1, chgSpdK: .6 }],   // 第 1 架勢 = 現有招式;第 2 架勢集氣中可移動、移速 ×0.6
     bars: [[0, 1, 2, 6], [3, 4, 5, 6]],   // 快捷列第 1~4 格對應的扁平索引(第 4 格 = 絕技,兩架勢共用)
     energy: { kind: 'focus', name: '專注', max: 100, css: '#b8e03a' },
@@ -136,7 +136,7 @@ function lineShape(sk, q, rs) {
 }
 // 瞄準線會被障礙擋住的方向型招式(實際傷害以 world.js segBlocked / meleeBlocked 判定,光圈要同步截斷)。
 // 不在此表且無 blockAim 的 line / front 招式(衝鋒盾為位移)光圈維持原樣
-const BLOCK_AIM = new Set(['shockArrow', 'scatter', 'knives', 'powerSlash', 'eviscerate']);
+const BLOCK_AIM = new Set(['shockArrow', 'flare', 'scatter', 'knives', 'powerSlash', 'eviscerate']);
 // 法師的線型法術以 SPELLS 的 blockAim 標記(水龍彈 / 土龍術 / 風刃切割);法師 id 依屬性共用,不能只看 id
 function blocksAim(sk) { return BLOCK_AIM.has(sk.id) || !!sk.blockAim; }
 // 瞄準射擊(circle 落點圓,不走光圈分支):落點朝向被障礙擋住時,G.target 截到障礙前;實際射出的箭也只飛到這個落點(castQuickShot 用 P.target)

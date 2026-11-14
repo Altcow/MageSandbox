@@ -25,7 +25,8 @@
   // ---- 右大鈕:集氣 / 施放 / 滑動調範圍 ----
   const atk = $('btnAtk'); let aid = null, ay0 = 0, rad0 = 0, ax0 = 0, wo0 = 0, hx0 = 0, hz0 = 0, drag = false;
   function endAtk() {
-    if (G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
+    if (G.state === 'charging') { if (inCancel) cancelCharge(); else if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
+    inCancel = false;
     atk.classList.remove('on'); aid = null; drag = false; G.atkHeld = false; G.fingerHold = false; saveCfgSoon();
     if (cxEl) cxEl.style.display = 'none';
   }
@@ -38,13 +39,14 @@
     return sk.aim !== 'dir' && (!sk.aim || sk.aim === 'circle' || sk.aim === 'wall') && (sk.shape === 'circle' || sk.shape === 'wall');
   }
   const CANCEL_DY = 240;   // 上滑取消距離(大於範圍調整最大行程 160px,避免瞄遠時誤取消)
-  let cxEl = null;
+  let cxEl = null, inCancel = false;
   function cxHint(dy) {   // 取消提示:上滑超過 110px 開始浮現,達門檻時放大變亮
     if (dy < 110 || G.state !== 'charging') { if (cxEl) cxEl.style.display = 'none'; return; }
     if (!cxEl) { cxEl = document.createElement('div'); cxEl.style.cssText = 'position:fixed;z-index:6;width:64px;height:64px;margin:-32px 0 0 -32px;pointer-events:none;background:url(assets/ui/b_cancel.png) center/100% 100% no-repeat;transition:transform .08s'; document.body.appendChild(cxEl); }
     const r = atk.getBoundingClientRect(), t = Math.min(1, (dy - 110) / (CANCEL_DY - 110));
     cxEl.style.display = 'block'; cxEl.style.left = (r.left + r.width / 2) + 'px'; cxEl.style.top = Math.max(40, r.top + r.height / 2 - CANCEL_DY) + 'px';
-    cxEl.style.opacity = .35 + .65 * t; cxEl.style.transform = 'scale(' + (.8 + .4 * t) + ')';
+    cxEl.style.opacity = inCancel ? 1 : .35 + .65 * t; cxEl.style.transform = 'scale(' + (inCancel ? 1.7 : .8 + .4 * t) + ')';
+    cxEl.style.filter = inCancel ? 'drop-shadow(0 0 10px #ff4a4a) brightness(1.2)' : 'none';   // 進入取消區:放大 + 紅光 = 此時放手即取消
   }
   atk.addEventListener('pointerdown', e => {
     e.preventDefault(); touchNow();
@@ -57,9 +59,8 @@
   atk.addEventListener('pointermove', e => {
     if (e.pointerId !== aid || G.state !== 'charging') return;
     if (!drag) initDrag(e);
-    // 往上滑超過 CANCEL_DY 像素 = 取消施法(不需另外的取消鈕);滑到一半先出現紅色 ✕ 提示
-    { const dy = ay0 - e.clientY; cxHint(dy);
-      if (dy > CANCEL_DY) { cancelCharge(); cxHint(0); atk.classList.remove('on'); G.atkHeld = false; return; } }
+    // 往上滑到取消鈕(超過 CANCEL_DY 像素)= 取消區:✕ 放大發亮,此時放手就是取消;滑回來再放手則正常施放
+    { const dy = ay0 - e.clientY; inCancel = dy > CANCEL_DY; cxHint(dy); }
     if (fingerAimOn()) {
       const p = mage.root.position, k = skillRange() / 160, up = (ay0 - e.clientY) * k, rt = (e.clientX - ax0) * k;
       const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);

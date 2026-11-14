@@ -1,12 +1,12 @@
 'use strict';
 // 弓箭手進階招式(設計_職業進階技能.md §2-1、§4-2;狀態效果見 設計_狀態效果系統.md §2-2、§4-1 Z3-A):
-// 游擊架勢 B 列的 散射 / 後躍射擊 / 捕獸夾,第 4 格絕技 照明信號箭,專注(弓能量)的獲得 / 流失,以及穿雲箭 / 暴雨的強化判定。
+// 游擊架勢 B 列的 散射 / 後躍射擊 / 捕獸夾,第 4 格絕技 魔法箭矢,專注(弓能量)的獲得 / 流失,以及穿雲箭 / 暴雨的強化判定。
 // 載入順序:skills.js → skills_archer.js → skills_sword.js → skills_assassin.js → resources.js → status.js → classes.js(index.html)。
 // 招式註冊在 classes.js 的 CLASSES.archer.skills(cast 直接引用本檔函式);專注每幀由 classes.js 的 classTick 呼叫 archerTick(dt)。
 // 遠端重現:P.net 有值時只播視覺,不改本機 G / mage、不扣專注、不對目標下效果;命中與狀態由攻擊者端判定、受害者端套用(netcombat.js)。
 // 依賴(全域,執行期才取用):skills.js(flyProjectile、arrowMesh、hitFx、disposeObj、archRainTick 所用的 archMark 等)、
-//   game.js(G、mage、CFG、CHG、moveInput、terrainBlocked、burstRing、flashLight、dissolveOrb、casterAura、casterTip、RING_GEO)、
-//   world.js(DUMMIES、COLLIDERS、PLATFORMS、platContains、platTop、surfaceY、ARENA_R、layFlat)、resources.js(gainEnergy、spendEnergy)、status.js(無直接呼叫)。
+//   game.js(G、mage、CFG、CHG、moveInput、terrainBlocked、burstRing、flashLight、dissolveOrb、casterAura、casterTip、prnd)、
+//   world.js(DUMMIES、COLLIDERS、PLATFORMS、platContains、platTop、surfaceY、ARENA_R)、resources.js(gainEnergy、spendEnergy)、status.js(無直接呼叫)。
 
 /* ---------- 共用小工具 ---------- */
 // 遠端重現(P.net 有值):只播視覺,不改本機 G / mage、不扣專注、不對目標下任何效果
@@ -165,51 +165,42 @@ function castSnare(P, orb) {
   });
 }
 
-/* ---------- 照明信號箭(第 4 格絕技,集氣) ---------- */
-// 拋物線 0.6 s 飛向落點(高 3 m),落地爆開(半徑 P.r):圈內敵人 10 × dmgK、照亮 lerp(3, 6, q) s;
-// 落點留照明區 4 s,區內敵人每 0.25 s 照亮 2 s。傷害與照亮只由擁有者端判定。
-function castFlare(P, orb) {
-  const E = casterAura(P), rmt = archRemote(P), seen = new Set(), R = P.r, lit = lerp(3, 6, P.q);
-  if (orb) dissolveOrb(orb, E);
-  const from = casterTip(P, new V3()), to = new V3(P.target.x, surfaceY(P.target.x, P.target.z, P.target.y + 2), P.target.z);
-  const mesh = arrowMesh(1, .04, E.hex, 1.2);
-  mesh.position.copy(from); mesh.lookAt(to); scene.add(mesh);
-  let t = 0;
-  addFx(dt => {
-    t += dt / .6; const u = Math.min(1, t);
-    mesh.position.set(lerp(from.x, to.x, u), lerp(from.y, to.y, u) + 12 * u * (1 - u), lerp(from.z, to.z, u));
-    fire.emit(mesh.position.x, mesh.position.y, mesh.position.z, rnd(-.4, .4), rnd(-.2, .2), rnd(-.4, .4), .4, rnd(.08, .14), E.c0, E.c1, .9, .3, 0, .5);
-    if (u < 1) return true;
-    disposeObj(mesh);
-    hitFx(to, 20); burstRing(new V3(to.x, to.y, to.z), E.hex, R); flashLight(new V3(to.x, to.y + 1.5, to.z), E.hex, 4, .4, 10 + R * 2);
-    if (!rmt) {
-      for (const d of DUMMIES) {
-        if (d.dead || Math.hypot(d.x - to.x, d.z - to.z) >= R + .2 || Math.abs(d.y - to.y) > 2) continue;
-        d.hit(10 * P.dmgK, d.x - to.x, d.z - to.z, 0, null);
-        d.light(lit); archMark(d, '_archLit', lit);
-        archHitGain(P, d, seen);
-      }
-      archFlareZone(to, R, E);
-    }
-    return false;
-  });
+/* ---------- 魔法箭矢(第 4 格絕技,id 仍為 flare,集氣) ---------- */
+// 朝面向(P.dir)射出一支附魔箭,命中第一個目標就停、被障礙擋住;施放者(本機)隨機 火 / 冰 / 風 / 雷 四選一,
+// 傷害 CFG.skills.flare.damage × dmgK,並依元素施加:火 燃燒、冰 凍結、風 減速、雷 麻痺(數值全在 CFG.skills.flare)。
+// 元素用 prnd(P)(多人時 P.rng 種子與遠端相同,發送端與重現端第一個亂數必然一致)→ 遠端箭色與本機一致;
+// 命中與狀態只由擁有者端判定(遠端 rmt 只播視覺),傷害 / 狀態走既有的 d.hit / d.slow / d.paralyze / d.freeze(RemotePlayer 轉為 hit 事件)。
+const MA_EL = [
+  { k: 'fire', hex: 0xff5a1a, c0: [1, .8, .4], c1: [.95, .2, .03] },
+  { k: 'ice', hex: 0x9fe0ff, c0: [.92, .98, 1], c1: [.4, .75, 1] },
+  { k: 'wind', hex: 0x8affc8, c0: [.9, 1, .95], c1: [.35, .85, .6] },
+  { k: 'thunder', hex: 0xffe030, c0: [1, 1, .75], c1: [1, .8, .1] }
+];
+function maSpark(pos, e, n) {
+  const k = IS_TOUCH ? Math.ceil(n * .6) : n;
+  for (let i = 0; i < k; i++) fire.emit(pos.x, pos.y, pos.z, rnd(-3, 3), rnd(0, 4), rnd(-3, 3), rnd(.2, .4), rnd(.08, .16), e.c0, e.c1, 1, .3, 6, .5);
 }
-// 照明區:4 s,區內敵人每 0.25 s 照亮 2 s(只在擁有者端判定)
-function archFlareZone(c, R, E) {
-  const m = new THREE.Mesh(RING_GEO, new THREE.MeshBasicMaterial({ color: E.hex, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  layFlat(m, c.x, c.y, c.z, R, 0, .06); m.scale.setScalar(R); scene.add(m);
-  let t = 0, tick = 0;
-  addFx(dt => {
-    t += dt; tick -= dt;
-    if (t >= 4) { scene.remove(m); m.material.dispose(); return false; }
-    m.material.opacity = .5 * Math.min(1, (4 - t) / .5);
-    if (tick <= 0) {
-      tick = .25;
-      for (const d of DUMMIES) {
-        if (d.dead || Math.hypot(d.x - c.x, d.z - c.z) >= R || Math.abs(d.y - c.y) > 2) continue;
-        d.light(2); archMark(d, '_archLit', 2);
+function castMagicArrow(P, orb) {
+  const E = casterAura(P), cfg = CFG.skills.flare, rmt = archRemote(P), seen = new Set();
+  const e = MA_EL[Math.min(3, prnd(P, 0, 4) | 0)];
+  if (orb) dissolveOrb(orb, E);
+  const from = casterTip(P, new V3()), dx = Math.sin(P.dir), dz = Math.cos(P.dir);
+  const to = new V3(from.x + dx * cfg.range, from.y, from.z + dz * cfg.range);
+  flyProjectile(from, to, cfg.speed, {
+    mesh: arrowMesh(1.1, .03, e.hex, 1), hitR: .3, stuck: .5, fade: true, trail: IS_TOUCH ? 2 : 4, c0: e.c0, c1: e.c1, solid: true,
+    onEnd: b => maSpark(b, e, 8),
+    onHit: (d, b) => {
+      maSpark(b, e, 14); burstRing(new V3(b.x, b.y, b.z), e.hex, 1.2);
+      if (rmt) return;
+      const dmg = cfg.damage * P.dmgK;
+      if (e.k === 'fire') d.hit(dmg, dx, dz, cfg.burn, null);
+      else {
+        d.hit(dmg, dx, dz, 0, null);
+        if (e.k === 'ice') d.freeze(cfg.freeze);
+        else if (e.k === 'wind') { d.slow(cfg.slowT, cfg.slowPct); archMark(d, '_archSl', cfg.slowT); }
+        else d.paralyze(cfg.para);
       }
+      archHitGain(P, d, seen);
     }
-    return true;
   });
 }

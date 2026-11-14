@@ -337,6 +337,7 @@ class RemotePlayer {
   light(t) { const p = this._pend(); if (p) p.fx.li = Math.max(p.fx.li || 0, t); }
   // 狀態效果收件(status.js 的 stApplyFx 讀取;fx 鍵見該檔):定身 ro、麻痺 pa、沉默 si、寒意 ch、中毒 po [秒, 層]、致盲 bl
   root(t) { const p = this._pend(); if (p) p.fx.ro = Math.max(p.fx.ro || 0, t); }
+  freeze(t) { const p = this._pend(); if (p) p.fx.fz = Math.max(p.fx.fz || 0, t); }
   paralyze(t) { const p = this._pend(); if (p) p.fx.pa = Math.max(p.fx.pa || 0, t); }
   silence(t) { const p = this._pend(); if (p) p.fx.si = Math.max(p.fx.si || 0, t); }
   chill(n) { const p = this._pend(); if (p) p.fx.ch = (p.fx.ch || 0) + n; }

@@ -105,7 +105,7 @@ function stCcGate(hard) {
 }
 
 /* ---------- 命中效果套用(攻擊者端 fx 合併後的值;多人與單人測試共用) ---------- */
-// fx 鍵:st 暈眩秒、dn [秒,dx,dz] 跌倒、ro 定身、pa 麻痺、si 沉默、sl [秒,pct] 減速(sl[1] ≥ 1 = 舊格式定身)、
+// fx 鍵:st 暈眩秒、fz 凍結秒、dn [秒,dx,dz] 跌倒、ro 定身、pa 麻痺、si 沉默、sl [秒,pct] 減速(sl[1] ≥ 1 = 舊格式定身)、
 //        er 侵蝕秒(舊 = 中毒 1 層)、po [秒,層] 中毒、ch 寒意、li 照亮秒、bl 致盲秒、kb 擊退、lf 擊飛、pl 吸引
 // h 為命中陣列(h[i][4] = 燃燒秒數);from 為攻擊者座位(DOT 歸屬與擊倒訊息用,單人為 undefined)
 // 不屈戰意(G.unyT > 0)免疫 6 種控制 + 位移;DOT 與減益照吃。護盾全吸收時由呼叫端略過整個函式。
@@ -115,8 +115,8 @@ function stApplyFx(fx, h, from) {
   const st = fx.st || 0, dn = fx.dn ? fx.dn[0] || 0 : 0;
   let ro = fx.ro || 0, sl = fx.sl || null;
   if (sl && sl[1] >= 1) { ro = Math.max(ro, sl[0]); sl = null; }   // 舊格式「減速 100%」一律轉成定身
-  const pa = fx.pa || 0, si = fx.si || 0;
-  const hardOK = !uny && G.ccImmT <= 0 && G.hardImmT <= 0 && (st > 0 || dn > 0);
+  const pa = fx.pa || 0, si = fx.si || 0, fz = fx.fz || 0;   // fz 直接凍結秒(魔法箭矢冰;寒意累積凍結不經此)
+  const hardOK = !uny && G.ccImmT <= 0 && G.hardImmT <= 0 && (st > 0 || dn > 0 || fz > 0);
   const softOK = !uny && G.ccImmT <= 0 && (ro > 0 || pa > 0 || si > 0);
   // 同一則命中的控制只計一次遞減;第 4 次(k = 0)整則控制無效,但傷害與 DOT 照算
   const k = hardOK || softOK ? netCcScale() : 0;
@@ -124,6 +124,7 @@ function stApplyFx(fx, h, from) {
     const cap = t => Math.min(t, NET_RULES.ccCap) * k;
     if (hardOK && st > 0) stApplyStun(cap(st));
     if (hardOK && dn > 0) stApplyFall(cap(dn));
+    if (hardOK && fz > 0) stApplyFreeze(cap(fz));
     if (softOK && ro > 0) stApplyRoot(cap(ro));
     if (softOK && pa > 0) stApplyPara(Math.min(pa, ST.paraMax) * k);
     if (softOK && si > 0) stApplySilence(cap(si));

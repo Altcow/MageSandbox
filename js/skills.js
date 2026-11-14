@@ -240,16 +240,16 @@ function spinTick(dt, p) {
   for (let i = 0; i < (IS_TOUCH ? 1 : 2); i++) fire.emit(T.x, T.y, T.z, rnd(-1, 1), rnd(0, .5), rnd(-1, 1), .3, rnd(.1, .16), E.c0, E.c1, .9, .3, 0, .5);
 }
 
-// 衝鋒盾:舉盾以 18 m/s 沿線衝鋒 L × sizeK;撞到第一個標靶就停下(該標靶與其 1.5 m 內的標靶受傷 + 暈眩 + 擊退)
+// 衝鋒盾:舉盾以 26 m/s 沿線衝鋒 L × sizeK;撞到第一個標靶就停下(該標靶與其 1.5 m 內的標靶受傷 + 暈眩 + 擊退)
 // 衝鋒中盾擋來襲測試(見 game.js strike 與 classes.js shieldOn);冷卻 3 s 從衝鋒結束開始計(endDash)
 function castShieldCharge(P, orb) {
   const E = auraEl(), p = mage.root.position, dirx = Math.sin(P.dir), dirz = Math.cos(P.dir), dist = P.r;
   if (orb) dissolveOrb(orb, E);
   G.cd.shieldCharge = 0;   // release 時設的冷卻先清掉,衝鋒結束才開始計
-  P.recover = .14 + dist / 18 + CFG.skills.shieldCharge.recover;
+  P.recover = .14 + dist / 26 + CFG.skills.shieldCharge.recover;
   burstRing(new V3(p.x, p.y, p.z), E.hex, 1.6);
   const glow = glowSprite(E.hex, 1.6, .8); glow.position.set(0, 0, .3); mage.shield.add(glow);
-  G.dash = { kind: 'charge', dirx, dirz, yaw: P.dir, speed: 18, left: dist, t: 0, step: 0, s0x: p.x, s0z: p.z, dmgK: P.dmgK, fxK: P.fxK, glow };
+  G.dash = { kind: 'charge', dirx, dirz, yaw: P.dir, speed: 26, left: dist, t: 0, step: 0, s0x: p.x, s0z: p.z, dmgK: P.dmgK, fxK: P.fxK, glow };
 }
 // 衝鋒途中擋到的第一個標靶(前方 1.0 m + 半徑、寬 0.8 m 內)
 function dashBlocker(p, D) {

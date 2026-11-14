@@ -4,7 +4,7 @@ const GRAV = 20, COYOTE = 0.10;   // 重力加速度;離地後仍可地面跳的
 const DEFAULT_CFG = {
   jumpV: 9.5, airJumpV: 10, airRollDist: 3.5, airRollTime: 0.32, airRollGrav: 0.25, rollDist: 5, rollTime: 0.45, rollCD: 0.9, dodgeStart: 0.04, dodgeWin: 0.18,
   moveSpeed: 5, runMul: 1.7, camDist: 9, camSens: 0.008, showInfo: false, showInfoNet: false, camLock: true, camXhair: true, camInvY: false, camSmooth: 0, camShoulder: 0.7, camKeyTurn: 3, touchSens: 1.6, padSens: 1.4, autoFrame: true, shake: 1, bloom: true, bloomStrength: 0.85, minHold: 0.3,
-  ver: 3, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
+  ver: 4, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
   rad: [1.6, 6, 4, 1.2], radById: {}, fxq: 1, dummyMove: false, slowSelf: true,
   skills: {
     fireball: { chargeTime: 1.4, range: 20, rMin: 0.8, rMax: 2.4, recover: 0.45 },
@@ -15,7 +15,7 @@ const DEFAULT_CFG = {
     arrowRain: { chargeTime: 1.8, range: 20, rMin: 2.5, rMax: 5, recover: 0.6 },
     powerSlash: { chargeTime: 1.0, range: 1.2, rMin: 1.6, rMax: 2.6, recover: 0.4 },
     whirlwind: { chargeTime: 0.9, range: 0, rMin: 2, rMax: 3.2, recover: 0.3 },
-    shieldCharge: { chargeTime: 1.0, range: 0, rMin: 4, rMax: 9, recover: 0.35, width: 1.6 },
+    shieldCharge: { chargeTime: 1.0, range: 0, rMin: 6, rMax: 18, recover: 0.35, width: 1.6 },
     backstab: { chargeTime: 0.6, range: 4, rMin: 1, rMax: 1.4, recover: 0.3 },
     knives: { chargeTime: 0.7, range: 12, rMin: 15, rMax: 40, recover: 0.3 },
     stealth: { chargeTime: 0.8, range: 0, rMin: 0, rMax: 0, recover: 0.2 },
@@ -23,7 +23,7 @@ const DEFAULT_CFG = {
     scatter: { chargeTime: 0.5, range: 9, rMin: 20, rMax: 35, recover: 0.3 },
     disengage: { chargeTime: 0, range: 14, rMin: 5, rMax: 5, recover: 0.35 },
     snare: { chargeTime: 0.6, range: 8, rMin: 0.9, rMax: 0.9, recover: 0.3 },
-    flare: { chargeTime: 1.0, range: 20, rMin: 3, rMax: 4.5, recover: 0.4 },
+    flare: { chargeTime: 1.0, range: 26, rMin: 0.45, rMax: 0.45, recover: 0.4, speed: 60, damage: 45, burn: 3, freeze: 1.0, slowT: 2.5, slowPct: 0.4, para: 1.2 },
     parry: { chargeTime: 0, range: 3, rMin: 3, rMax: 3, recover: 0.35 },
     slam: { chargeTime: 0.9, range: 0, rMin: 2.5, rMax: 3.5, recover: 0.45 },
     leap: { chargeTime: 0.8, range: 8, rMin: 2, rMax: 2.5, recover: 0.3 },
@@ -41,7 +41,7 @@ const CFG_KEY = 'mageSandbox.cfg.v1';
 function mergeCfg(dst, src) { for (const k in src) { if (dst[k] && typeof dst[k] === 'object' && !Array.isArray(dst[k])) mergeCfg(dst[k], src[k]); else if (k in dst) dst[k] = src[k]; } }
 if (IS_TOUCH) CFG.bloom = false;  // 手機預設關泛光(省效能),可在 P 面板打開
 if (IS_TOUCH) CFG.fxq = 0.6;      // 手機預設粒子量 60%(只影響新屬性)
-try { const s = JSON.parse(localStorage.getItem(CFG_KEY)); if (s) { if ((s.ver | 0) < 2) { delete s.skills; delete s.rad; delete s.radById; } if ((s.ver | 0) < 3) { delete s.camSens; delete s.camKeyTurn; delete s.touchSens; delete s.padSens; } mergeCfg(CFG, s); CFG.ver = 3; } } catch (e) { }   // ver < 2:舊射程 / 半徑存檔丟棄,改用新預設(B-2 第 6 點)
+try { const s = JSON.parse(localStorage.getItem(CFG_KEY)); if (s) { if ((s.ver | 0) < 2) { delete s.skills; delete s.rad; delete s.radById; } if ((s.ver | 0) < 3) { delete s.camSens; delete s.camKeyTurn; delete s.touchSens; delete s.padSens; } if ((s.ver | 0) < 4) { if (s.skills) delete s.skills.shieldCharge; if (s.radById) delete s.radById.shieldCharge; } mergeCfg(CFG, s); CFG.ver = 4; } } catch (e) { }   // ver < 2:舊射程 / 半徑存檔丟棄,改用新預設(B-2 第 6 點)
 while (CFG.rad.length < 4) CFG.rad.push(DEFAULT_CFG.rad[CFG.rad.length]);   // 存檔的陣列會整個覆蓋,補回第 4 格(召喚)預設
 function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (e) { } }
 

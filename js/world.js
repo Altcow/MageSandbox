@@ -566,6 +566,7 @@ class Dummy {
   // 狀態效果(與 RemotePlayer 同名):定身 = 不左右走;麻痺 = 每 0.6 s 抽搐 0.2 s 停步;沉默 / 致盲 = 只計時(外觀由呈現層處理);
   // 寒意滿 3 層 = 凍結 1.2 s;中毒每層每 0.5 s 4 點(單人數值)
   root(t) { this.rootT = Math.max(this.rootT, t); }
+  freeze(t) { this.frzT = Math.max(this.frzT, t); this.stun(t); }
   paralyze(t) { if (this.paraT <= 0) this.paraNext = 0; this.paraT = Math.max(this.paraT, Math.min(t, 3)); }
   silence(t) { this.silT = Math.max(this.silT, t); }
   chill(n) { if (!n) return; this.burn = 0; this.chillN = Math.min(3, this.chillN + Math.max(1, Math.min(2, n | 0))); this.chillT = 4; if (this.chillN >= 3) { this.chillN = 0; this.chillT = 0; this.frzT = 1.2; this.stun(1.2); } }

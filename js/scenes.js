@@ -428,20 +428,20 @@
     // 牆:沿線每 ~1.2 m 一顆 r .7 碰撞圈(skip 為門口)
     const wallCols = (ax, az, bx, bz, skip) => { const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / 1.2)); for (let i = 0; i <= n; i++) { const x = ax + (bx - ax) * i / n, z = az + (bz - az) * i / n; if (!skip || !skip(x, z)) col(x, z, .7); } };
     const RX = Math.atan(.35), DKW = 0x4a3524, ROOF = 0x5e452d;   // 屋頂坡度 .35(約 19°)
-    // 木屋(yaw 0,6×5 m):地板、四面牆(前牆門口 ±1.1 m)、門楣、後牆右段破損、屋脊與兩面斜頂(一面缺角)
+    // 木屋(yaw 0,6×5 m):地板、四面牆(前後牆門口各 ±1.1 m)、門楣、屋脊與兩面斜頂(一面缺角)
     ISLAND_HUTS.forEach(([hx, hz]) => {
       const g = terrainH(hx, hz), wood = pk([0x7a5a3c, 0x6b4e30, 0x5e452d]);
       box(hx, g + .06, hz, 5.6, .12, 4.6, DKW);
       box(hx - 2.05, g + 1.2, hz - 2.5, 1.9, 2.4, .2, wood); box(hx + 2.05, g + 1.2, hz - 2.5, 1.9, 2.4, .2, wood);
       box(hx, g + 2, hz - 2.5, 2.2, .8, .2, wood);
-      box(hx - 1.3, g + 1.2, hz + 2.5, 3.4, 2.4, .2, wood); box(hx + 1.7, g + .65, hz + 2.5, 2.6, 1.3, .2, wood);
+      box(hx - 2.05, g + 1.2, hz + 2.5, 1.9, 2.4, .2, wood); box(hx + 2.05, g + 1.2, hz + 2.5, 1.9, 2.4, .2, wood); box(hx, g + 2, hz + 2.5, 2.2, .8, .2, wood);   // 後牆也開門(與前牆同寬,避免掉進屋內出不來)
       box(hx - 3, g + 1.2, hz, .2, 2.4, 5, wood);
       box(hx + 3, g + 1.2, hz - .95, .2, 2.4, 3.1, wood); box(hx + 3, g + .5, hz + 1.75, .2, 1, 1.5, wood);
       box(hx, g + 3.5, hz, 6.4, .14, .14, DKW);
       box(hx, g + 2.94, hz + 1.6, 6.4, .12, 3.3, ROOF, RX);
       box(hx - 1.2, g + 2.94, hz - 1.6, 3.6, .12, 3.3, ROOF, -RX);
       wallCols(hx - 3, hz - 2.5, hx + 3, hz - 2.5, x => Math.abs(x - hx) < 1.1);
-      wallCols(hx - 3, hz + 2.5, hx + 3, hz + 2.5);
+      wallCols(hx - 3, hz + 2.5, hx + 3, hz + 2.5, x => Math.abs(x - hx) < 1.1);
       wallCols(hx - 3, hz - 2.5, hx - 3, hz + 2.5);
       wallCols(hx + 3, hz - 2.5, hx + 3, hz + 2.5);
     });
