@@ -51,13 +51,13 @@ const CLASSES = {
       mkSkill('powerSlash', '蓄力斬', '⚔️', { img: 'assets/icons/power_slash.png', aim: 'front', exFn: swordExFn, exCost: SW.exCost, chant: '劍氣凝聚……', shout: '蓄力斬!', cast: castPowerSlash, preview: q => '擊退 ' + (1.5 * CHG.fx(q)).toFixed(1) + ' m' }),
       mkSkill('whirlwind', '旋風斬', '🌀', { img: 'assets/icons/whirlwind.png', aim: 'self', netFx: 'spin', chant: '旋身……', shout: '旋風斬!', cast: castWhirlwind, preview: q => '次數 ' + Math.max(2, Math.round(lerp(.6, 1.8, q) / .3)) }),
       mkSkill('shieldCharge', '衝鋒盾', '🛡️', { img: 'assets/icons/shield_charge.png', aim: 'line', cd: 5, netFx: 'dash', chant: '盾牌在前……', shout: '衝鋒盾!', cast: castShieldCharge, preview: q => '暈眩 ' + (2.5 * CHG.fx(q)).toFixed(1) + ' s' }),
-      // 盾勢 B 列與絕技(S 批空殼,寫手 B 實作;定義在 skills_sword.js)
+      // 盾勢 B 列與絕技(定義在 skills_sword.js);索引 3 格擋反擊、4 震地、5 旋風疾行(劍勢 3)、6 震天躍擊(兩架勢第 4 格);衝鋒盾(2)搬到盾勢第 3 格
       mkSkill('parry', '格擋反擊', '🛡️', { img: 'assets/icons/cls_swordsman_parry.png', instant: true, netSilent: true, aim: 'none', cd: 6, chant: '', shout: '格擋反擊!', cast: castParry }),
       mkSkill('slam', '震地', '💥', { img: 'assets/icons/cls_swordsman_slam.png', aim: 'self', cd: 6, chant: '重心下沉……', shout: '震地!', cast: castSlam }),
-      mkSkill('leap', '躍擊', '⤴️', { img: 'assets/icons/cls_swordsman_leap.png', aim: 'circle', cd: 8, chant: '蹬地躍起……', shout: '躍擊!', cast: castLeap }),
-      mkSkill('unyield', '不屈戰意', '🔥', { img: 'assets/icons/cls_swordsman_unyield.png', instant: true, netSilent: true, aim: 'none', cd: 20, chant: '', shout: '不屈戰意!', cast: castUnyield })],
+      mkSkill('whirlRun', '旋風疾行', '🌪️', { img: 'assets/icons/whirlwind.png', hold: true, aim: 'none', cd: 4, chant: '', shout: '旋風疾行!', preview: () => '移速 ×' + CFG.skills.whirlRun.speedK + '・耗 SP ' + CFG.skills.whirlRun.spPerSec + '/s' }),
+      mkSkill('skyLeap', '震天躍擊', '⤴️', { img: 'assets/icons/cls_swordsman_leap.png', aim: 'front', cd: 20, chant: '蹬地躍起,力貫千鈞……', shout: '震天躍擊!', cast: castSkyLeap, preview: q => { const s = skyStats(q); return '距離 ' + s.dist.toFixed(1) + ' m・範圍 ' + s.R.toFixed(1) + ' m・傷害 ' + Math.round(s.dmg); } })],
     stances: [{ name: '劍勢', icon: '⚔️', mwc: true, spdK: 1.2, chgSpdK: 1 }, { name: '盾勢', icon: '🧱', mwc: true, spdK: 1.0, chgSpdK: 1 }],
-    bars: [[0, 1, 2, 6], [3, 4, 5, 6]],
+    bars: [[0, 1, 5, 6], [3, 4, 2, 6]],   // 劍勢:蓄力斬 / 旋風斬 / 旋風疾行 / 震天躍擊;盾勢:格擋反擊 / 震地 / 衝鋒盾 / 震天躍擊
     energy: { kind: 'rage', name: '鬥氣', max: 100, css: '#ff3a3a' },
     aura: { hex: 0xff3a3a, main: 0xff3a3a, sub: 0xa01010, dark: false } },
   assassin: { name: '刺客', icon: '🗡️', robe: 0x2a2233, weapons: ['daggers'], wpn: '雙匕首', elements: false, moveWhileCharging: true, img: null,
@@ -155,6 +155,10 @@ function aimSpecial(sk, p, charging, q, rs, alpha, E) {
   const cfg = CFG.skills[sk.id], prog = charging ? q : 0, th = Math.atan2(G.target.x - p.x, G.target.z - p.z);
   if (a === 'dir') { ind.hide(); hideIndPool(); return true; }   // 第 1 招:方向型,不畫任何光圈 / 線 / 落點
   if (a === 'none') { ind.hide(); return true; }
+  if (sk.id === 'skyLeap') {   // 震天躍擊:落點圈在人物面向 / 瞄準方向,距離與半徑隨集氣量 q 變動(skills_sword.js skyPlan)
+    const pl = skyPlan(q, p.x, p.z, th), gy = surfaceY(pl.x1, pl.z1, p.y + 2);
+    ind.setMax(cfg.areaMax, 0, 0); ind.set(pl.x1, pl.z1, 0, pl.R, 0, 0, prog, alpha, E.hex, gy); return true;
+  }
   if (a === 'self') { ind.setMax(rs, 0, 0); ind.set(p.x, p.z, 0, rs * CHG.size(q, curMode()), 0, 0, prog, alpha, E.hex, surfaceY(p.x, p.z, p.y + .5)); return true; }
   if (a === 'front') {
     const fd = blocksAim(sk) ? blockDist(p.x, p.z, p.y + 1.2, Math.sin(th), Math.cos(th), cfg.range, true) : cfg.range;   // 前方被擋:圓心截到障礙前
@@ -251,7 +255,7 @@ function classTick(dt) {
   if (G.cls === 'assassin') assassinTick(dt);   // 連擊點流失、暗影步背後計時(skills_assassin.js)
   if (G.dash) dashTick(dt, p);
   if (G.spin) spinTick(dt, p);
-  G.spdK = (G.spin ? .5 : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (G.rootT > 0 ? 0 : 1) * (G.paraT > 0 ? ST.paraSpd : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z, p.y, NET_ME).pct : 1) * (G.slowT > 0 ? 1 - G.slowPct : 1) * stanceK() * (G.perfT > 0 ? PERF.spdK : 1);   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
+  G.spdK = (G.spin ? .5 : 1) * (G.whirlRun ? CFG.skills.whirlRun.speedK : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (G.rootT > 0 ? 0 : 1) * (G.paraT > 0 ? ST.paraSpd : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z, p.y, NET_ME).pct : 1) * (G.slowT > 0 ? 1 - G.slowPct : 1) * stanceK() * (G.perfT > 0 ? PERF.spdK : 1);   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
   if (G.state !== 'charging') AURA.full = false;
   else if (G.charge >= 1 && !AURA.full) { AURA.full = true; auraGather(); }   // 聚能收束:集氣滿時環繞粒子飛向武器尖端
   if (G.stealth || (G.dash && G.dash.kind === 'charge')) auraSpark(dt, p, E);

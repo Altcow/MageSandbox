@@ -507,7 +507,7 @@ function sendSnap(now) {
   if (G.ground) g |= 1;
   if (G.stealth) g |= 2;
   if (G.dash && G.dash.kind === 'charge') g |= 4;
-  if (G.spin) g |= 8;
+  if (G.spin || G.whirlRun) g |= 8;   // 旋風斬 / 旋風疾行:遠端依此位元畫旋轉與弧光(netcombat.js netFxTick)
   if (roll) g |= 16;
   if (G.invulnT > 0) g |= 32;
   if (G.down > 0) g |= 64;

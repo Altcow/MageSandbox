@@ -4,7 +4,7 @@ const GRAV = 20, COYOTE = 0.10;   // 重力加速度;離地後仍可地面跳的
 const DEFAULT_CFG = {
   jumpV: 9.5, airJumpV: 10, airRollDist: 3.5, airRollTime: 0.32, airRollGrav: 0.25, rollDist: 5, rollTime: 0.45, rollCD: 0.9, dodgeStart: 0.04, dodgeWin: 0.18,
   moveSpeed: 5, runMul: 1.7, camDist: 9, camSens: 0.008, showInfo: false, showInfoNet: false, camLock: true, camXhair: true, camInvY: false, camSmooth: 0, camShoulder: 0.7, camKeyTurn: 3, touchSens: 1.6, padSens: 1.4, autoFrame: true, shake: 1, bloom: true, bloomStrength: 0.85, minHold: 0.3,
-  ver: 4, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
+  ver: 5, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
   rad: [1.6, 6, 4, 1.2], radById: {}, fxq: 1, dummyMove: false, slowSelf: true,
   skills: {
     fireball: { chargeTime: 1.4, range: 20, rMin: 0.8, rMax: 2.4, recover: 0.45 },
@@ -26,8 +26,8 @@ const DEFAULT_CFG = {
     flare: { chargeTime: 1.0, range: 26, rMin: 0.45, rMax: 0.45, recover: 0.4, speed: 60, damage: 45, burn: 3, freeze: 1.0, slowT: 2.5, slowPct: 0.4, para: 1.2 },
     parry: { chargeTime: 0, range: 3, rMin: 3, rMax: 3, recover: 0.35 },
     slam: { chargeTime: 0.9, range: 0, rMin: 2.5, rMax: 3.5, recover: 0.45 },
-    leap: { chargeTime: 0.8, range: 8, rMin: 2, rMax: 2.5, recover: 0.3 },
-    unyield: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.2 },
+    whirlRun: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.1, speedK: 1.7, spPerSec: 20, minSp: 15, tickT: 0.3, dmg: 10, hitR: 2.2, hitFwd: 1.2, knock: 0.6 },   // 旋風疾行(按住持續型):移速倍率(相對跑速)、SP / 秒、啟動門檻、傷害間隔 / 傷害 / 判定半徑與前移 / 擊退;冷卻 4 s 在 classes.js
+    skyLeap: { chargeTime: 1.2, range: 16, rMin: 3, rMax: 6, recover: 0.3, distMin: 6, distMax: 16, hMin: 3, hMax: 7, areaMin: 3, areaMax: 6, dmgMin: 40, dmgMax: 60, tMin: 0.8, tMax: 1.1, downT: 1.2, edgeK: 0.7 },   // 震天躍擊:q 0→1 的距離 / 最高點 / 落地半徑 / 傷害 / 滯空時間;跌倒秒數、外圈傷害倍率
     shadowStep: { chargeTime: 0.3, range: 8, rMin: 2, rMax: 2, recover: 0.2 },
     smoke: { chargeTime: 0.7, range: 10, rMin: 3, rMax: 4, recover: 0.3 },
     eviscerate: { chargeTime: 0.5, range: 1.2, rMin: 1.2, rMax: 1.6, recover: 0.35 },
@@ -41,7 +41,7 @@ const CFG_KEY = 'mageSandbox.cfg.v1';
 function mergeCfg(dst, src) { for (const k in src) { if (dst[k] && typeof dst[k] === 'object' && !Array.isArray(dst[k])) mergeCfg(dst[k], src[k]); else if (k in dst) dst[k] = src[k]; } }
 if (IS_TOUCH) CFG.bloom = false;  // 手機預設關泛光(省效能),可在 P 面板打開
 if (IS_TOUCH) CFG.fxq = 0.6;      // 手機預設粒子量 60%(只影響新屬性)
-try { const s = JSON.parse(localStorage.getItem(CFG_KEY)); if (s) { if ((s.ver | 0) < 2) { delete s.skills; delete s.rad; delete s.radById; } if ((s.ver | 0) < 3) { delete s.camSens; delete s.camKeyTurn; delete s.touchSens; delete s.padSens; } if ((s.ver | 0) < 4) { if (s.skills) delete s.skills.shieldCharge; if (s.radById) delete s.radById.shieldCharge; } mergeCfg(CFG, s); CFG.ver = 4; } } catch (e) { }   // ver < 2:舊射程 / 半徑存檔丟棄,改用新預設(B-2 第 6 點)
+try { const s = JSON.parse(localStorage.getItem(CFG_KEY)); if (s) { if ((s.ver | 0) < 2) { delete s.skills; delete s.rad; delete s.radById; } if ((s.ver | 0) < 3) { delete s.camSens; delete s.camKeyTurn; delete s.touchSens; delete s.padSens; } if ((s.ver | 0) < 4) { if (s.skills) delete s.skills.shieldCharge; if (s.radById) delete s.radById.shieldCharge; } if ((s.ver | 0) < 5) { for (const k of ['leap', 'unyield', 'whirlRun', 'skyLeap']) { if (s.skills) delete s.skills[k]; if (s.radById) delete s.radById[k]; } } mergeCfg(CFG, s); CFG.ver = 5; } } catch (e) { }   // ver < 2:舊射程 / 半徑存檔丟棄,改用新預設(B-2 第 6 點)
 while (CFG.rad.length < 4) CFG.rad.push(DEFAULT_CFG.rad[CFG.rad.length]);   // 存檔的陣列會整個覆蓋,補回第 4 格(召喚)預設
 function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (e) { } }
 
@@ -489,9 +489,10 @@ function pickStick(out) {
 
 /* ================= 施法狀態機 ================= */
 function startCharge() {
-  if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0) return;
+  if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0 || G.whirlRun) return;
   if (G.skill < 0) G.skill = G.lastSkill;
   if (G.cls !== 'mage' && curSkill(G.skill).instant) { castInstant(G.skill); return; }   // 瞬發招(非法師):按下即發動
+  if (G.cls !== 'mage' && curSkill(G.skill).hold) { whirlRunStart(); return; }   // 按住持續型(旋風疾行,skills_sword.js):按住期間持續、放開或 SP 耗盡停止,不經集氣
   if (curSkill(G.skill).stub) { banner('尚未實作', '#ffc46b'); return; }   // S 批空殼:尚未實作的招式不進入集氣
   if (G.cd[curSkill(G.skill).id] > 0 || skillBlocked(curSkill(G.skill))) return;   // 冷卻中 / 虛弱中不能開始集氣
   { const c = skillCost(G.skill); if (!resCan(c.kind, costAt(c.base, 0))) { resDeny(c.kind); return; } }   // MP / SP 不夠 → 不進入集氣
@@ -602,7 +603,8 @@ function updatePlayer(dt) {
   G.rollCD = Math.max(0, G.rollCD - dt); G.stun = Math.max(0, G.stun - dt);
   const free = !lock && !G.roll && G.stun <= 0 && G.down <= 0 && G.rootT <= 0;   // 定身:不能走(仍可施法、集氣、翻滾)
   if (G.sitting && (K.KeyW || K.KeyA || K.KeyS || K.KeyD || G.stick.mag > .3)) sitBreak('move');   // 移動輸入即起身
-  mi.run = mi.run && runAllowed(dt, free && !!(ix || iz));   // 跑步:SP 扣與遲滯
+  if (G.whirlRun) { mi.run = true; mi.s = 1; }   // 旋風疾行:以跑速為基準、滿速(SP 由 whirlRunTick 另計),不走跑步的 SP 扣與遲滯
+  else mi.run = mi.run && runAllowed(dt, free && !!(ix || iz));   // 跑步:SP 扣與遲滯
   if (G.roll) {
     const R = G.roll; R.t += dt; const q = Math.min(1, R.t / R.time), v = 2 * R.dist / R.time * (1 - q);
     p.x += R.dx * v * dt; p.z += R.dz * v * dt; G.invuln = R.t >= CFG.dodgeStart && R.t < CFG.dodgeStart + CFG.dodgeWin * (G.rollWinK || 1);   // 只有短閃避窗內無傷害;窗外翻滾中仍會被打

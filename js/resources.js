@@ -6,7 +6,7 @@
 
 const RES_MAX = { hp: 200, mp: 100, sp: 300 };
 const MAGE_COST = { bolt: 6, wall: 15, sky: 30, summon: 25 };   // 法師 MP 基準花費(依形狀;六屬性同價)
-const CLASS_COST = { quickShot: 6, shockArrow: 18, arrowRain: 30, powerSlash: 12, whirlwind: 20, shieldCharge: 25, backstab: 12, knives: 10, stealth: 20, scatter: 10, disengage: 18, snare: 15, flare: 25, parry: 12, slam: 20, leap: 25, unyield: 0, shadowStep: 15, smoke: 20, eviscerate: 15, decoy: 25 };   // 非法師 SP 基準花費(沒列到的招式預設 10)
+const CLASS_COST = { quickShot: 6, shockArrow: 18, arrowRain: 30, powerSlash: 12, whirlwind: 20, shieldCharge: 25, backstab: 12, knives: 10, stealth: 20, scatter: 10, disengage: 18, snare: 15, flare: 25, parry: 12, slam: 20, skyLeap: 60, shadowStep: 15, smoke: 20, eviscerate: 15, decoy: 25 };   // 非法師 SP 基準花費(沒列到的招式預設 10)
 
 // 招式的資源種類與基準花費:法師 = MP(依 kind),其他職業 = SP(依招式 id)
 function skillCost(i) {
@@ -136,7 +136,7 @@ function playerCleanse() {
 /* ---------- 打坐 ---------- */
 // 能坐下的條件(文件 3-2)
 function canSit() {
-  return G.state === 'ready' && G.ground && !G.roll && G.stun <= 0 && G.down <= 0 && !G.dash && !G.spin && moveInput().s === 0;
+  return G.state === 'ready' && G.ground && !G.roll && G.stun <= 0 && G.down <= 0 && !G.dash && !G.spin && !G.whirlRun && moveInput().s === 0;
 }
 // 起身(sitK 由 resTick 收回,起身約 0.3 s);reason 為觸發來源,目前只作紀錄用途
 function sitBreak(reason) { G.sitting = false; }
