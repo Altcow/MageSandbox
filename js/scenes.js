@@ -740,9 +740,7 @@
   window.requestAnimationFrame = cb => _raf(function f(t) { if (_minDt && t - _lastT < _minDt - 1) return _raf(f); _lastT = t; cb(t); });
   let quality = 1;
   try { const v = localStorage.getItem('mageSandbox.q'); if (v != null && +v >= 0 && +v <= 2) quality = +v; } catch (e) { }
-  const qBtn = document.createElement('button'); qBtn.id = 'qBtn'; bar.appendChild(qBtn);
   function applyQuality() {
-    qBtn.textContent = '畫質:' + QN[quality]; qBtn.dataset.q = QN[quality];   // hud2 手機版以 data-q 顯示單字
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, [1, 1.25, IS_TOUCH ? 1.5 : 2][quality]));
     moonLight.castShadow = quality > 0;
     const ms = [512, 1024, IS_TOUCH ? 1024 : 2048][quality];
@@ -755,7 +753,9 @@
     applyBloomScene();
     try { localStorage.setItem('mageSandbox.q', quality); } catch (e) { }
   }
-  qBtn.onclick = () => { quality = (quality + 1) % 3; applyQuality(); };
+  // 畫質改在封面(開始遊戲前)設定,遊戲中不再有切換鈕
+  window.getQuality = () => quality;
+  window.setQuality = n => { if (n >= 0 && n <= 2) { quality = n; applyQuality(); } };
   addEventListener('load', applyQuality);
 
   let start = 0;

@@ -1192,7 +1192,7 @@ function buildPanel() {
   const rb = document.createElement('button'); rb.textContent = '重置標靶'; rb.onclick = () => resetWorld(); root.appendChild(rb);
 }
 buildPanel();
-document.getElementById('gear').onclick = () => document.getElementById('panel').classList.toggle('on');
+{ const gearEl = document.getElementById('gear'); if (gearEl) gearEl.onclick = () => document.getElementById('panel').classList.toggle('on'); }   // 齒輪鈕已移除(2026-11-14),桌機仍可按 P 開面板
 
 /* ================= 主迴圈 ================= */
 let last = performance.now();

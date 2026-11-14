@@ -357,6 +357,10 @@
   $('cvBtnCreate').onclick = openCreate;
   $('cvBtnJoin').onclick = () => openJoin('');
   $('cvBtnSolo').onclick = e => { e.stopPropagation(); enterSolo(); };
+  { const qb = root.querySelectorAll('#cvQ button'), curQ = () => (typeof getQuality === 'function' ? getQuality() : 1);   // 畫質(低/中/高):開始遊戲前設定
+    const mark = () => qb.forEach(b => b.classList.toggle('on', +b.dataset.q === curQ()));
+    qb.forEach(b => { b.onclick = e => { e.stopPropagation(); if (typeof setQuality === 'function') setQuality(+b.dataset.q); mark(); }; });
+    mark(); addEventListener('load', mark); }
   root.querySelectorAll('[data-back]').forEach(b => { b.onclick = e => { e.stopPropagation(); setView('menu'); }; });
   window.addEventListener('keydown', e => {
     if (!window.COVER_ON) return;

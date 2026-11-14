@@ -199,6 +199,9 @@ body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.co
 .cv-ghost{opacity:.85}
 .cv-link{background:none;border:0;color:#aab3c8;font:inherit;font-size:14px;letter-spacing:.12em;text-decoration:underline;text-underline-offset:4px;min-height:44px;padding:8px 14px;cursor:pointer}
 .cv-link:hover{color:#e8ecf6}
+.cv-q{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px;color:#aab3c8;font-size:14px;letter-spacing:.12em}
+.cv-q button{font:inherit;font-size:14px;min-width:44px;min-height:36px;padding:0 12px;border-radius:10px;border:1px solid rgba(200,204,216,.4);background:rgba(16,24,58,.55);color:#cfd6e8;cursor:pointer}
+.cv-q button.on{border-color:#ffd23c;color:#ffd23c;background:rgba(60,50,20,.6)}
 .cv-card{position:relative;box-sizing:border-box;width:min(560px,100%);max-height:100%;overflow:auto;border-radius:20px;padding:clamp(14px,2.6vh,26px) clamp(16px,3vw,30px);background:linear-gradient(180deg,rgba(22,30,62,.66),rgba(10,14,34,.62));border:1px solid rgba(200,204,216,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 0 40px rgba(127,208,255,.05),0 24px 70px rgba(0,0,0,.5);backdrop-filter:blur(14px) saturate(125%);-webkit-backdrop-filter:blur(14px) saturate(125%);-webkit-overflow-scrolling:touch}
 .cv-card h2{margin:0 0 clamp(8px,1.6vh,14px);font-size:clamp(18px,2.4vw,24px);letter-spacing:.3em;text-indent:.3em;text-align:center;color:#fff;font-weight:700}
 .cv-card h2::after{content:"";display:block;width:64px;height:1px;margin:10px auto 0;background:linear-gradient(90deg,transparent,#ffd27a,transparent)}
@@ -564,7 +567,6 @@ body.hud2.touch.mm #locTag{display:none}
 <div id="hurtDir"><b></b></div>
 <div id="flash"></div>
 <div id="stealthFx"></div>
-<div id="gear" title="參數面板 (P)">⚙</div>
 <div id="panel"></div>
 <div id="cvRoot" class="cv-root" role="dialog" aria-label="職業大亂鬥">
   <canvas id="cvFx" class="cv-fx" aria-hidden="true"></canvas>
@@ -587,6 +589,7 @@ body.hud2.touch.mm #locTag{display:none}
             <button class="cv-btn cv-big" id="cvBtnJoin" type="button">進入房間</button>
           </div>
           <button class="cv-link" id="cvBtnSolo" type="button">單人練習</button>
+          <div class="cv-q" id="cvQ"><span>畫質</span><button type="button" data-q="0">低</button><button type="button" data-q="1">中</button><button type="button" data-q="2">高</button></div>
         </div>
       </section>
       <section class="cv-view" id="cvV_create" aria-hidden="true">
