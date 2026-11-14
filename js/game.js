@@ -1137,7 +1137,7 @@ function updateHUD() {
   const air = !G.ground;
   btnJumpEl.classList.toggle('air', air && G.airJumps > 0); btnJumpEl.classList.toggle('spent', air && G.airJumps <= 0);
   btnRollEl.classList.toggle('air', air && G.airRolls > 0); btnRollEl.classList.toggle('spent', air && G.airRolls <= 0);
-  const wt = G.state === 'charging' ? '取消' : (G.cls === 'mage' ? '換裝' : '架勢'); if (btnWeapEl.textContent !== wt) btnWeapEl.textContent = wt; const ww = G.state === 'charging' ? 'x' : (G.cls === 'mage' ? 'm' : 's'); if (btnWeapEl.dataset.w !== ww) btnWeapEl.dataset.w = ww;
+  const wt = G.cls === 'mage' ? '換裝' : '架勢'; if (btnWeapEl.textContent !== wt) btnWeapEl.textContent = wt; const ww = G.cls === 'mage' ? 'm' : 's'; if (btnWeapEl.dataset.w !== ww) btnWeapEl.dataset.w = ww;
   syncModeUI();
   updateCdHUD();
   // 咒語字幕位置:角色頭上

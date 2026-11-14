@@ -27,6 +27,7 @@
   function endAtk() {
     if (G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
     atk.classList.remove('on'); aid = null; drag = false; G.atkHeld = false; G.fingerHold = false; saveCfgSoon();
+    if (cxEl) cxEl.style.display = 'none';
   }
   // 記下滑動起點(範圍用垂直、火牆用水平)
   function initDrag(e) { drag = true; ay0 = e.clientY; ax0 = e.clientX; rad0 = getRad(G.skill); wo0 = G.wallOff; hx0 = G.stickHold.x; hz0 = G.stickHold.z; }
@@ -35,6 +36,15 @@
     if (G.cls !== 'mage' || G.skill < 0) return false;
     const sk = curSkill(G.skill);
     return sk.aim !== 'dir' && (!sk.aim || sk.aim === 'circle' || sk.aim === 'wall') && (sk.shape === 'circle' || sk.shape === 'wall');
+  }
+  const CANCEL_DY = 240;   // 上滑取消距離(大於範圍調整最大行程 160px,避免瞄遠時誤取消)
+  let cxEl = null;
+  function cxHint(dy) {   // 取消提示:上滑超過 110px 開始浮現,達門檻時放大變亮
+    if (dy < 110 || G.state !== 'charging') { if (cxEl) cxEl.style.display = 'none'; return; }
+    if (!cxEl) { cxEl = document.createElement('div'); cxEl.style.cssText = 'position:fixed;z-index:6;width:64px;height:64px;margin:-32px 0 0 -32px;pointer-events:none;background:url(assets/ui/b_cancel.png) center/100% 100% no-repeat;transition:transform .08s'; document.body.appendChild(cxEl); }
+    const r = atk.getBoundingClientRect(), t = Math.min(1, (dy - 110) / (CANCEL_DY - 110));
+    cxEl.style.display = 'block'; cxEl.style.left = (r.left + r.width / 2) + 'px'; cxEl.style.top = Math.max(40, r.top + r.height / 2 - CANCEL_DY) + 'px';
+    cxEl.style.opacity = .35 + .65 * t; cxEl.style.transform = 'scale(' + (.8 + .4 * t) + ')';
   }
   atk.addEventListener('pointerdown', e => {
     e.preventDefault(); touchNow();
@@ -47,6 +57,9 @@
   atk.addEventListener('pointermove', e => {
     if (e.pointerId !== aid || G.state !== 'charging') return;
     if (!drag) initDrag(e);
+    // 往上滑超過 CANCEL_DY 像素 = 取消施法(不需另外的取消鈕);滑到一半先出現紅色 ✕ 提示
+    { const dy = ay0 - e.clientY; cxHint(dy);
+      if (dy > CANCEL_DY) { cancelCharge(); cxHint(0); atk.classList.remove('on'); G.atkHeld = false; return; } }
     if (fingerAimOn()) {
       const p = mage.root.position, k = skillRange() / 160, up = (ay0 - e.clientY) * k, rt = (e.clientX - ax0) * k;
       const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
@@ -68,7 +81,7 @@
   press('btnSit', toggleSit);   // 手機:打坐 / 起身
   press('btnNear', () => { G.zoom = G.zoom > .4 ? .3 : 1; $('btnNear').classList.toggle('on', G.zoom < .4); });   // 手機:近距離視角 / 恢復(同桌機 B 鍵)
   press('btnMode', toggleChgMode);   // 手機:集氣模式 A / B
-  press('btnWeap', () => { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); });   // 集氣中此鈕變「取消」
+  press('btnWeap', () => { if (G.state !== 'charging') toggleWeapon(); });   // 集氣中此鈕不作用(取消改為施法鈕上滑)
   document.querySelectorAll('.tb,#btnAtk').forEach(el => { el.addEventListener('pointerdown', () => el.classList.add('dn')); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, () => el.classList.remove('dn'))); });   // 新版介面:按下版貼圖用
   // ---- 觸控拖曳轉視角 ----
   const cv = renderer.domElement; let cid = null, cx = 0, cy = 0, tapT = -1e9, tapX = 0, tapY = 0;
