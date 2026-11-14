@@ -478,7 +478,7 @@ function pickStick(out) {
     }
     out.copy(G.stickHold); return;
   }
-  if (G.state === 'charging' && G.stick.mag > .15 && !mc) {
+  if (G.state === 'charging' && G.stick.mag > .15 && !mc && !G.fingerHold) {
     const ix = G.stick.x / G.stick.mag, iz = -G.stick.y / G.stick.mag;
     const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
     const dx = fx * iz + rx * ix, dz = fz * iz + rz * ix, minD = curSkill(G.skill).shape === 'wall' ? 2 : 1.2;

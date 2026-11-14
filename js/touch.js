@@ -16,31 +16,46 @@
     knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
     G.stick.x = dx / R; G.stick.y = dy / R; G.stick.mag = Math.min(1, Math.hypot(dx, dy) / R);
   }
-  base.addEventListener('pointerdown', e => { e.preventDefault(); touchNow(); sid = e.pointerId; base.setPointerCapture(sid); upd(e); });
+  base.addEventListener('pointerdown', e => { e.preventDefault(); touchNow(); sid = e.pointerId; base.setPointerCapture(sid); G.fingerHold = false; upd(e); });
   base.addEventListener('pointermove', e => { if (e.pointerId === sid) upd(e); });
   ['pointerup', 'pointercancel'].forEach(t => base.addEventListener(t, e => {
     if (e.pointerId !== sid) return; sid = null; G.stick.x = G.stick.y = G.stick.mag = 0; knob.style.transform = '';
   }));
 
   // ---- 右大鈕:集氣 / 施放 / 滑動調範圍 ----
-  const atk = $('btnAtk'); let aid = null, ay0 = 0, rad0 = 0, ax0 = 0, wo0 = 0, drag = false;
+  const atk = $('btnAtk'); let aid = null, ay0 = 0, rad0 = 0, ax0 = 0, wo0 = 0, hx0 = 0, hz0 = 0, drag = false;
   function endAtk() {
     if (G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
-    atk.classList.remove('on'); aid = null; drag = false; G.atkHeld = false; saveCfgSoon();
+    atk.classList.remove('on'); aid = null; drag = false; G.atkHeld = false; G.fingerHold = false; saveCfgSoon();
   }
   // 記下滑動起點(範圍用垂直、火牆用水平)
-  function initDrag(e) { drag = true; ay0 = e.clientY; ax0 = e.clientX; rad0 = getRad(G.skill); wo0 = G.wallOff; }
+  function initDrag(e) { drag = true; ay0 = e.clientY; ax0 = e.clientX; rad0 = getRad(G.skill); wo0 = G.wallOff; hx0 = G.stickHold.x; hz0 = G.stickHold.z; }
+  // 法師的範圍魔法(地面光圈 / 火牆,非 dir):滑動 = 直接移動魔法陣位置
+  function fingerAimOn() {
+    if (G.cls !== 'mage' || G.skill < 0) return false;
+    const sk = curSkill(G.skill);
+    return sk.aim !== 'dir' && (!sk.aim || sk.aim === 'circle' || sk.aim === 'wall') && (sk.shape === 'circle' || sk.shape === 'wall');
+  }
   atk.addEventListener('pointerdown', e => {
     e.preventDefault(); touchNow();
     if (netInputLocked()) return;   // 多人開戰倒數中不能集氣 / 施放
     aid = e.pointerId; atk.setPointerCapture(aid); G.atkHeld = true;   // 僵直中按住,結束後接續集氣
     if (G.state !== 'ready') return;
     if (G.skill < 0) G.skill = G.lastSkill;
-    atk.classList.add('on'); initDrag(e); startCharge();
+    atk.classList.add('on'); startCharge(); initDrag(e);
   });
   atk.addEventListener('pointermove', e => {
     if (e.pointerId !== aid || G.state !== 'charging') return;
     if (!drag) initDrag(e);
+    if (fingerAimOn()) {
+      const p = mage.root.position, k = skillRange() / 160, up = (ay0 - e.clientY) * k, rt = (e.clientX - ax0) * k;
+      const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
+      let dx = hx0 + fx * up + rx * rt - p.x, dz = hz0 + fz * up + rz * rt - p.z, d = Math.hypot(dx, dz);
+      const minD = curSkill(G.skill).shape === 'wall' ? 2 : 1.2, dd = clamp(d, minD, skillRange());
+      if (d < 1e-4) { dx = Math.sin(mage.yaw); dz = Math.cos(mage.yaw); d = 1; }
+      const x = p.x + dx / d * dd, z = p.z + dz / d * dd; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z); G.fingerHold = true;
+      return;
+    }
     const c = sc(G.skill); setRad(G.skill, clamp(rad0 + (ay0 - e.clientY) / 160 * (c.rMax - c.rMin), c.rMin, c.rMax));
     if (curSkill(G.skill).shape === 'wall') G.wallOff = wo0 - (e.clientX - ax0) / 120;
   });
