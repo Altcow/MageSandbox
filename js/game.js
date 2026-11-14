@@ -467,12 +467,8 @@ function pickStick(out) {
     G.stickHold.set(x, surfaceY(x, z, p.y + 2), z); out.copy(G.stickHold); return;
   }
   if (dirA) {
-    if (G.state === 'charging' && G.stick.mag > .3) {
-      const ix = G.stick.x / G.stick.mag, iz = -G.stick.y / G.stick.mag;
-      const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
-      const dx = fx * iz + rx * ix, dz = fz * iz + rz * ix, d = skillRange() * .6;
-      const x = p.x + dx * d, z = p.z + dz * d; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
-    } else if (G.state !== 'charging' || mc) {   // 集氣中可移動(劍士 / 刺客)且搖桿沒推:朝鏡頭前方,角色才會跟著視角左右轉
+    // 法師方向型招式:集氣中搖桿不改瞄準方向,只朝人物面向(拚走位技巧;設計決議 2026-11-14)
+    if (G.state !== 'charging' || mc) {   // 集氣中可移動(劍士 / 刺客)且搖桿沒推:朝鏡頭前方,角色才會跟著視角左右轉
       const yw = mc && G.state === 'charging' ? G.camYaw + Math.PI : mage.yaw;
       const x = p.x + Math.sin(yw) * skillRange() * .5, z = p.z + Math.cos(yw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z);
     }

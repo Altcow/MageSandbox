@@ -1,4 +1,4 @@
-const VERSION = 'v32';
+const VERSION = 'v33';
 const CACHE = 'magesandbox-' + VERSION;
 const PRECACHE = [
   './', './index.html', './manifest.webmanifest',
