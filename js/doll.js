@@ -38,8 +38,14 @@ const DOLL_BONES = [
   ['LeftArm', 2, [.22, .14, 0]], ['LeftForeArm', 5, [.30, 0, 0]], ['LeftHand', 6, [.28, 0, 0]],
   ['RightArm', 2, [-.22, .14, 0]], ['RightForeArm', 8, [-.30, 0, 0]], ['RightHand', 9, [-.28, 0, 0]],
   ['LeftUpLeg', 0, [.1, -.05, 0]], ['LeftLeg', 11, [0, -.43, 0]], ['LeftFoot', 12, [0, -.43, 0]],
-  ['RightUpLeg', 0, [-.1, -.05, 0]], ['RightLeg', 14, [0, -.43, 0]], ['RightFoot', 15, [0, -.43, 0]]
+  ['RightUpLeg', 0, [-.1, -.05, 0]], ['RightLeg', 14, [0, -.43, 0]], ['RightFoot', 15, [0, -.43, 0]],
+  ['Cape0', 2, [0, .17, -.17]], ['Cape1', 17, [0, -.32, 0]], ['Cape2', 18, [0, -.32, 0]], ['Cape3', 19, [0, -.32, 0]]   // 披風 4 段跟隨骨(索引 17~20,不在 POSE_BONES 內,由 _cape() 驅動)
 ];
+const CAPE_B0 = 17;
+// 座位色(1~12):名牌 / 編號 / 飾件 / 披風共用,remote.js 的 NAME_COLORS 同色
+const SEAT_HEX = ['#ffd27a', '#8fd0ff', '#ff8a8a', '#b8f08a', '#ffa8e0', '#a8fff0', '#d0a8ff', '#ffe08a', '#8affb0', '#ff9a5a', '#9ab0ff', '#e0e0e0'];
+function seatHex(seat) { return SEAT_HEX[(((seat | 0) || 1) - 1 + 120) % SEAT_HEX.length]; }
+function mySeatHex() { return parseInt(seatHex(typeof Net !== 'undefined' && Net.me).slice(1), 16); }
 const DOLL_BODY = 0xc9ccd2, DOLL_DARK = 0x23262e, DOLL_ACC = 0xffffff;
 let DOLL_SH = null;
 function dollCapGeo(r, len, seg, cap) {   // 沿 Y 軸、置中的膠囊(圓柱段長 len,兩端半球)
@@ -87,6 +93,24 @@ function dollShared() {
     ball([sg * .1, .47, 0], .065, b0 + 1, DOLL_BODY);
     cap([sg * .1, .43, 0], [sg * .1, .10, 0], .058, b0 + 1, DOLL_BODY);
     cap([sg * .1, .05, -.02], [sg * .1, .05, .1], .05, b0 + 2, 0x8a8f99, 1, 1);
+  }
+  // 披風(座位色,每人都有、與職業無關):兩片背靠背薄片(單面材質即可,不用 DoubleSide),5 列 x 5 行;列 r 綁 Cape(r-1) 骨,末列綁 Cape3
+  {
+    const R = [1.46, 1.14, .82, .50, .20], HW = [.30, .36, .42, .47, .52], COLS = 5, st = nv;
+    for (let sheet = 0; sheet < 2; sheet++) {
+      const base = nv, nz = sheet ? 1 : -1;
+      for (let r = 0; r < 5; r++) for (let c = 0; c < COLS; c++) {
+        const u = c / (COLS - 1) * 2 - 1;
+        P.push(u * HW[r], R[r], -.17 + .07 * u * u + (sheet ? .012 : 0)); N.push(0, 0, nz); C.push(1, 1, 1);
+        SI.push(Math.max(0, r - 1) + CAPE_B0, 0, 0, 0); SW.push(1, 0, 0, 0);
+      }
+      nv += 5 * COLS;
+      for (let r = 0; r < 4; r++) for (let c = 0; c < COLS - 1; c++) {
+        const a = base + r * COLS + c, b = a + 1, cc = a + COLS, d = cc + 1;
+        if (sheet) IX.push(a, cc, b, b, cc, d); else IX.push(a, b, cc, b, d, cc);
+      }
+    }
+    acc.push([st, nv]);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
@@ -143,7 +167,7 @@ class Doll {
     this.gemMat = new THREE.MeshStandardMaterial({ color: this._elHex, emissive: this._elHex, emissiveIntensity: .6, roughness: .2 });
     this.parts = {}; this.held = 'staff'; this.stow = null;   // held / stow = 武器鍵(見 DOLL_WEAPONS)
     this._pose = POSES.idle.slice(); this._lo = POSES.idle.slice(); this._up = POSES.idle.slice(); this._cs = POSES.idle.slice();
-    this._clip = null; this._swap = null; this._swapT = 1; this._ly = null; this._vy = 0; this._air = false; this._landT = 0; this._hidden = false; this._tilt = 0;
+    this._clip = null; this._swap = null; this._swapT = 1; this._ly = null; this._cp = null; this._vy = 0; this._air = false; this._landT = 0; this._hidden = false; this._tilt = 0;
     this._mountAll();
   }
   /* ---------- 武器 ---------- */
@@ -267,6 +291,26 @@ class Doll {
   get bow() { return this._part('bow').o; }
   get book() { return this._part('book').o; }
 
+  /* ---------- 披風:4 段彈簧跟隨(依 root 位移速度,飄向移動反方向;下落上揚、高速抖動;鏡頭太近時縮掉不擋視線) ---------- */
+  _cape(dt, T) {
+    const rp = this.root.position, bs = this.bones, c = this._cp || (this._cp = { x: rp.x, y: rp.y, z: rp.z, vf: 0, vl: 0, a: [0, 0, 0, 0], w: [0, 0, 0, 0], l: [0, 0, 0, 0], lw: [0, 0, 0, 0], k: 1 });
+    let vx = 0, vy = 0, vz = 0;
+    if (dt > 1e-4) { vx = (rp.x - c.x) / dt; vy = (rp.y - c.y) / dt; vz = (rp.z - c.z) / dt; if (Math.hypot(vx, vy, vz) > 30) vx = vy = vz = 0; }   // 傳送 / 瞬移不甩披風
+    c.x = rp.x; c.y = rp.y; c.z = rp.z;
+    const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw), kv = dt > 1e-4 ? Math.min(1, dt * 10) : 0;
+    c.vf += (vx * sy + vz * cy - c.vf) * kv; c.vl += (vx * cy - vz * sy - c.vl) * kv;
+    const spd = Math.min(1, Math.hypot(c.vf, c.vl) / 6), fall = Math.max(0, -vy) * .05;
+    const tp = .1 + Math.max(-.15, Math.min(1.1, c.vf * .1)) + Math.min(.6, fall), tl = -c.vl * .08, st = Math.min(dt, .04);
+    if (st > 1e-4) for (let i = 0; i < 4; i++) {
+      const k = 90 / (1 + .5 * i), d = 1.1 * Math.sqrt(k), f = (.3 + spd) * .06 * Math.sin(T * 9 + i * 1.3), g = tp * (.4 + .22 * i) + f, h = tl * (.4 + .22 * i);
+      c.w[i] += ((g - c.a[i]) * k - c.w[i] * d) * st; c.a[i] += c.w[i] * st;
+      c.lw[i] += ((h - c.l[i]) * k - c.lw[i] * d) * st; c.l[i] += c.lw[i] * st;
+    }
+    for (let i = 0; i < 4; i++) { const b = bs[CAPE_B0 + i]; b.rotation.set(c.a[i] - (i ? c.a[i - 1] : 0), 0, c.l[i] - (i ? c.l[i - 1] : 0)); }
+    // 鏡頭距離 < 1.5 m(第一人稱 / 穿模)縮成 0,1.5~3 m 漸出
+    let k = 1; if (typeof camera !== 'undefined' && camera) { const p = camera.position, d = Math.hypot(p.x - rp.x, p.y - rp.y - 1.3, p.z - rp.z); k = Math.max(0, Math.min(1, (d - 1.5) / 1.5)); }
+    if (k !== c.k) { c.k = k; bs[CAPE_B0].scale.setScalar(Math.max(.001, k)); }
+  }
   /* ---------- 每幀 ---------- */
   // s: {move, cast(0..1), kick(0..1), charge(0..1), t, hover, roll, rollPhi, flip, sit, down, air?}
   update(dt, s) {
@@ -330,6 +374,7 @@ class Doll {
       const ax = new V3(1, 0, 0); bd.quaternion.setFromAxisAngle(ax, Math.PI * 2 * fl);
       const c0 = new V3(0, .9, 0); bd.position.copy(c0).sub(c0.clone().applyQuaternion(bd.quaternion)); bd.position.y += .25 * Math.sin(Math.PI * fl);
     }
+    this._cape(dt, T);
     // 杖頭 / 書發光(集氣中 glow 隨 auraAmt)
     const g = this.glow; this.gemMat.emissiveIntensity = .6 + g * 3;
     for (const p of this._glowParts) { p.glow.material.opacity = g * .9; p.glow.scale.setScalar(p === this.parts.staff ? .5 + g * 1.4 : .6 + g * 1.5); }

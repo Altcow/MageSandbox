@@ -119,7 +119,7 @@ const DECOY_RUN = 8, DECOY_T = 2.5, DECOY_POOL = {};   // 分身沿朝向跑 8 m
 function decoyModel(key) {
   if (!DECOY_POOL[key]) {
     const m = new Mage(scene), C = CLASSES.assassin;
-    m.setClassLook('assassin'); m.setWeapon(C.weapons[0], true); m.setRobeColor(C.robe); m.setElementColor(C.aura.hex); m.setOpacity(.5);
+    m.setClassLook('assassin'); m.setWeapon(C.weapons[0], true); m.setRobeColor(mySeatHex()); m.setElementColor(C.aura.hex); m.setOpacity(.5);
     m.root.visible = false; DECOY_POOL[key] = m;
   }
   return DECOY_POOL[key];

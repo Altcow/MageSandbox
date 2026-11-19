@@ -295,7 +295,7 @@ function setClass(c) {
   sitBreak('class'); if (typeof clearSummons === 'function') clearSummons();
   if (G.stealth) revealStealth('class');   // 切職業顯形,不進入虛弱
   G.cls = c; try { localStorage.setItem('mageSandbox.cls', c); } catch (e) { }
-  mage.setWeapon(c === 'mage' ? G.weapon : C.weapons[0]); mage.setRobeColor(C.robe); applyElColors();
+  mage.setWeapon(c === 'mage' ? G.weapon : C.weapons[0]); mage.setRobeColor(mySeatHex()); applyElColors();
   mage.setClassLook(c);
   G.skill = 0; G.lastSkill = 0; G.wallOff = 0;
   G.stance = 0; G.stanceCd = 0; G.stanceBoostT = 0; G.cr = 0;   // 換職業:架勢回 A、能量歸零
@@ -308,7 +308,7 @@ function initClass() {
   let c = 'mage';
   try { const s = localStorage.getItem('mageSandbox.cls'); if (CLASS_ORDER.includes(s)) c = s; } catch (e) { }
   G.cls = c;
-  mage.setWeapon(c === 'mage' ? G.weapon : CLASSES[c].weapons[0], true); mage.setRobeColor(CLASSES[c].robe);
+  mage.setWeapon(c === 'mage' ? G.weapon : CLASSES[c].weapons[0], true); mage.setRobeColor(mySeatHex());
   mage.setClassLook(c);
   buildClsBar(); applyElColors(); refreshHotbar(); refreshClsBar(); syncElBar();
 }

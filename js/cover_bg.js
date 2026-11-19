@@ -66,7 +66,7 @@
     SLOTS.forEach((s, k) => {
       const a = s.deg * Math.PI / 180, x = Math.sin(a) * RING_R, z = Math.cos(a) * RING_R, C = CLASSES[s.cls];
       const m = new Mage(scene); scene.remove(m.root);
-      m.setClassLook(s.cls); m.setWeapon(WEAPON[s.cls], true); m.setRobeColor(C.robe);
+      m.setClassLook(s.cls); m.setWeapon(WEAPON[s.cls], true); m.setRobeColor(parseInt(seatHex(k + 1).slice(1), 16));
       if (s.cls === 'mage') m.setElementColor(EL[elKey].hex);
       m.shieldUp = s.shieldUp || 0; m.spinY = s.spin; m.yaw = Math.atan2(-x, -z); m.root.position.set(x, 0, z);
       m.update(0, { move: 0, cast: s.cast, kick: 0, charge: 0, t: k * 1.3, hover: 0, roll: -1, flip: -1, sit: 0, down: 0 });

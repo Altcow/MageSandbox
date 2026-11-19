@@ -10,7 +10,7 @@ const REMOTES = {};              // 座位(字串)→ RemotePlayer
 const SNAP_CHARS = 25;           // 快照字元數:150 位元 = 25 個 base64url 字元(142 位元 + 狀態欄 e 8 位元;g 為 14 位元;協定變更,NET_BUILD 須提升)
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const TAU = Math.PI * 2;
-const NAME_COLORS = ['#ffd27a', '#8fd0ff', '#ff8a8a', '#b8f08a', '#ffa8e0', '#a8fff0', '#d0a8ff', '#ffe08a', '#8affb0', '#ff9a5a', '#9ab0ff', '#e0e0e0'];
+const NAME_COLORS = SEAT_HEX;   // 座位色(doll.js),座位號 = 索引 + 1
 const SPAWN_PTS = [[0, 22], [12.6, 18], [20.7, 7.5], [21.3, -5.7], [-21.3, -5.7], [-20.7, 7.5], [-12.6, 18], [11, -14], [0, -7], [-11, -14], [8, 7], [-8, 7]];
 
 let spawnPts = [];               // 本場合格的出生點(enterMatch 時算好)
@@ -123,18 +123,24 @@ function blobShared() {
   BLOB_MAT = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: .45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 }
 // 名牌(設計_介面與畫風改版 §3-3):深藍圓角膠囊底 + 白字粗外框 + 職業色左側小條;color(座位色)目前不繪製,bar = 職業色字串
-function nameTexture(text, color, suffix, bar) {
-  const c = document.createElement('canvas'); c.width = 384; c.height = 64;
+// seat > 0:名牌左側加大號座位編號圓章(座位色粗體);名牌右側留空給增益圖示 / 大招徽記
+function nameTexture(text, color, suffix, bar, seat) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 64;
   const g = c.getContext('2d'), s = suffix ? text + suffix : text;
   let fs = 28; g.font = 'bold ' + fs + 'px sans-serif';
   while (fs > 16 && g.measureText(s).width > 280) { fs -= 2; g.font = 'bold ' + fs + 'px sans-serif'; }
-  const tw = g.measureText(s).width, w = Math.min(372, Math.round(tw + 56)), h = 46, x0 = Math.round(192 - w / 2), y0 = 9, r = h / 2;
+  const tw = g.measureText(s).width, w = Math.min(372, Math.round(tw + 56)), h = 46, x0 = Math.round(256 - w / 2), y0 = 9, r = h / 2;
   g.beginPath(); g.moveTo(x0 + r, y0); g.arcTo(x0 + w, y0, x0 + w, y0 + h, r); g.arcTo(x0 + w, y0 + h, x0, y0 + h, r); g.arcTo(x0, y0 + h, x0, y0, r); g.arcTo(x0, y0, x0 + w, y0, r); g.closePath();
   g.fillStyle = 'rgba(16,24,58,.82)'; g.fill(); g.lineWidth = 2; g.strokeStyle = 'rgba(120,160,255,.55)'; g.stroke();
-  g.fillStyle = bar || color; g.beginPath(); g.arc(x0 + 15, y0 + r, 7, 0, Math.PI * 2); g.fill();   // 職業色小條(圓端)
+  g.fillStyle = bar || color; g.beginPath(); g.arc(x0 + 15, y0 + r, 7, 0, Math.PI * 2); g.fill();
+  if (seat > 0) {
+    const bx = x0 - 30, by = 32; g.beginPath(); g.arc(bx, by, 24, 0, Math.PI * 2); g.fillStyle = 'rgba(16,24,58,.9)'; g.fill(); g.lineWidth = 4; g.strokeStyle = color; g.stroke();
+    g.font = 'bold ' + (seat > 9 ? 28 : 36) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 5; g.lineJoin = 'round'; g.strokeStyle = 'rgba(8,12,34,.95)'; g.strokeText(String(seat), bx, by + 2); g.fillStyle = color; g.fillText(String(seat), bx, by + 2);
+    g.font = 'bold ' + fs + 'px sans-serif';
+  }   // 職業色小條(圓端)
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
-  g.lineWidth = 6; g.strokeStyle = 'rgba(8,12,34,.95)'; g.strokeText(s, 204, 33);
-  g.fillStyle = '#fff'; g.fillText(s, 204, 33);
+  g.lineWidth = 6; g.strokeStyle = 'rgba(8,12,34,.95)'; g.strokeText(s, 268, 33);
+  g.fillStyle = '#fff'; g.fillText(s, 268, 33);
   return new THREE.CanvasTexture(c);
 }
 // 腳下色圈(§3-3):扁平圓環,職業色;bright = 自己用較亮較大的版本。每人一個材質(顏色 / 透明度各自調)
@@ -151,10 +157,11 @@ function placeRing(m, x, y, z, op) {
   m.material.opacity = m.userData.base * op; m.visible = op > .01;
 }
 // 本機角色腳下色圈(game.js frame 每幀呼叫);潛行 / 草叢半透明時跟著淡出,封面時隱藏
-let selfRing = null, selfRingCls = '';
+let selfRing = null, selfRingCls = '', selfSeatHex = -1;
 function footRingTick() {
   if (!selfRing) selfRing = footRing(0xffffff, true);
   if (selfRingCls !== G.cls) { selfRingCls = G.cls; selfRing.material.color.set(clsHex(G.cls)).lerp(new THREE.Color(0xffffff), .35); }
+  const sh = mySeatHex(); if (sh !== selfSeatHex) { selfSeatHex = sh; mage.setRobeColor(sh); }   // 座位色飾件 / 披風:入房後座位變動時更新
   const p = mage.root.position;
   if (document.body.classList.contains('cover')) { selfRing.visible = false; return; }
   placeRing(selfRing, p.x, p.y, p.z, clamp(mage.opq, 0, 1) * (G.down > 0 ? .4 : 1));
@@ -186,7 +193,7 @@ class RemotePlayer {
     this.mage = new Mage(scene);
     this.mage.setClassLook(this.cls);
     this.mage.setWeapon(this.cls === 'mage' ? 'staff' : C.weapons[0], true);
-    this.mage.setRobeColor(C.robe);
+    this.mage.setRobeColor(parseInt(seatHex(this.seat).slice(1), 16));   // 外觀不分職業:飾件 / 披風 = 座位色
     this.mage.setElementColor(auraOf(this.cls, this.el).hex);
     this.g = this.mage.root;
     this.mage.olReg();                                                      // 描邊(畫質中 / 高)
@@ -194,10 +201,10 @@ class RemotePlayer {
     blobShared();
     this.shadow = new THREE.Mesh(BLOB_GEO, BLOB_MAT); this.shadow.renderOrder = 1; scene.add(this.shadow);
     const color = NAME_COLORS[(this.seat - 1) % NAME_COLORS.length];
-    this._clsHex = clsHex(this.cls); this.nameTex = nameTexture(this.name, color, '', this._clsHex); this._awayT = null; this._offT = null; this._tag = ''; this._color = color; this.mapVis = false;
+    this._clsHex = clsHex(this.cls); this.nameTex = nameTexture(this.name, color, '', this._clsHex, this.seat); this._awayT = null; this._offT = null; this._tag = ''; this._color = color; this.mapVis = false;
     this.ring = footRing(this._clsHex, false);
     this.nameSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.nameTex, transparent: true, depthWrite: false }));
-    this.nameSpr.scale.set(2.4, .4, 1); this.nameSpr.renderOrder = 30; scene.add(this.nameSpr);
+    this.nameSpr.scale.set(3.2, .4, 1); this.nameSpr.renderOrder = 30; scene.add(this.nameSpr);
     this.bar = new THREE.Group(); scene.add(this.bar);
     const bg = new THREE.Mesh(new THREE.PlaneGeometry(1, .2), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: .7, depthTest: false }));
     this.fg = new THREE.Mesh(new THREE.PlaneGeometry(.94, .16), new THREE.MeshBasicMaterial({ color: 0xe03030, depthTest: false }));
@@ -225,8 +232,8 @@ class RemotePlayer {
   get y() { return this.py; }
   get z() { return this.pz; }
   _noShadow() { this.mage.root.traverse(o => { if (o.isMesh) o.castShadow = false; }); }
-  _awayTex() { if (!this._awayT) this._awayT = nameTexture(this.name, this._color, '(暫離)', this._clsHex); return this._awayT; }
-  _offTex() { if (!this._offT) this._offT = nameTexture(this.name, this._color, '(離線中)', this._clsHex); return this._offT; }
+  _awayTex() { if (!this._awayT) this._awayT = nameTexture(this.name, this._color, '(暫離)', this._clsHex, this.seat); return this._awayT; }
+  _offTex() { if (!this._offT) this._offT = nameTexture(this.name, this._color, '(離線中)', this._clsHex, this.seat); return this._offT; }
   _ingest(now) {
     const s = Net.snapOf(this.seat);
     if (typeof s !== 'string' || s === this.lastStr) return;
