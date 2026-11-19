@@ -41,7 +41,7 @@ const CLASSES = {
       mkSkill('scatter', '散射', '🎇', { img: 'assets/icons/cls_archer_scatter.png', aim: 'line', line: (q, rs) => { const L = CFG.skills.scatter.range; return { len: L, hw: L * Math.sin(rs * CHG.size(q) * Math.PI / 360), off: .6, maxLen: L, maxHw: L * Math.sin(rs * Math.PI / 360) }; }, chant: '箭矢扇開……', shout: '散射!', cast: castScatter, preview: q => '箭 ' + CHG.count(5, q) + ' 支・每支 ' + (.6 * CHG.fx(q)).toFixed(1) + ' m 擊退' }),
       mkSkill('disengage', '後躍射擊', '🦘', { img: 'assets/icons/cls_archer_disengage.png', instant: true, aim: 'none', cd: 7, chant: '', shout: '後躍射擊!', cast: castDisengage, preview: () => '後躍 5 m・纏絆 2 s' }),
       mkSkill('snare', '捕獸夾', '🪤', { img: 'assets/icons/cls_archer_snare.png', aim: 'circle', cd: 4, chant: '機關就位……', shout: '捕獸夾!', cast: castSnare, preview: q => '定身 ' + lerp(.75, 1.5, q).toFixed(2) + ' s・照亮 3 s' }),
-      mkSkill('flare', '魔法箭矢', '🎆', { img: 'assets/icons/cls_archer_flare.png', aim: 'line', line: () => { const L = CFG.skills.flare.range; return { len: L, hw: .25, off: .6, maxLen: L, maxHw: .25 }; }, cd: 15, chant: '箭上附魔……', shout: '魔法箭矢!', cast: castMagicArrow, preview: () => '隨機 火/冰/風/雷・傷害 ' + CFG.skills.flare.damage })],
+      mkSkill('flare', '魔法箭矢', '🎆', { img: 'assets/icons/cls_archer_magicarrow.png', aim: 'line', line: () => { const L = CFG.skills.flare.range; return { len: L, hw: .25, off: .6, maxLen: L, maxHw: .25 }; }, cd: 15, chant: '箭上附魔……', shout: '魔法箭矢!', cast: castMagicArrow, preview: () => '隨機 火/冰/風/雷・傷害 ' + CFG.skills.flare.damage })],
     stances: [{ name: '鷹眼', icon: '🦅', mwc: false, spdK: 1, chgSpdK: 1 }, { name: '游擊', icon: '🍃', mwc: true, spdK: 1, chgSpdK: .6 }],   // 第 1 架勢 = 現有招式;第 2 架勢集氣中可移動、移速 ×0.6
     bars: [[0, 1, 2, 6], [3, 4, 5, 6]],   // 快捷列第 1~4 格對應的扁平索引(第 4 格 = 絕技,兩架勢共用)
     energy: { kind: 'focus', name: '專注', max: 100, css: '#b8e03a' },
@@ -54,8 +54,8 @@ const CLASSES = {
       // 盾勢 B 列與絕技(定義在 skills_sword.js);索引 3 格擋反擊、4 震地、5 旋風疾行(劍勢 3)、6 震天躍擊(兩架勢第 4 格);衝鋒盾(2)搬到盾勢第 3 格
       mkSkill('parry', '格擋反擊', '🛡️', { img: 'assets/icons/cls_swordsman_parry.png', instant: true, netSilent: true, aim: 'none', cd: 6, chant: '', shout: '格擋反擊!', cast: castParry }),
       mkSkill('slam', '震地', '💥', { img: 'assets/icons/cls_swordsman_slam.png', aim: 'self', cd: 6, chant: '重心下沉……', shout: '震地!', cast: castSlam }),
-      mkSkill('whirlRun', '旋風疾行', '🌪️', { img: 'assets/icons/whirlwind.png', hold: true, aim: 'none', cd: 4, chant: '', shout: '旋風疾行!', preview: () => '移速 ×' + CFG.skills.whirlRun.speedK + '・耗 SP ' + CFG.skills.whirlRun.spPerSec + '/s' }),
-      mkSkill('skyLeap', '震天躍擊', '⤴️', { img: 'assets/icons/cls_swordsman_leap.png', aim: 'front', cd: 20, chant: '蹬地躍起,力貫千鈞……', shout: '震天躍擊!', cast: castSkyLeap, preview: q => { const s = skyStats(q); return '距離 ' + s.dist.toFixed(1) + ' m・範圍 ' + s.R.toFixed(1) + ' m・傷害 ' + Math.round(s.dmg); } })],
+      mkSkill('whirlRun', '旋風疾行', '🌪️', { img: 'assets/icons/cls_swordsman_whirlrun.png', hold: true, aim: 'none', cd: 4, chant: '', shout: '旋風疾行!', preview: () => '移速 ×' + CFG.skills.whirlRun.speedK + '・耗 SP ' + CFG.skills.whirlRun.spPerSec + '/s' }),
+      mkSkill('skyLeap', '震天躍擊', '⤴️', { img: 'assets/icons/cls_swordsman_skyleap.png', aim: 'front', cd: 20, chant: '蹬地躍起,力貫千鈞……', shout: '震天躍擊!', cast: castSkyLeap, preview: q => { const s = skyStats(q); return '距離 ' + s.dist.toFixed(1) + ' m・範圍 ' + s.R.toFixed(1) + ' m・傷害 ' + Math.round(s.dmg); } })],
     stances: [{ name: '劍勢', icon: '⚔️', mwc: true, spdK: 1.2, chgSpdK: 1 }, { name: '盾勢', icon: '🧱', mwc: true, spdK: 1.0, chgSpdK: 1 }],
     bars: [[0, 1, 5, 6], [3, 4, 2, 6]],   // 劍勢:蓄力斬 / 旋風斬 / 旋風疾行 / 震天躍擊;盾勢:格擋反擊 / 震地 / 衝鋒盾 / 震天躍擊
     energy: { kind: 'rage', name: '鬥氣', max: 100, css: '#ff3a3a' },
