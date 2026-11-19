@@ -282,8 +282,8 @@ class RemotePlayer {
     this._lodAcc = (this._lodAcc || 0) + dt;
     this._lodN = ((this._lodN || 0) + 1) % 3;
     if (!far || this._lodN === 0) { this.mage.update(this._lodAcc, { move: p.m, cast: p.c, kick: p.k, charge: p.q, t: G.time, hover: 0, roll: p.o, rollPhi: p.p, flip: p.f, sit: p.s, down: p.d }); this._lodAcc = 0; }
-    if (far) { const M = this.mage; [M.staff, M.book, M.bow, M.sword, M.shield].concat(M.daggers).forEach(g => { g.visible = false; }); this._wpnHid = true; }
-    else if (this._wpnHid) { this._wpnHid = false; this.mage.setWeapon(this.mage.weapon, true); }
+    if (far) { this.mage.hideWeapons(true); this._wpnHid = true; }
+    else if (this._wpnHid) { this._wpnHid = false; this.mage.hideWeapons(false); }
     // 顯示:無敵閃爍、潛行隱藏名牌 / 血條 / 假影
     const blink = inv && Math.floor(now / 120) % 2 === 0;
     this.g.visible = !blink && !hid;

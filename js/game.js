@@ -1189,6 +1189,7 @@ function buildPanel() {
   });
   const b = document.createElement('button'); b.textContent = '還原預設值';
   b.onclick = () => { mergeCfg(CFG, JSON.parse(JSON.stringify(DEFAULT_CFG))); saveCfg(); buildPanel(); }; root.appendChild(b);
+  if (typeof dollBuildPanel === 'function') dollBuildPanel(root);   // 人偶動作預覽(doll.js)
   if (typeof stBuildTestPanel === 'function') stBuildTestPanel(root);   // 狀態測試(status.js)
   if (typeof window.padPanelExtra === 'function') window.padPanelExtra(root);   // 手把按鍵說明(touch.js)
   const rb = document.createElement('button'); rb.textContent = '重置標靶'; rb.onclick = () => resetWorld(); root.appendChild(rb);
@@ -1207,7 +1208,7 @@ function frame(now) {
   stTick(dt);                            // 狀態效果計時與 DOT(status.js,單人也跑)
   if (G.perfT > 0) G.perfT = Math.max(0, G.perfT - dt);   // 完美閃避加速計時(perfectDodge / classTick 的 spdK)
   classTick(dt); resTick(dt); updatePlayer(dt); if (window.sceneTick) sceneTick(dt); updateAim(dt); updateCasting(dt);
-  mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK });
+  mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK, air: !G.ground });
   if (window.footRingTick) footRingTick();   // 腳下色圈(remote.js)
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);
   if (window.NETON) netTick(dt);   // 多人:送出快照、開戰倒數(remote.js);單人不執行

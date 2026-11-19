@@ -1,6 +1,6 @@
 'use strict';
 // 封面 3D 背景(任務 E):四職業(法師 / 弓箭手 / 劍士 / 刺客)對峙陣形 + 夜色叢林佈景。
-// 角色沿用 Mage 類的職業外型(mage.js),待機姿勢算一次後烘焙成 2 個合併網格(啞光 / 金屬,頂點色);封面不做骨架動畫。
+// 角色沿用 Mage(= doll.js 人偶),待機姿勢算一次後烘焙成 2 個合併網格(啞光 / 金屬,頂點色);封面不做骨架動畫。
 // 佈景:地面與站位圓台、剪影樹 / 遠山(實例化)、霧片(實例化 billboard)、火把(實例化)+ 火星粒子 + 光暈 + 3 盞點光源閃爍。
 // start():隱藏場景內既有物件(含 scenes.js 載入時建的關卡;天空與光源保留)、主角移到原點當相機錨點、暫存霧 / 天空 / 光源參數。
 // stop():移除並 dispose 本檔建立的幾何與材質,還原上述狀態。進入遊戲時 setScene 會重建關卡(clearDeco 釋放舊關卡)。
@@ -33,12 +33,13 @@
   const newBucket = () => ({ p: [], n: [], c: [], i: [], nv: 0 });
   // 把一個 Mesh 的幾何(已套世界矩陣)併入桶;顏色取材質色(頂點色)
   function bakeMesh(o, bk) {
-    const geo = o.geometry, pos = geo.attributes.position, nor = geo.attributes.normal, idx = geo.index, cc = o.material.color, n = pos.count;
+    const geo = o.geometry, pos = geo.attributes.position, nor = geo.attributes.normal, idx = geo.index, cc = o.material.color, n = pos.count, vc = geo.attributes.color, sk = o.isSkinnedMesh;
     mN.getNormalMatrix(o.matrixWorld);
     for (let k = 0; k < n; k++) {
-      vA.fromBufferAttribute(pos, k).applyMatrix4(o.matrixWorld); bk.p.push(vA.x, vA.y, vA.z);
+      if (sk) o.boneTransform(k, vA); else vA.fromBufferAttribute(pos, k);   // 蒙皮人偶:先套骨架姿勢(骨矩陣需已更新)
+      vA.applyMatrix4(o.matrixWorld); bk.p.push(vA.x, vA.y, vA.z);
       if (nor) { vN.fromBufferAttribute(nor, k).applyMatrix3(mN).normalize(); bk.n.push(vN.x, vN.y, vN.z); } else bk.n.push(0, 1, 0);
-      bk.c.push(cc.r, cc.g, cc.b);
+      if (vc) bk.c.push(vc.getX(k), vc.getY(k), vc.getZ(k)); else bk.c.push(cc.r, cc.g, cc.b);
     }
     const m = idx ? idx.count : n;
     for (let k = 0; k < m; k++) bk.i.push((idx ? idx.getX(k) : k) + bk.nv);

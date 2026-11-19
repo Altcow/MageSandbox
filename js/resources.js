@@ -83,6 +83,7 @@ function playerHurt(n, src) {
   else if (!uny && net && !dot && G.hardImmT <= 0 && G.hitStunCd <= 0) { G.stun = Math.max(G.stun, NET_RULES.hitStun); G.hitStunCd = NET_RULES.hitStunGap; }   // 多人:硬直取大、0.5 s 內只觸發一次、韌性期間不硬直(§1-6)
   if (G.frzT > 0 && rest >= ST.freezeBreak && G.frzAge >= ST.freezeGrace) stFreezeBreak();   // 凍結碎冰(§1-2 #3)
   crOnHurt(rest);
+  if (mage.play && !dot) mage.play(rest >= 15 ? 'hitBig' : 'hitSmall');   // 人偶受擊動作(只本機看得到)
   if (G.hp <= 0) playerDown(); else if (!uny) banner('致命一擊!', '#ff5050');
   return { blocked: false, dmg: rest, src };
 }
