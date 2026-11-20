@@ -99,6 +99,7 @@ function castQuickShot(P, orb) {
   if (orb) dissolveOrb(orb, E);
   const L = Math.hypot(P.target.x - from.x, P.target.z - from.z) || 1, reach = P.range || 26;
   const to = ex ? new V3(from.x + (P.target.x - from.x) / L * reach, P.target.y + .4, from.z + (P.target.z - from.z) / L * reach) : new V3(P.target.x, P.target.y + .4, P.target.z);
+  if (skOk(P)) skLine(from, to, ex ? .35 : .2, ex ? .5 : .25);   // 青色直線箭軌
   flyProjectile(from, to, ex ? 90 : lerp(45, 70, P.q), {
     mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.3, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1, pierce: !!ex, solid: true,
     onHit: (d, b) => {
@@ -116,6 +117,7 @@ function castShockArrow(P, orb) {
   const E = casterAura(P), p = casterPos(P), cfg = CFG.skills.shockArrow, dx = Math.sin(P.dir), dz = Math.cos(P.dir), y0 = p.y + 1.3;
   if (orb) dissolveOrb(orb, E);
   const w = lerp(cfg.width0, cfg.width1, P.q), from = new V3(p.x + dx * .8, y0, p.z + dz * .8), to = new V3(from.x + dx * P.r, y0, from.z + dz * P.r);
+  if (skOk(P)) skLine(from, to, w * .5, .4, { grow: .3 });
   const mesh = giantArrowMesh(w, E.hex, lerp(.7, 1.2, P.q)), dir = new V3(dx, 0, dz);
   let flashed = false; const seen = new Set();
   flyProjectile(from, to, 40, {
@@ -211,6 +213,7 @@ function castPowerSlash(P, orb) {
   const cx = p.x + Math.sin(P.dir) * cfg.range, cz = p.z + Math.cos(P.dir) * cfg.range, cy = surfaceY(cx, cz, p.y + 2);
   areaHit(cx, cy, cz, P.r, 90 * P.dmgK, 1.5 * P.fxK, p.x, p.z, p);
   arcSlash(new V3(cx, cy, cz), P.r, P.dir, E.hex, .2);
+  if (skOk(P)) skTrail(p, P.dir, Object.assign({}, SK_TPL.power, { r1: Math.max(1.6, P.r), w: 1 + P.q }));   // 劍技青光軌:寬度隨集氣
   if (P.ex) {   // 破空斬(強化,P.ex 由 swordExFn 在施放時判定):沿方向射出劍氣,直線 9 m、穿透
     const dx = Math.sin(P.dir), dz = Math.cos(P.dir), from = new V3(p.x + dx * .8, p.y + 1, p.z + dz * .8), to = new V3(from.x + dx * SW.waveLen, from.y, from.z + dz * SW.waveLen);
     flyProjectile(from, to, 30, {
@@ -227,13 +230,14 @@ function castWhirlwind(P, orb) {
   P.recover = .14 + dur + CFG.skills.whirlwind.recover;
   G.spin = { t: 0, dur, n: Math.max(2, Math.round(dur / .3)), hits: 0, R: P.r, dmg: 22 * P.dmgK, hex: E.hex };
   burstRing(new V3(mage.root.position.x, mage.root.position.y, mage.root.position.z), E.hex, P.r);
+  skRing(mage.root.position, mage.yaw, Math.min(P.r, 2.4), 1.0, .12);
 }
 // 旋風斬每幀(classTick 呼叫)
 function spinTick(dt, p) {
   const S = G.spin, E = auraEl();
   S.t += dt; mage.spinY += Math.PI * 8 * dt;
   if (S.hits < S.n && S.t >= S.hits * .3) {
-    S.hits++; areaHit(p.x, p.y, p.z, S.R, S.dmg); burstRing(new V3(p.x, p.y, p.z), E.hex, S.R * .8);
+    S.hits++; areaHit(p.x, p.y, p.z, S.R, S.dmg); burstRing(new V3(p.x, p.y, p.z), E.hex, S.R * .8); if (mage.opq >= .5) skRing(p, mage.yaw, Math.min(S.R, 2.4), 1.0, .12);
   }
   if (S.t >= S.dur) { G.spin = null; mage.spinY = 0; return; }
   const T = mage.tipWorld(new V3());

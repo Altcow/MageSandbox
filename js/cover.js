@@ -344,8 +344,7 @@
   function enterGame(sceneIdx) {
     stopCover();
     setScene(SCENE_INFO[sceneIdx | 0] ? sceneIdx | 0 : 0, true);
-    setClass(st.cls);
-    if (st.cls === 'mage') setElement(st.el);
+    // 配裝制:武器 / 技能由配裝頁(loadout.js)決定,不再套用封面選的職業 / 屬性(封面選擇只用於房間登記)
   }
   function enterSolo() {
     stopCover();

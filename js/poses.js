@@ -6,7 +6,8 @@
 //   小腿 rx 正值 = 膝彎(腳往後);脊椎 / 頭 rx 正值 = 前傾 / 低頭。手臂請用 arm(side, 前抬, 外展, 肘彎, 扭轉) 免得記符號。
 // 片段 = 關鍵姿勢序列 [[t, 姿勢, 緩動], ...];緩動只用 6 種(linear / inQuad / outQuad / inOutQuad / outExpo / outBack)。
 const POSE_BONES = ['Hips', 'Spine', 'Chest', 'Neck', 'Head', 'LArm', 'LFore', 'LHand', 'RArm', 'RFore', 'RHand', 'LThigh', 'LShin', 'LFoot', 'RThigh', 'RShin', 'RFoot'];
-const POSE_N = POSE_BONES.length, POSE_LEN = POSE_N * 3 + 3;   // 最後 3 個 = Hips 位移
+const POSE_N = POSE_BONES.length, POSE_LEN = POSE_N * 3 + 5;   // 最後 5 個 = Hips 位移(3)+ tilt(身體繞腳底 x 軸,+ 前撲 / − 後仰,弧度)+ lift(body 視覺離地,公尺)
+const POSE_TILT = POSE_N * 3 + 3, POSE_LIFT = POSE_N * 3 + 4;
 const POSE_IX = {}; POSE_BONES.forEach((n, i) => { POSE_IX[n] = i; });
 const ARM0 = 1.42;
 const EASE = {
@@ -26,7 +27,7 @@ function leg(side, fwd, abd, knee) {
 const PZ = (...o) => Object.assign({}, ...o);   // 合併稀疏姿勢
 const _NEUTRAL = new Float32Array(POSE_LEN);
 function _fill(arr, sp) {
-  for (const k in sp) { if (k === 'hip') { arr[POSE_N * 3] = sp.hip[0]; arr[POSE_N * 3 + 1] = sp.hip[1]; arr[POSE_N * 3 + 2] = sp.hip[2]; continue; } const i = POSE_IX[k]; if (i === undefined) { console.warn('[poses] 未知骨', k); continue; } arr[i * 3] = sp[k][0]; arr[i * 3 + 1] = sp[k][1]; arr[i * 3 + 2] = sp[k][2]; }
+  for (const k in sp) { if (k === 'hip') { arr[POSE_N * 3] = sp.hip[0]; arr[POSE_N * 3 + 1] = sp.hip[1]; arr[POSE_N * 3 + 2] = sp.hip[2]; continue; } if (k === 'tilt') { arr[POSE_TILT] = sp.tilt; continue; } if (k === 'lift') { arr[POSE_LIFT] = sp.lift; continue; } const i = POSE_IX[k]; if (i === undefined) { console.warn('[poses] 未知骨', k); continue; } arr[i * 3] = sp[k][0]; arr[i * 3 + 1] = sp[k][1]; arr[i * 3 + 2] = sp[k][2]; }
   return arr;
 }
 _fill(_NEUTRAL, PZ(arm('L', 0, 0, .22), arm('R', 0, 0, .22), { LThigh: [0, 0, .03], RThigh: [0, 0, -.03] }));
@@ -40,7 +41,7 @@ function poseMix(out, p, w, mask) {
   if (w <= 0) return out;
   for (let i = 0; i < POSE_N; i++) { const m = (mask ? mask[i] : 1) * w; if (m <= 0) continue; const j = i * 3; out[j] += (p[j] - out[j]) * m; out[j + 1] += (p[j + 1] - out[j + 1]) * m; out[j + 2] += (p[j + 2] - out[j + 2]) * m; }
   const m = (mask ? mask[0] : 1) * w, h = POSE_N * 3;
-  if (m > 0) { out[h] += (p[h] - out[h]) * m; out[h + 1] += (p[h + 1] - out[h + 1]) * m; out[h + 2] += (p[h + 2] - out[h + 2]) * m; }
+  if (m > 0) { for (let j = 0; j < 5; j++) out[h + j] += (p[h + j] - out[h + j]) * m; }
   return out;
 }
 
@@ -83,6 +84,11 @@ const WPOSE = {
     prep: mkPose(PZ(arm('R', 2.2, .4, 1.5), arm('L', .8, .3, 1.35), { Spine: [-.1, -.3, 0], Chest: [-.08, -.15, 0] })),
     burst: mkPose(PZ(arm('R', 1.1, .0, .25), arm('L', .9, .3, 1.3), { Spine: [.32, .3, 0], Chest: [.1, .2, 0] })), free: []
   },
+  dual: {    // 雙劍(設計_雙劍 §6):右劍前上、左劍稍低;集氣 = 雙手交叉胸前、劍尖朝後;爆發 = 向外揮開
+    ready: mkPose(PZ(arm('R', .8, .25, 1.0), arm('L', .55, .35, .9), { Spine: [.08, -.1, 0] })),
+    prep: mkPose(PZ(arm('R', 1.2, -.2, 1.9, .3), arm('L', 1.2, -.2, 1.9, .3), { Spine: [.25, 0, 0], Chest: [.1, 0, 0] })),
+    burst: mkPose(PZ(arm('R', 1.3, .9, .2), arm('L', 1.3, .9, .2), { Spine: [.3, 0, 0] })), free: []
+  },
   daggers: {
     ready: mkPose(PZ(arm('R', .7, .35, 1.4), arm('L', .7, .35, 1.4), { Spine: [.15, 0, 0], Head: [-.05, 0, 0] })),
     prep: mkPose(PZ(arm('R', .5, .9, 1.5), arm('L', .5, .9, 1.5), { Spine: [.3, 0, 0], hip: [0, -.12, 0] })),
@@ -90,8 +96,8 @@ const WPOSE = {
   }
 };
 // 換武動作的「手上武器那隻手」:收到肩後的預備姿勢(右手持握的武器 = R,左手持握的弓 / 書 = L)
-const SWAP_HAND = { staff: 'R', sword: 'R', swordShield: 'R', daggers: 'R', book: 'L', bow: 'L' };
-const SWAP_BACK = { R: mkPose(PZ(arm('R', 2.65, .55, 1.95), { Spine: [-.1, -.25, 0], Chest: [-.05, -.15, 0], Head: [-.08, 0, 0] })), L: mkPose(PZ(arm('L', 2.65, .55, 1.95), { Spine: [-.1, .25, 0], Chest: [-.05, .15, 0], Head: [-.08, 0, 0] })) };
+const SWAP_HAND = { staff: 'R', sword: 'R', swordShield: 'R', daggers: 'R', book: 'L', bow: 'L', dual: 'B' };
+const SWAP_BACK = { B: mkPose(PZ(arm('R', 2.65, .55, 1.95), arm('L', 2.65, .55, 1.95), { Spine: [-.1, 0, 0], Head: [-.08, 0, 0] })), R: mkPose(PZ(arm('R', 2.65, .55, 1.95), { Spine: [-.1, -.25, 0], Chest: [-.05, -.15, 0], Head: [-.08, 0, 0] })), L: mkPose(PZ(arm('L', 2.65, .55, 1.95), { Spine: [-.1, .25, 0], Chest: [-.05, .15, 0], Head: [-.08, 0, 0] })) };
 
 /* ---------- 片段 ---------- */
 // mask:full / upper / lower;loop:循環;weapon:建議手持(P 面板播放時自動換上)
@@ -126,6 +132,28 @@ defClip('通用', 'frozen', .5, 'full', [[0, PZ({ Spine: [-.1, .1, 0], Head: [-.
 defClip('通用', 'swapWeapon', .35, 'upper', [[0, {}]], { special: 'swap' });   // 實際姿勢依「手上武器那隻手」算(Doll._swapPose)
 defClip('通用', 'kick', .45, 'full', [[0, {}], [.15, PZ({ Spine: [-.15, -.3, 0], hip: [0, -.05, -.05] }, leg('R', -.4, 0, .9), arm('L', .6, .4, 1.0), arm('R', .6, .4, 1.0)), 'outQuad'], [.25, PZ({ Spine: [-.2, -.35, 0] }, leg('R', 1.35, .1, .15), arm('L', .6, .5, 1.0), arm('R', .3, .3, .8)), 'outExpo'], [.45, {}, 'inOutQuad']]);
 
+/* 受擊反應(設計_劍技光效與受擊反應 §4-8;tilt = 身體前撲 + / 後仰 −、lift = body 視覺離地 m,只動外觀)。holdDown:停在最後一格直到倒地結束;after:收尾接的片段 */
+const _poseT = (p, t, l) => { const c = p.slice(); c[POSE_TILT] = t; c[POSE_LIFT] = l || 0; return c; };
+const POSE_DOWN_FACE = mkPose(PZ({ Head: [-.4, .6, 0], tilt: 1.45 }, arm('L', .9, .9, 1.2), arm('R', .9, .9, 1.2), leg('L', 0, .1, .1), leg('R', 0, .1, .1)));
+const POSE_DOWN_T = _poseT(POSES.down, -1.45, 0);
+defClip('受擊', 'hitSmallRear', .3, 'full', [[0, {}], [.07, PZ({ Spine: [.35, 0, 0], Chest: [.12, 0, 0], Head: [.25, 0, 0], hip: [0, -.04, .06] }, arm('L', -.3, .4, .3), arm('R', -.3, .4, .3)), 'outExpo'], [.3, {}, 'inOutQuad']]);
+defClip('受擊', 'hitBigRear', .6, 'full', [[0, {}], [.1, PZ({ Spine: [.55, 0, 0], Chest: [.2, 0, 0], Head: [.35, 0, 0], hip: [0, -.1, .18] }, arm('L', -.5, .9, .1), arm('R', -.5, .9, .1), leg('L', .35, .1, .6), leg('R', -.25, .1, .3)), 'outExpo'], [.3, PZ({ Spine: [.45, 0, 0], Chest: [.18, 0, 0], Head: [.3, 0, 0], hip: [0, -.1, .15] }, arm('L', -.3, .8, .1), arm('R', -.3, .8, .1), leg('L', .3, .1, .5), leg('R', -.2, .1, .3)), 'linear'], [.6, {}, 'inOutQuad']]);
+defClip('受擊', 'hitSlide', .5, 'lower', [[0, {}], [.08, PZ({ hip: [0, -.15, 0] }, leg('L', .3, .12, .7), leg('R', -.35, .12, .6)), 'outExpo'], [.4, PZ({ hip: [0, -.15, 0] }, leg('L', .3, .12, .7), leg('R', -.35, .12, .6)), 'linear'], [.5, {}, 'inOutQuad']]);
+defClip('受擊', 'stagger', .55, 'full', [[0, {}], [.12, PZ({ Spine: [-.5, .2, 0], Chest: [-.25, 0, 0], Head: [-.5, .3, 0], hip: [0, -.1, -.2] }, arm('L', -.3, 1.0, .1), arm('R', -.2, 1.0, .1), leg('L', -.3, .1, .4), leg('R', .2, .1, .6)), 'outExpo'], [.25, PZ({ Head: [.3, .2, 0], Spine: [.1, .1, 0] }, leg('L', -.35, .15, .6), arm('L', .4, 1.0, .3), arm('R', -.4, 1.0, .3)), 'outQuad'], [.4, PZ({ Head: [.3, -.2, 0], Spine: [.1, -.1, 0] }, leg('R', -.3, .15, .6), arm('L', -.4, 1.0, .3), arm('R', .4, 1.0, .3)), 'inOutQuad'], [.55, PZ({ Head: [.3, .25, 0], Spine: [.1, .1, .1], hip: [.04, -.06, 0] }, leg('L', 0, 0, .25), leg('R', 0, 0, .25), arm('L', .1, .15, .3), arm('R', .1, .15, .3)), 'inOutQuad']]);
+defClip('受擊', 'stunSway', 1.2, 'full', [[0, PZ({ Head: [.3, .25, 0], Spine: [.1, .1, .1], hip: [.04, -.06, 0] }, leg('L', 0, 0, .25), leg('R', 0, 0, .25), arm('L', .1, .15, .3), arm('R', .1, .15, .3))], [.6, PZ({ Head: [.35, -.25, 0], Spine: [.1, -.1, -.1], hip: [-.04, -.06, 0] }, leg('L', 0, 0, .35), leg('R', 0, 0, .2), arm('L', .1, .15, .3), arm('R', .1, .15, .3)), 'inOutQuad'], [1.2, PZ({ Head: [.3, .25, 0], Spine: [.1, .1, .1], hip: [.04, -.06, 0] }, leg('L', 0, 0, .25), leg('R', 0, 0, .25), arm('L', .1, .15, .3), arm('R', .1, .15, .3)), 'inOutQuad']], { loop: true });
+// 擊退仰飛:被打得上身後折 → 空中後仰滑行 → 背著地(落地瞬間對準位移 74%)→ 接倒地(holdDown)→ 起身
+const _flyHands = (f, ab) => PZ(arm('L', f, ab, .1), arm('R', f, ab, .1));
+defClip('受擊', 'flyBack', .62, 'full', [[0, {}], [.12, PZ({ Spine: [-.6, 0, 0], Chest: [-.25, 0, 0], Head: [-.55, 0, 0], tilt: -.35, lift: .15 }, _flyHands(-.6, 1.2), leg('L', .5, .2, .8), leg('R', .2, .2, .4)), 'outExpo'],
+  [.27, PZ({ Spine: [-.4, 0, 0], Head: [-.35, 0, 0], tilt: -.7, lift: .3 }, _flyHands(-.5, 1.35), leg('L', .6, .25, 1.0), leg('R', .3, .25, .6)), 'inOutQuad'],
+  [.42, PZ({ Spine: [-.4, 0, 0], Head: [-.35, 0, 0], tilt: -.85, lift: .1 }, _flyHands(-.5, 1.35), leg('L', .6, .25, 1.0), leg('R', .3, .25, .6)), 'inOutQuad'],
+  [.5, PZ({ tilt: -1.2, lift: .05 }, _flyHands(-.2, 1.1), leg('L', .9, .2, .3)), 'outQuad'], [.62, POSE_DOWN_T, 'outQuad']], { holdDown: true, after: 'getUpFast' });
+defClip('受擊', 'flyFwd', .62, 'full', [[0, {}], [.12, PZ({ Spine: [.5, 0, 0], Head: [-.2, 0, 0], tilt: .35, lift: .15 }, _flyHands(1.2, .5), leg('L', -.4, .1, .6), leg('R', -.4, .1, .6)), 'outExpo'],
+  [.27, PZ({ Spine: [.5, 0, 0], Head: [-.2, 0, 0], tilt: .7, lift: .3 }, _flyHands(1.3, .5), leg('L', -.4, .1, .6), leg('R', -.4, .1, .6)), 'inOutQuad'],
+  [.45, PZ({ Spine: [.4, 0, 0], Head: [-.3, 0, 0], tilt: 1.1, lift: .1 }, _flyHands(1.2, .6), leg('L', -.3, .1, .5), leg('R', -.3, .1, .5)), 'inOutQuad'], [.62, POSE_DOWN_FACE, 'outQuad']], { holdDown: true, after: 'getUpFace' });
+defClip('受擊', 'knockDownFace', .45, 'full', [[0, {}], [.15, PZ({ Spine: [.4, 0, 0], tilt: .4 }, _flyHands(1.0, .5)), 'outQuad'], [.45, POSE_DOWN_FACE, 'outQuad']], { holdDown: true, after: 'getUpFace' });
+defClip('受擊', 'getUpFast', .5, 'full', [[0, POSE_DOWN_T], [.2, PZ({ hip: [0, -.6, .1], Spine: [.7, 0, 0], tilt: -.2 }, leg('L', 1.3, .2, 1.9), leg('R', .7, -.2, 1.2), arm('L', .8, .5, .5), arm('R', .8, .5, .5)), 'outQuad'], [.5, {}, 'inOutQuad']], { dnSup: true });
+defClip('受擊', 'getUpFace', .55, 'full', [[0, POSE_DOWN_FACE], [.2, PZ({ tilt: .9, Spine: [.3, 0, 0] }, arm('L', 1.4, .3, .2), arm('R', 1.4, .3, .2)), 'outQuad'], [.35, PZ({ hip: [0, -.5, 0], tilt: 0 }, leg('L', 1.0, .1, 1.6), leg('R', .2, .1, 1.9)), 'inOutQuad'], [.55, {}, 'inOutQuad']], { dnSup: true });
+
 /* 長劍(swordShield / sword 通用:以 R 手持劍) */
 defClip('長劍', 'sword.slash1', .5, 'upper', [[0, WPOSE.sword.ready], [.18, PZ(arm('R', 2.2, .7, 1.5), { Spine: [-.05, -.45, 0], Chest: [0, -.25, 0] }), 'outQuad'], [.26, PZ(arm('R', 1.2, -.1, .3), { Spine: [.3, .45, 0], Chest: [.1, .3, 0], Head: [.1, -.3, 0] }, arm('L', -.3, .5, .3)), 'outExpo'], [.5, WPOSE.sword.ready, 'inOutQuad']], { weapon: 'sword' });
 defClip('長劍', 'sword.slash2', .5, 'upper', [[0, WPOSE.sword.ready], [.18, PZ(arm('R', 1.0, 1.1, .7), { Spine: [0, .5, 0], Chest: [0, .3, 0] }, arm('L', .2, .3, .5)), 'outQuad'], [.26, PZ(arm('R', 1.2, 1.3, .2), { Spine: [.1, -.6, 0], Chest: [0, -.4, 0], Head: [0, .4, 0] }), 'outExpo'], [.5, WPOSE.sword.ready, 'inOutQuad']], { weapon: 'sword' });
@@ -147,6 +175,18 @@ defClip('短法杖', 'staff.wall', .6, 'upper', [[0, WPOSE.staff.ready], [.2, PZ
 defClip('短法杖', 'staff.sky', .7, 'upper', [[0, WPOSE.staff.ready], [.3, PZ(arm('R', 3.0, .2, .3), arm('L', 1.2, .5, .4), { Spine: [-.3, 0, 0], Chest: [-.15, 0, 0], Head: [-.4, 0, 0] }), 'outQuad'], [.45, PZ(arm('R', 3.0, .2, .3), arm('L', 1.2, .5, .4), { Spine: [-.3, 0, 0], Head: [-.4, 0, 0] }, { Spine: [-.35, 0, 0] }), 'linear'], [.7, WPOSE.staff.ready, 'inOutQuad']], { weapon: 'staff' });
 defClip('短法杖', 'staff.summon', .8, 'upper', [[0, WPOSE.staff.ready], [.3, PZ(arm('R', 2.8, .3, .4), arm('L', .9, .6, .4), { Spine: [-.25, 0, 0], Head: [-.3, 0, 0] }), 'outQuad'], [.45, PZ(arm('R', .9, .1, .9), { Spine: [.4, 0, 0], Chest: [.1, 0, 0], hip: [0, -.18, 0], Head: [.15, 0, 0] }, arm('L', .8, .6, .5), leg('L', .5, .1, 1.0), leg('R', .3, -.1, 1.0)), 'outExpo'], [.8, {}, 'inOutQuad']], { weapon: 'staff' });
 defClip('短法杖', 'staff.buff', 1.0, 'upper', [[0, WPOSE.staff.ready], [.4, PZ(arm('R', 3.1, .15, .1), arm('L', 2.9, .3, .1), { Spine: [-.2, 0, 0], Head: [-.35, 0, 0] }), 'outQuad'], [.75, PZ(arm('R', 3.1, .15, .1), arm('L', 2.9, .3, .1), { Spine: [-.2, 0, 0], Head: [-.35, 0, 0] }), 'linear'], [1, WPOSE.staff.ready, 'inOutQuad']], { weapon: 'staff' });
+/* 雙劍(設計_雙劍 §6):hand = 該片段主要出手的那隻手('L' / 'R' / 'B' 雙手),決定 tipWorld 與光軌起點 */
+const _dR = (a, b, c, d) => arm('R', a, b, c, d), _dL = (a, b, c, d) => arm('L', a, b, c, d);
+defClip('雙劍', 'dual.n1', .28, 'upper', [[0, WPOSE.dual.ready], [.07, PZ(_dR(2.3, .6, 1.5), { Spine: [-.05, -.35, 0] }), 'outQuad'], [.11, PZ(_dR(1.1, -.1, .3), { Spine: [.3, .35, 0], Chest: [.1, .2, 0] }, _dL(.3, .5, .6)), 'outExpo'], [.28, WPOSE.dual.ready, 'inOutQuad']], { weapon: 'dual', hand: 'R' });
+defClip('雙劍', 'dual.n2', .28, 'upper', [[0, WPOSE.dual.ready], [.07, PZ(_dL(2.3, .6, 1.5), { Spine: [-.05, .35, 0] }), 'outQuad'], [.11, PZ(_dL(1.1, -.1, .3), { Spine: [.3, -.35, 0], Chest: [.1, -.2, 0] }, _dR(.3, .5, .6)), 'outExpo'], [.28, WPOSE.dual.ready, 'inOutQuad']], { weapon: 'dual', hand: 'L' });
+defClip('雙劍', 'dual.n3', .3, 'upper', [[0, WPOSE.dual.ready], [.08, PZ(_dR(1.3, 1.2, .6), { Spine: [0, .5, 0] }), 'outQuad'], [.12, PZ(_dR(1.3, -.2, .4), { Spine: [.1, -.6, 0], Chest: [0, -.3, 0] }), 'outExpo'], [.3, WPOSE.dual.ready, 'inOutQuad']], { weapon: 'dual', hand: 'R' });
+defClip('雙劍', 'dual.n4', .3, 'upper', [[0, WPOSE.dual.ready], [.08, PZ(_dL(.2, .5, .4), { Spine: [.3, -.2, 0] }), 'outQuad'], [.13, PZ(_dL(2.6, .3, .2), { Spine: [-.2, .3, 0], Head: [-.15, 0, 0] }), 'outExpo'], [.3, WPOSE.dual.ready, 'inOutQuad']], { weapon: 'dual', hand: 'L' });
+defClip('雙劍', 'dual.n5', .44, 'full', [[0, WPOSE.dual.ready], [.1, PZ(_dR(2.5, .9, 1.8), _dL(2.5, .9, 1.8), { Spine: [-.2, 0, 0], hip: [0, -.05, 0] }), 'outQuad'], [.2, PZ(_dR(1.0, -.3, .2), _dL(1.0, -.3, .2), { Spine: [.45, 0, 0], hip: [0, -.15, .15] }, leg('L', .6, .1, .9), leg('R', -.3, .1, .5)), 'outExpo'], [.3, PZ(_dR(1.0, -.3, .2), _dL(1.0, -.3, .2), { Spine: [.45, 0, 0], hip: [0, -.15, .15] }, leg('L', .6, .1, .9), leg('R', -.3, .1, .5)), 'linear'], [.44, WPOSE.dual.ready, 'inOutQuad']], { weapon: 'dual', hand: 'B' });
+defClip('雙劍', 'dual.charge', .6, 'upper', [[0, WPOSE.dual.prep], [.3, PZ(_dR(1.2, -.2, 1.9, .3), _dL(1.2, -.2, 1.9, .3), { Spine: [.28, 0, 0], Chest: [.1, 0, 0] }), 'inOutQuad'], [.6, WPOSE.dual.prep, 'inOutQuad']], { weapon: 'dual', hand: 'B', loop: true });
+defClip('雙劍', 'dual.dash', .4, 'full', [[0, WPOSE.dual.prep], [.06, PZ({ Spine: [.55, 0, 0] }, _dR(-.6, .5, .2), _dL(-.6, .5, .2), leg('L', .9, .1, .5), leg('R', -.6, .1, .3)), 'outExpo'], [.4, PZ({ Spine: [.55, 0, 0] }, _dR(-.6, .5, .2), _dL(-.6, .5, .2), leg('L', .9, .1, .5), leg('R', -.6, .1, .3)), 'linear']], { weapon: 'dual', hand: 'B', hold: true });
+defClip('雙劍', 'dual.flurry', .24, 'upper', [[0, PZ(_dR(1.5, .4, .3), _dL(.9, .7, 1.2), { Spine: [.2, -.25, 0] })], [.06, PZ(_dR(1.2, -.2, .2), _dL(.9, .7, 1.2), { Spine: [.2, -.25, 0] }), 'outExpo'], [.12, PZ(_dL(1.5, .4, .3), _dR(.9, .7, 1.2), { Spine: [.2, .25, 0] }), 'inOutQuad'], [.18, PZ(_dL(1.2, -.2, .2), _dR(.9, .7, 1.2), { Spine: [.2, .25, 0] }), 'outExpo'], [.24, PZ(_dR(1.5, .4, .3), _dL(.9, .7, 1.2), { Spine: [.2, -.25, 0] }), 'inOutQuad']], { weapon: 'dual', hand: 'B', loop: true });
+defClip('雙劍', 'dual.flurryEnd', .35, 'full', [[0, WPOSE.dual.ready], [.08, PZ(_dR(2.5, .9, 1.8), _dL(2.5, .9, 1.8), { Spine: [-.2, 0, 0] }), 'outQuad'], [.16, PZ(_dR(1.0, -.3, .2), _dL(1.0, -.3, .2), { Spine: [.45, 0, 0], hip: [0, -.15, .15] }), 'outExpo'], [.35, WPOSE.dual.ready, 'inOutQuad']], { weapon: 'dual', hand: 'B' });
+defClip('雙劍', 'dual.cross', .45, 'upper', [[0, WPOSE.dual.ready], [.15, PZ(_dR(1.4, -.6, 1.8), _dL(1.4, -.6, 1.8), { Spine: [.15, 0, 0] }), 'outQuad'], [.2, PZ(_dR(1.3, 1.3, .2), _dL(1.3, 1.3, .2), { Spine: [-.1, 0, 0] }), 'outExpo'], [.45, WPOSE.dual.ready, 'inOutQuad']], { weapon: 'dual', hand: 'B' });
 /* 自動備援(沒有專屬動作的招式,依 kind / aim 套通用姿勢;§1-4) */
 defClip('通用備援', 'gen.throw', .5, 'upper', [[0, {}], [.18, PZ(arm('R', 2.4, .4, 1.5), { Spine: [-.2, -.35, 0] }, arm('L', .8, .5, .4)), 'outQuad'], [.26, PZ(arm('R', 1.3, .1, .1), { Spine: [.3, .3, 0] }, arm('L', -.3, .5, .3)), 'outExpo'], [.5, {}, 'inOutQuad']]);
 defClip('通用備援', 'gen.slash', .5, 'upper', [[0, {}], [.18, PZ(arm('R', 2.3, .6, 1.5), { Spine: [-.1, -.4, 0] }), 'outQuad'], [.26, PZ(arm('R', 1.1, -.1, .3), { Spine: [.3, .4, 0] }), 'outExpo'], [.5, {}, 'inOutQuad']]);
@@ -154,6 +194,11 @@ defClip('通用備援', 'gen.overhead', .6, 'upper', [[0, {}], [.3, PZ(arm('R', 
 defClip('通用備援', 'gen.thrust', .45, 'upper', [[0, {}], [.15, PZ(arm('R', .6, .3, 1.8), { Spine: [-.05, -.4, 0] }), 'outQuad'], [.22, PZ(arm('R', 1.5, .05, .05), { Spine: [.25, .35, 0] }), 'outExpo'], [.45, {}, 'inOutQuad']]);
 defClip('通用備援', 'gen.sweep', .55, 'upper', [[0, {}], [.2, PZ(arm('R', 1.4, 1.1, .5), { Spine: [0, .5, 0] }), 'outQuad'], [.3, PZ(arm('R', 1.4, .0, .5), { Spine: [.1, -.55, 0] }), 'outExpo'], [.55, {}, 'inOutQuad']]);
 defClip('通用備援', 'gen.self', .6, 'upper', [[0, {}], [.3, PZ(arm('R', .9, .5, 1.5), arm('L', .9, .5, 1.5), { Spine: [.1, 0, 0] }), 'outQuad'], [.6, {}, 'inOutQuad']]);
+// 動作 id(快照 a 欄位的 aId,6 位元 0~63;設計_劍技光效與受擊反應 §4-6;0 = 無)。24~55 = 招式片段(普攻光軌遠端靠這段觸發)
+const ACT_NAMES = [null, 'hitSmall', 'hitSmallRear', 'hitBig', 'hitBigRear', 'hitBig+hitSlide', 'hitBigRear+hitSlide', 'stagger', 'flyBack', 'flyFwd', 'knockDown', 'knockDownFace', 'downTwitch', 'rollUp', 'getUp', null, 'swapWeapon', 'die', 'revive'];
+while (ACT_NAMES.length < 24) ACT_NAMES.push(null);
+['sword.slash1', 'sword.slash2', 'sword.slash3', 'dual.n1', 'dual.n2', 'dual.n3', 'dual.n4', 'dual.n5', 'dual.dash', 'dual.flurry', 'dual.cross', 'sword.charge', 'bow.shoot'].forEach(n => ACT_NAMES.push(n));
+const ACT_ID = {}; ACT_NAMES.forEach((n, i) => { if (n) ACT_ID[n] = i; });
 const KIND_ACT = { bolt: 'gen.throw', wall: 'gen.sweep', sky: 'gen.overhead', line: 'gen.thrust', front: 'gen.slash', self: 'gen.self' };
 
 // 跳躍方向傾斜:ang = 相對面向的方向(0 前、π/2 右、π 後、-π/2 左);k = 0..1;前跳 = 現況(不加),後跳後仰、側跳往側邊傾且該側腿外展

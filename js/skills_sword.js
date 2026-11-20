@@ -106,6 +106,7 @@ function castSlam(P, orb) {
   const E = casterAura(P), p = casterPos(P), R = P.r;
   if (orb) dissolveOrb(orb, E);
   burstRing(new V3(p.x, p.y, p.z), E.hex, R);
+  if (skOk(P)) skTrail(p, P.dir, SK_TPL.vert);
   if (!P.net) G.shake = Math.max(G.shake, .2 * CFG.shake);
   for (const d of DUMMIES) {
     if (d.dead || Math.abs(p.y - d.y) > R + 1.5) continue;
@@ -158,6 +159,7 @@ function castSkyLeap(P, orb) {
   P.recover = .14 + pl.T + cfg.recover;   // 跳躍期間鎖住移動(updatePlayer 的 cast 鎖定)
   P.target.set(pl.x1, terrainH(pl.x1, pl.z1), pl.z1); P.r = pl.R;   // 施放中的光圈淡出以實際落點 / 半徑畫
   skyMarker(pl.x1, pl.z1, pl.R, pl.T, E.hex);
+  if (skOk(P)) { skTrail(p, P.dir, { a0: -30, a1: 200, r0: .4, r1: 1.6, y0: 1.2, y1: 2.4, tilt: 85, dur: .2, life: .25, w: 1.2 }); after(pl.T, () => { skLine(new V3(pl.x1, terrainH(pl.x1, pl.z1) + 6, pl.z1), new V3(pl.x1, terrainH(pl.x1, pl.z1), pl.z1), .6, .35); }); }   // 起跳上弧 + 落地垂直直線光(遠端也排程,skyPlan 兩端一致)
   if (P.net) return;
   G.leap = { t: 0, x0: p.x, z0: p.z, y0: p.y, x1: pl.x1, z1: pl.z1, px: p.x, pz: p.z, pl: pl, P: P, E: E };
   burstRing(new V3(p.x, p.y, p.z), E.hex, 1.4);
@@ -226,6 +228,7 @@ function whirlRunTick(dt) {
   S.t += dt;
   if (!(CFG.res.infinite && !window.NETON)) { G.sp = Math.max(0, G.sp - cfg.spPerSec * dt); G.spIdle = 0; G.mp = Math.max(0, G.mp - cfg.mpPerSec * dt); G.mpIdle = 0; if (G.sp <= 0 || G.mp <= 0) { whirlRunEnd(); return; } }   // 兩條資源都不回、任一耗盡即停
   mage.spinY += Math.PI * 8 * dt;
+  S.rt = (S.rt || 0) - dt; if (S.rt <= 0 && mage.opq >= .5) { S.rt = .12; skRing(p, mage.yaw, 1.6, 1.0, .12); }
   const E = auraEl(), dx = Math.sin(mage.yaw), dz = Math.cos(mage.yaw), sp = G.speedN > .2;
   // 前進方向的風刃 / 粒子:武器尖端與身後拖尾
   const T = mage.tipWorld(new V3());

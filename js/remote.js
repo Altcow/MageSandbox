@@ -7,7 +7,7 @@
 window.NETON = false;
 window.NET_LOCK = false;
 const REMOTES = {};              // 座位(字串)→ RemotePlayer
-const SNAP_CHARS = 25;           // 快照字元數:150 位元 = 25 個 base64url 字元(142 位元 + 狀態欄 e 8 位元;g 為 14 位元;協定變更,NET_BUILD 須提升)
+const SNAP_CHARS = 27;           // 快照字元數:150 位元 = 25 個 base64url 字元(142 位元 + 狀態欄 e 8 位元;g 為 14 位元;協定變更,NET_BUILD 須提升)
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const TAU = Math.PI * 2;
 const NAME_COLORS = SEAT_HEX;   // 座位色(doll.js),座位號 = 索引 + 1
@@ -44,6 +44,7 @@ function packSnap(o) {
   put(o.w ? 1 : 0, 1);
   put((o.tp | 0) & 15, 4);
   put((o.e | 0) & 255, 8);
+  put((o.aId | 0) & 63, 6); put((o.aSeq | 0) & 7, 3); put((o.aAge | 0) & 7, 3);   // 動作欄位 a(12 位元):動作 id / 序號 / 已播時間
   while (bits.length % 6) bits.push(0);
   let s = '';
   for (let i = 0; i < bits.length; i += 6) { let v = 0; for (let j = 0; j < 6; j++) v = v * 2 + bits[i + j]; s += B64[v]; }
@@ -71,6 +72,7 @@ function unpackSnap(str, nowRef) {
   o.w = get(1);
   o.tp = get(4);
   o.e = get(8);
+  o.aId = get(6); o.aSeq = get(3); o.aAge = get(3);
   if (nowRef != null) { let d = (nowRef - tm) % 65536; if (d < 0) d += 65536; if (d >= 32768) d -= 65536; o.t = nowRef - d; }
   else o.t = 0;
   return o;
@@ -103,7 +105,7 @@ function mixPose(a, b, u) {
     t: L(a.t, b.t), x: L(a.x, b.x), y: L(a.y, b.y), z: L(a.z, b.z), r: a.r + angDiff(a.r, b.r) * u,
     m: L(a.m, b.m), c: L(a.c, b.c), k: L(a.k, b.k), q: L(a.q, b.q), s: L(a.s, b.s), d: L(a.d, b.d), sh: L(a.sh, b.sh),
     o: (a.o < 0 || b.o < 0) ? pick.o : L(a.o, b.o), f: (a.f < 0 || b.f < 0) ? pick.f : L(a.f, b.f), p: pick.p,
-    g: pick.g, hp: pick.hp, w: pick.w, tp: pick.tp, e: pick.e
+    g: pick.g, hp: pick.hp, w: pick.w, tp: pick.tp, e: pick.e, aId: pick.aId, aSeq: pick.aSeq, aAge: pick.aAge
   };
 }
 // 超過最新一則時依最後兩則速度外插(最多 200 ms),之後停住
@@ -283,12 +285,17 @@ class RemotePlayer {
     if (op !== this._op) { this._op = op; this.mage.setOpacity(op); this._noShadow(); }
     this.mage.root.position.set(p.x, p.y, p.z); this.mage.yaw = p.r;
     if (this.cls === 'mage') { const w = p.w ? 'book' : 'staff'; if (this.mage.weapon !== w) this.mage.setWeapon(w, false); }
+    if (p.aSeq !== this._aSeq) {   // 動作欄位:序號變了且有 id → 從已播時間開始播(受擊 / 倒地 / 招式片段);遠端 > 40 m 也照時間軸取樣
+      const first = this._aSeq === undefined; this._aSeq = p.aSeq;
+      if (!first && p.aId) { const nm = ACT_NAMES[p.aId], a0 = nm && ACT[nm.split('+')[0]]; if (a0 && !(p.aAge >= 7 && a0.dur < .7)) { if (a0.weapon && this.mage.held !== a0.weapon) { this.mage.setWeapon(a0.weapon, true); this.cls = { sword: 'swordsman', bow: 'archer', staff: 'mage', dual: 'dual' }[a0.weapon] || this.cls; }   // 動作片段帶武器:遠端手上武器跟著換
+        this.mage.playAct(p.aId, { t0: p.aAge * .1 }); if (!stealth && typeof skActFx === 'function' && this._op >= .5) skActFx(nm, this.g.position, p.r); } }
+    }
     this.mage.shieldUp = ((g & 4) || (g & 512)) ? 1 : 0;   // 衝鋒盾(4)或格擋窗(512 GUARD)舉盾
     // LOD(派工單 C-③):> 40 m 的遠端每 3 格才更新一次動畫(累積 dt)、武器細節隱藏;回到近距離時還原武器
     const far = Math.hypot(p.x - me.x, p.z - me.z) > NET_TIER.lodFar;
     this._lodAcc = (this._lodAcc || 0) + dt;
     this._lodN = ((this._lodN || 0) + 1) % 3;
-    if (!far || this._lodN === 0) { this.mage.update(this._lodAcc, { move: p.m, cast: p.c, kick: p.k, charge: p.q, t: G.time, hover: 0, roll: p.o, rollPhi: p.p, flip: p.f, sit: p.s, down: p.d }); this._lodAcc = 0; }
+    if (!far || this._lodN === 0) { this.mage.update(this._lodAcc, { move: p.m, cast: p.c, kick: p.k, charge: p.q, t: G.time, hover: 0, roll: p.o, rollPhi: p.p, flip: p.f, sit: p.s, down: p.d, fall: (this.stE & 7) === 3 || down, stCode: this.stE & 7 }); this._lodAcc = 0; }
     if (far) { this.mage.hideWeapons(true); this._wpnHid = true; }
     else if (this._wpnHid) { this._wpnHid = false; this.mage.hideWeapons(false); }
     // 顯示:無敵閃爍、潛行隱藏名牌 / 血條 / 假影
@@ -317,7 +324,8 @@ class RemotePlayer {
     }
     placeRing(this.ring, p.x, p.y, p.z, vis ? ((away || off) ? .4 : 1) : 0);   // 腳下色圈:跟假影同條件(潛行 / 煙霧 / 草叢 / 無敵閃爍時隱藏,不洩漏位置)
     // 集氣光球在武器尖端(§2-3)
-    this.glow.visible = vis && p.q > .01;
+    { const qc = Math.round(p.q * 31), ch = !!(g & 128) && vis && this._op >= .5; this.mage.setSkillGlow(this.cls !== 'mage' && ch && qc > 0 ? (qc <= 15 ? qc / 15 * .49 : qc < 31 ? .5 + (qc - 16) / 14 * .49 : 1) : 0, 1); }   // 劍技青光:q 碼 ≤15 未成形 / 16~30 第一段 / 31 第二段(潛行 / 草叢隱形時不畫)
+    this.glow.visible = vis && p.q > .01 && this.cls === 'mage';
     if (this.glow.visible) {
       this.mage.tipWorld(this._tmp); this.glow.position.copy(this._tmp); this.glow.scale.setScalar(.15 + .6 * p.q);
       const sg = Math.round(p.q * 31) >= 31 ? 2 : Math.round(p.q * 31) >= 16 ? 1 : 0;   // 遠端看得出階段:未成形灰白 / 第一段屬性色 / 第二段金
@@ -538,7 +546,7 @@ function sendSnap(now) {
     n: sendSeq, tm: now, x: p.x, y: p.y, z: p.z, r: mage.yaw, m: G.speedN || 0, c: G.cb || 0, k: G.kick || 0,
     q: G.state === 'charging' ? snapQ(G.p || 0) : 0,   // 兩段集氣:q 碼 ≤ 15 = 未成形、16~30 = 第一段、31 = 第二段(快照格式不變)
     o: roll ? clamp(roll.t / roll.time, 0, 1) : -1, p: roll ? roll.phi : 0, f: G.flip, s: G.sitK || 0, d: G.downK || 0,
-    g: g, hp: Math.ceil(G.hp / G.hpMax * 100), sh: Math.ceil(G.shield || 0), w: (G.cls === 'mage' && G.weapon === 'book') ? 1 : 0, tp: G.tp || 0,
+    g: g, hp: Math.ceil(G.hp / G.hpMax * 100), sh: Math.ceil(G.shield || 0), w: (G.cls === 'mage' && G.weapon === 'book') ? 1 : 0, tp: G.tp || 0, aId: actSnap().id, aSeq: G.act.seq, aAge: actSnap().age,
     e: typeof stCode === 'function' ? (stCode() | stFlags()) : 0   // 狀態欄(status.js)
   }));
 }

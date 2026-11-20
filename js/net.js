@@ -13,7 +13,7 @@
 //   其他:now()、me、isHost、code、stub、online、idleMs(測試時可改短)
 (function () {
   const NET_PROTO = 1;          // 協定版本(meta.v)
-  const NET_BUILD = 44;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
+  const NET_BUILD = 45;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
   const sceneMax = () => (typeof window.getSceneCount === 'function' ? window.getSceneCount() : 1) - 1;   // 場地索引上限(scenes.js)
   const HB_MS = 10000;          // 心跳間隔
   const STALE_MS = 25000;       // 心跳逾時:超過即視為離開
@@ -23,7 +23,7 @@
   const CREATE_WAIT_MS = 1000;  // 建房前等待是否有人已佔用該房號
   const JOIN_WAIT_MS = 800;     // 加入時等待房主回應
   const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // 去掉 0 O 1 I L,31^4 種
-  const CLS_OK = ['mage', 'archer', 'swordsman', 'assassin'];
+  const CLS_OK = ['mage', 'archer', 'swordsman', 'assassin'];   // 登記用(Firebase 規則白名單);雙劍 'dual' 登記時以 'swordsman' 代替
   const EL_OK = ['water', 'fire', 'wind', 'earth', 'light', 'dark'];
   const CFG = typeof NET_CFG !== 'undefined' ? NET_CFG : { dbUrl: '', apiKey: '' };
   const STUB = /[?&]net=stub(?:&|$)/.test(location.search);

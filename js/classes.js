@@ -7,19 +7,29 @@
 const rgbOf = h => [(h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255];
 // 法師招式 = SKILLS[i] 合併目前屬性的 aim / line(依屬性快取;切屬性時自然換一張)
 const MAGE_SK = {};
-function mageSkill(i) {
+function mageSkill(i, el, basic) {
   if (!SKILLS[i]) return SKILLS[i];
-  const el = G.el, row = MAGE_SK[el] || (MAGE_SK[el] = []);
-  if (!row[i]) { const sp = SPELLS[el][i] || {}; row[i] = Object.assign({}, SKILLS[i], { aim: sp.aim || SKILLS[i].aim, line: sp.line, blockAim: sp.blockAim, cd: sp.cd != null ? sp.cd : SKILLS[i].cd }); }
+  el = el || G.el;
+  const key = basic ? 'b' + el : el, row = MAGE_SK[key] || (MAGE_SK[key] = []);
+  if (!row[i]) {
+    const sp = SPELLS[el][i] || {};
+    row[i] = Object.assign({}, SKILLS[i], { aim: sp.aim || SKILLS[i].aim, line: sp.line, blockAim: sp.blockAim, cd: sp.cd != null ? sp.cd : SKILLS[i].cd });
+    if (basic) Object.assign(row[i], { id: 'mbolt', base: 'fireball', name: '魔力彈', basic: true, cd: 0, recover: .3, netSilent: false, start: () => actPlay('staff.tap') });   // 法杖免費普攻:魔力彈(小彈,杖頭色 = 上次施放的屬性)
+  }
   return row[i];
+}
+const MAGE_SP = {};
+function mageSpell(s) {
+  const sp = SPELLS[s.el][s.ix]; if (!s.basic) return sp;
+  return MAGE_SP[s.el] || (MAGE_SP[s.el] = Object.assign({}, sp, { name: '魔力彈', chant: '', shout: '魔力彈!' }));
 }
 // 非法師快捷列:第 i 格 = 目前架勢 bars[stance][i] 指向的扁平 skills 索引(第 4 格絕技兩架勢共用);法師 = 格位本身
 const stanceOf = () => { const C = CLASSES[G.cls]; return C.stances ? C.stances[G.stance | 0] : null; };
-const skillIx = i => G.cls === 'mage' ? i : ((CLASSES[G.cls].bars || [])[G.stance | 0] || [])[i];   // 扁平索引(事件 ix / netSkill 用)
-const curSkill = i => G.cls === 'mage' ? mageSkill(i) : CLASSES[G.cls].skills[skillIx(i)];
-const skillCount = () => G.cls === 'mage' ? SKILLS.length : 4;   // 法師 4 格;其他職業 4 格(第 4 格 = 絕技)
+const skillIx = i => { const s = loSlotAt(i); return s ? s.ix : 0; };   // 扁平索引(事件 ix / netSkill 用);格位表來自配裝(loadout.js)
+const curSkill = i => { const s = loSlotAt(i); if (!s) return null; return s.fam === 'mage' ? mageSkill(s.ix, s.el, s.basic) : CLASSES[s.fam].skills[s.ix]; };   // i = 4 為大絕招
+const skillCount = () => 4;   // 普攻 + 3 技能
 const baseOf = i => curSkill(i).base || curSkill(i).id;
-const spellOf = i => G.cls === 'mage' ? SPELLS[G.el][i] : curSkill(i);   // 名稱/圖示/咒語/喊招:法師依目前屬性,其他職業用目前架勢的招式   // 法師招式沒有 base,直接用 id(fireball / firewall / meteor)
+const spellOf = i => { const s = loSlotAt(i); return s && s.fam === 'mage' ? mageSpell(s) : curSkill(i); };   // 名稱/圖示/咒語/喊招:法師依目前屬性,其他職業用目前架勢的招式   // 法師招式沒有 base,直接用 id(fireball / firewall / meteor)
 const moveCharge = () => { const st = stanceOf(); return st ? !!st.mwc : !!CLASSES[G.cls].moveWhileCharging; };   // 集氣中可移動(依目前架勢;無架勢者用 moveWhileCharging)
 // 架勢移速倍率(classTick 乘入 G.spdK):spdK 常駐;chgSpdK 只在集氣中
 const stanceK = () => { const st = stanceOf(); if (!st) return 1; return st.spdK; };   // 集氣中移速改由 CHARGE2[id].mv 決定(game.js chargeMv),不再用架勢 chgSpdK
@@ -34,7 +44,7 @@ const CLASSES = {
   mage: { name: '法師', icon: '🧙', robe: 0x3a3f9c, weapons: ['staff', 'book'], wpn: '法杖', elements: true, moveWhileCharging: false, skills: null, aura: null, img: null },
   archer: { name: '弓箭手', icon: '🏹', robe: 0x2f5a2a, weapons: ['bow'], wpn: '弓', elements: false, moveWhileCharging: false, img: null,
     skills: [
-      mkSkill('quickShot', '瞄準射擊', '🎯', { img: 'assets/icons/quick_shot.png', chant: '箭已搭弦……', shout: '瞄準射擊!', cast: castQuickShot, preview: q => '箭速 ' + Math.round(lerp(45, 70, q)) + ' m/s', exCost: 40, exFn: q => archerExFn(q, 40) }),
+      mkSkill('quickShot', '瞄準射擊', '🎯', { basic: true, img: 'assets/icons/quick_shot.png', chant: '箭已搭弦……', shout: '瞄準射擊!', cast: castQuickShot, preview: q => '箭速 ' + Math.round(lerp(45, 70, q)) + ' m/s', exCost: 40, exFn: q => archerExFn(q, 40) }),
       mkSkill('shockArrow', '衝擊巨箭', '🏹', { img: 'assets/icons/archer_wave.png', aim: 'line', chant: '拉滿弓弦……', shout: '衝擊巨箭!', cast: castShockArrow, preview: q => '跌倒 ' + (1.8 * CHG.fx(q)).toFixed(1) + ' s' }),
       mkSkill('arrowRain', '箭雨', '🌧️', { img: 'assets/icons/archer_rain.png', kind: 'sky', chant: '箭矢升空……', shout: '箭雨!', cast: castArrowRain, preview: q => '箭 ' + CHG.count(40, q) + ' 支', exCost: 60, exFn: q => archerExFn(q, 60) }),
       // 游擊架勢 B 列與絕技(定義在 skills_archer.js)
@@ -46,7 +56,7 @@ const CLASSES = {
     bars: [[0, 1, 2, 6], [3, 4, 5, 6]],   // 快捷列第 1~4 格對應的扁平索引(第 4 格 = 絕技,兩架勢共用)
     energy: { kind: 'focus', name: '專注', max: 100, css: '#b8e03a' },
     aura: { hex: 0xb8e03a, main: 0xb8e03a, sub: 0xf0ff8a, dark: false } },
-  swordsman: { name: '劍士', icon: '⚔️', robe: 0x7a2a22, weapons: ['swordShield'], wpn: '劍與盾', elements: false, moveWhileCharging: true, img: null,
+  swordsman: { name: '劍士', icon: '⚔️', robe: 0x7a2a22, weapons: ['sword'], wpn: '長劍', elements: false, moveWhileCharging: true, img: null,
     skills: [
       mkSkill('powerSlash', '蓄力斬', '⚔️', { img: 'assets/icons/power_slash.png', aim: 'front', exFn: swordExFn, exCost: SW.exCost, chant: '劍氣凝聚……', shout: '蓄力斬!', cast: castPowerSlash, preview: q => '擊退 ' + (1.5 * CHG.fx(q)).toFixed(1) + ' m' }),
       mkSkill('whirlwind', '旋風斬', '🌀', { img: 'assets/icons/whirlwind.png', aim: 'self', netFx: 'spin', chant: '旋身……', shout: '旋風斬!', cast: castWhirlwind, preview: q => '次數 ' + Math.max(2, Math.round(lerp(.6, 1.8, q) / .3)) }),
@@ -55,7 +65,8 @@ const CLASSES = {
       mkSkill('parry', '格擋反擊', '🛡️', { img: 'assets/icons/cls_swordsman_parry.png', instant: true, netSilent: true, aim: 'none', cd: 6, chant: '', shout: '格擋反擊!', cast: castParry }),
       mkSkill('slam', '震地', '💥', { img: 'assets/icons/cls_swordsman_slam.png', aim: 'self', cd: 6, chant: '重心下沉……', shout: '震地!', cast: castSlam }),
       mkSkill('whirlRun', '旋風疾行', '🌪️', { img: 'assets/icons/cls_swordsman_whirlrun.png', hold: true, aim: 'none', cd: 4, chant: '', shout: '旋風疾行!', preview: () => '移速 ×' + CFG.skills.whirlRun.speedK + '・耗 SP ' + CFG.skills.whirlRun.spPerSec + ' + MP ' + CFG.skills.whirlRun.mpPerSec + '/s' }),
-      mkSkill('skyLeap', '震天躍擊', '⤴️', { img: 'assets/icons/cls_swordsman_skyleap.png', aim: 'front', cd: 20, chant: '蹬地躍起,力貫千鈞……', shout: '震天躍擊!', cast: castSkyLeap, preview: q => { const s = skyStats(q); return '距離 ' + s.dist.toFixed(1) + ' m・範圍 ' + s.R.toFixed(1) + ' m・傷害 ' + Math.round(s.dmg); } })],
+      mkSkill('skyLeap', '震天躍擊', '⤴️', { img: 'assets/icons/cls_swordsman_skyleap.png', aim: 'front', cd: 20, chant: '蹬地躍起,力貫千鈞……', shout: '震天躍擊!', cast: castSkyLeap, preview: q => { const s = skyStats(q); return '距離 ' + s.dist.toFixed(1) + ' m・範圍 ' + s.R.toFixed(1) + ' m・傷害 ' + Math.round(s.dmg); } }),
+      mkSkill('slash', '三連斬', '⚔️', { basic: true, netSilent: true, aim: 'none', start: startSlash, cast: castSlash })],   // 索引 7:長劍免費普攻
     stances: [{ name: '劍勢', icon: '⚔️', mwc: true, spdK: 1.2, chgSpdK: 1 }, { name: '盾勢', icon: '🧱', mwc: true, spdK: 1.0, chgSpdK: 1 }],
     bars: [[0, 1, 5, 6], [3, 4, 2, 6]],   // 劍勢:蓄力斬 / 旋風斬 / 旋風疾行 / 震天躍擊;盾勢:格擋反擊 / 震地 / 衝鋒盾 / 震天躍擊
     energy: { kind: 'rage', name: '鬥氣', max: 100, css: '#ff3a3a' },
@@ -75,6 +86,20 @@ const CLASSES = {
     energy: { kind: 'combo', name: '連擊點', max: 5, css: '#9a40ff', seg: 5 },
     aura: { hex: 0x9a40ff, main: 0x3a1a5a, sub: 0x9a40ff, dark: true } }
 };
+// 雙劍(設計_雙劍.md)與大絕招(設計_大絕招.md):圖示缺的先用 emoji 臨時圖示,使用者之後補圖(img 欄)
+CLASSES.dual = { name: '雙劍', icon: '🗡️', robe: 0x2a3a5a, weapons: ['dual'], wpn: '雙劍', elements: false, moveWhileCharging: true, img: null,
+  skills: [
+    mkSkill('dualN', '五連斬', '🗡️', { basic: true, netSilent: true, aim: 'none', start: startDualN, cast: castDualN }),
+    mkSkill('dualDash', '疾影突刺', '💨', { aim: 'line', cd: 6, chant: '身影一閃……', shout: '疾影突刺!', cast: castDualDash, preview: q => '突進 ' + lerp(4, 9, q).toFixed(1) + ' m・穿過敵人' }),
+    mkSkill('dualFlurry', '千刃亂舞', '🌀', { aim: 'front', cd: 8, chant: '劍光四起……', shout: '千刃亂舞!', cast: castDualFlurry, preview: q => '連斬 ' + Math.floor(lerp(2, 6, q) + 1e-6) + ' 次 + 收尾' }),
+    mkSkill('dualCross', '十字裂空', '✖️', { aim: 'line', cd: 7, chant: '雙劍交錯……', shout: '十字裂空!', cast: castDualCross, preview: q => 'X 劍氣 ' + lerp(6, 12, q).toFixed(1) + ' m・減速 ' + Math.round(lerp(20, 40, q)) + '%' })],
+  aura: { hex: 0x3ee8ff, main: 0x3ee8ff, sub: 0xeaffff, dark: false } };
+CLASSES.ult = { name: '大絕招', icon: '★', robe: 0x5a1a1a, weapons: [], wpn: '大絕招', elements: false, moveWhileCharging: false, img: null,
+  skills: [
+    mkSkill('meteorUlt', '隕星天罰', '☄️', { ult: true, kind: 'sky', aim: 'circle', cd: ULT.cd, chant: '天外星辰,聽我召喚,墜落吧!', shout: '隕星天罰!', cast: castMeteorUlt, preview: q => '落點圈 R ' + (q >= .99 ? '6.5' : '4.5') + ' m・1.6 s 後墜落' }),
+    mkSkill('dragonUlt', '破軍龍突', '🐉', { ult: true, aim: 'line', cd: ULT.cd, chant: '龍魂覺醒……', shout: '破軍龍突!', cast: castDragonUlt, preview: q => '突進 ' + (q >= .99 ? 16 : 9) + ' m・終點爆炸' }),
+    mkSkill('godUlt', '鬥神降臨', '🔥', { ult: true, aim: 'none', cd: ULT.cd, chant: '戰魂燃燒……', shout: '鬥神降臨!', cast: castGodUlt, preview: q => '強化 ' + (q >= .99 ? 8 : 5) + ' s・結束崩潰 3 s' })],
+  aura: { hex: 0xffd27a, main: 0xff3a3a, sub: 0xffd27a, dark: false } };
 const CLASS_ORDER = ['mage', 'archer', 'swordsman', 'assassin'];
 
 /* ---------- 氣場色(形狀同 fx.js 的 EL:hex / core / c0 / c1) ---------- */
@@ -84,6 +109,7 @@ const cssOf = h => '#' + h.toString(16).padStart(6, '0');
 // 指定職業 / 屬性的氣場(不依賴 G;遠端重現用)
 function auraOf(cls, el) {
   if (cls === 'mage') return EL[el];
+  if (typeof SK_AURA !== 'undefined') return SK_AURA;   // 非法杖武器的集氣 / 出手光一律螢光劍技青(skfx.js)
   return _aeCache[cls] || (_aeCache[cls] = (() => { const a = CLASSES[cls].aura; return { name: CLASSES[cls].name, hex: a.hex, core: a.sub, c0: rgbOf(a.main), c1: rgbOf(a.sub), s0: rgbOf(a.main), s1: rgbOf(a.sub), css0: cssOf(a.hex), css1: cssOf(a.sub), dark: a.dark }; })());
 }
 function auraEl() { return auraOf(G.cls, G.el); }
@@ -195,6 +221,7 @@ function stanceCancelRecover() {
   return true;
 }
 function toggleStance() {
+  return;   // 架勢已移除(改為換武,loadout.js loSwap)
   const C = CLASSES[G.cls];
   if (G.cls === 'mage' || !C.stances || G.stanceCd > 0) return;
   if (G.state === 'cast') { if (!stanceCancelRecover()) return; }
@@ -213,7 +240,8 @@ function shieldOn() { return !!(G.dash && G.dash.kind === 'charge') || G.time - 
 function classInfo() {
   let s = '';
   if (G.stealth) s += '<br>潛行 ' + Math.max(0, G.stealth.left).toFixed(1) + ' s';
-  if (G.cls !== 'mage') s += '<br>架勢 ' + CLASSES[G.cls].stances[G.stance | 0].name + ' ・ ' + CLASSES[G.cls].energy.name + ' ' + energyTxt();
+  if (CLASSES[G.cls].energy) s += '<br>' + CLASSES[G.cls].energy.name + ' ' + energyTxt();
+  if (G.godT > 0) s += '<br>鬥神降臨 ' + G.godT.toFixed(1) + ' s'; else if (G.crashT > 0) s += '<br>崩潰 ' + G.crashT.toFixed(1) + ' s';
   if (G.weak > 0) s += '<br>虛弱 ' + G.weak.toFixed(1) + ' s';
   return s;
 }
@@ -230,6 +258,7 @@ function refreshHotbar() {
   });
 }
 function updateCdHUD() {
+  loHudTick();
   slots.forEach((el, i) => {
     if (i >= skillCount()) return;
     const s = curSkill(i), st = s.id === 'stealth' && G.stealth ? G.stealth : null;   // 潛行中格子顯示剩餘潛行時間
@@ -246,6 +275,9 @@ function classTick(dt) {
   const p = mage.root.position, E = auraEl();
   if (G.weak > 0) G.weak = Math.max(0, G.weak - dt);
   if (G.stanceCd > 0) G.stanceCd = Math.max(0, G.stanceCd - dt);
+  if (G.swapCd > 0) G.swapCd = Math.max(0, G.swapCd - dt);
+  if (G.swapAct > 0) G.swapAct = Math.max(0, G.swapAct - dt);
+  if (G.gcd > 0) G.gcd = Math.max(0, G.gcd - dt);
   if (G.stanceBoostT > 0) G.stanceBoostT = Math.max(0, G.stanceBoostT - dt);
   if (G.parryT > 0) G.parryT = Math.max(0, G.parryT - dt);
   if (G.unyT > 0) G.unyT = Math.max(0, G.unyT - dt);
@@ -255,7 +287,7 @@ function classTick(dt) {
   if (G.cls === 'assassin') assassinTick(dt);   // 連擊點流失、暗影步背後計時(skills_assassin.js)
   if (G.dash) dashTick(dt, p);
   if (G.spin) spinTick(dt, p);
-  G.spdK = (G.spin ? .5 : 1) * (G.whirlRun ? CFG.skills.whirlRun.speedK : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (G.rootT > 0 ? 0 : 1) * (G.paraT > 0 ? ST.paraSpd : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z, p.y, NET_ME).pct : 1) * (G.slowT > 0 ? 1 - G.slowPct : 1) * stanceK() * (G.perfT > 0 ? PERF.spdK : 1);   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
+  G.spdK = (G.spin ? .5 : 1) * (G.whirlRun ? CFG.skills.whirlRun.speedK : 1) * (G.stealth ? 1.3 : 1) * (G.weak > 0 ? .7 : 1) * (G.rootT > 0 ? 0 : 1) * (G.paraT > 0 ? ST.paraSpd : 1) * (CFG.slowSelf && !(G.slowImmT > 0) ? 1 - zoneSlowAt(p.x, p.z, p.y, NET_ME).pct : 1) * (G.slowT > 0 ? 1 - G.slowPct : 1) * stanceK() * (G.perfT > 0 ? PERF.spdK : 1) * godSpd();   // 區域減速(風場 / 坑洞),淨化後 slowImmT 內免疫   // 旋轉 ×0.5、潛行 ×1.3、虛弱 ×0.7
   if (G.state !== 'charging') AURA.full = false;
   else if (G.charge >= 1 && !AURA.full) { AURA.full = true; auraGather(); }   // 聚能收束:集氣滿時環繞粒子飛向武器尖端
   if (G.stealth || (G.dash && G.dash.kind === 'charge')) auraSpark(dt, p, E);
@@ -265,11 +297,12 @@ function classTick(dt) {
   _opWas = mage.opq < .999;
   const sf = G.stealth ? '1' : '0';
   if (sf !== _sfx) { _sfx = sf; const el = document.getElementById('stealthFx'); if (el) el.style.opacity = sf; }
+  dualTick(dt);   // 雙劍突進 / 亂舞、大招(突進、鬥神降臨 / 崩潰)(skills_dual.js)
   swordTick(dt);   // 劍士:鬥氣流失、格擋 / 盾擊計時、躍擊位移(skills_sword.js)
 }
 
 /* ---------- 職業列 #clsBar ---------- */
-function clsHex(c) { return '#' + (CLASSES[c].aura || EL.fire).hex.toString(16).padStart(6, '0'); }
+function clsHex(c) { return '#' + ((CLASSES[c] && CLASSES[c].aura) || EL.fire).hex.toString(16).padStart(6, '0'); }
 function buildClsBar() {
   const bar = document.createElement('div'); bar.id = 'clsBar';
   CLASS_ORDER.forEach(c => { const b = document.createElement('button'); b.innerHTML = '<img class="ci" src="assets/icons/cls_' + c + '.png" alt="' + CLASSES[c].icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))"> ' + CLASSES[c].name; b.tabIndex = -1; b.onclick = () => { setClass(c); b.blur(); document.body.classList.remove('cls-open'); }; bar.appendChild(b); });
@@ -277,40 +310,26 @@ function buildClsBar() {
   const tg = document.createElement('button'); tg.id = 'clsTog'; tg.tabIndex = -1; tg.title = '職業'; tg.onclick = () => { document.body.classList.toggle('cls-open'); tg.blur(); }; document.body.appendChild(tg);   // hud2 職業收合鈕(顯示 / 隱藏由 CSS 控制)
 }
 function refreshClsBar() {
-  const bar = document.getElementById('clsBar'); if (!bar) return;
+  const bar = document.getElementById('clsBar') || document.createElement('div');
   [...bar.children].forEach((b, i) => {
     const c = CLASS_ORDER[i], on = c === G.cls, hx = clsHex(c);
     b.classList.toggle('on', on); b.style.borderColor = on ? hx : ''; b.style.boxShadow = on ? '0 0 10px ' + hx : '';
   });
-  const tg = document.getElementById('clsTog'); if (tg) { tg.innerHTML = '<img src="assets/icons/cls_' + G.cls + '.png" alt="' + CLASSES[G.cls].icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))">'; tg.style.borderColor = clsHex(G.cls); }
-  const av = document.getElementById('pAv'); if (av) { const u = 'assets/icons/cls_' + G.cls + '.png'; if (av.getAttribute('src') !== u) { av.style.visibility = ''; av.setAttribute('src', u); } av.style.borderColor = clsHex(G.cls); }   // hud2 玩家卡頭像
+  const tg = document.getElementById('clsTog'); if (false && tg) { tg.innerHTML = '<img src="assets/icons/cls_' + G.cls + '.png" alt="' + CLASSES[G.cls].icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))">'; tg.style.borderColor = clsHex(G.cls); }
+  const av = document.getElementById('pAv'); if (av) { const u = 'assets/icons/cls_' + (G.cls === 'dual' ? 'assassin' : G.cls) + '.png'; if (av.getAttribute('src') !== u) { av.style.visibility = ''; av.setAttribute('src', u); } av.style.borderColor = clsHex(G.cls); }   // hud2 玩家卡頭像
 }
-function syncElBar() { const eb = document.getElementById('elBar'); if (eb) eb.style.display = CLASSES[G.cls].elements ? '' : 'none'; syncModeUI(); }   // 屬性列只給法師(任務 C 的 #elBar)
+function syncElBar() { const eb = document.getElementById('elBar'); if (eb) eb.style.display = 'none'; syncModeUI(); }   // 屬性列移除(法杖屬性由配裝格位決定)   // 屬性列只給法師(任務 C 的 #elBar)
 
 /* ---------- 切換職業 ---------- */
-function setClass(c) {
-  if (window.NETON && !window.NET_PROFILE_CHANGE) return;   // 多人對戰中鎖定職業(設計 §5-6、§6-2;對戰開始時 netApplyProfile 暫開)
-  if (G.state !== 'ready' || G.down > 0 || !CLASS_ORDER.includes(c) || c === G.cls) return;
-  const C = CLASSES[c];
-  sitBreak('class'); if (typeof clearSummons === 'function') clearSummons();
-  if (G.stealth) revealStealth('class');   // 切職業顯形,不進入虛弱
-  G.cls = c; try { localStorage.setItem('mageSandbox.cls', c); } catch (e) { }
-  mage.setWeapon(c === 'mage' ? G.weapon : C.weapons[0]); mage.setRobeColor(mySeatHex()); applyElColors();
-  mage.setClassLook(c);
-  G.skill = 0; G.lastSkill = 0; G.wallOff = 0;
-  G.stance = 0; G.stanceCd = 0; G.stanceBoostT = 0; G.cr = 0;   // 換職業:架勢回 A、能量歸零
-  for (const k in G.cd) G.cd[k] = 0;   // 換職業:清空冷卻,避免殘留
-  refreshHotbar(); refreshClsBar(); syncElBar();
-  banner(C.name, clsHex(c));
+function setClass(c) {   // 舊介面相容(cover.js / netcombat 對戰開始):把該家族的武器換到手上(配裝在 loadout.js)
+  if (window.NETON && !window.NET_PROFILE_CHANGE) return;
+  if (!CLASS_ORDER.includes(c) || c === G.cls) return;
+  loSetFam(c);
 }
-function cycleClass(d) { const i = CLASS_ORDER.indexOf(G.cls); setClass(CLASS_ORDER[(i + d + CLASS_ORDER.length) % CLASS_ORDER.length]); }
+function cycleClass(d) { }   // 職業已取消(K 鍵 / 手把短按不再切職業)
 function initClass() {
-  let c = 'mage';
-  try { const s = localStorage.getItem('mageSandbox.cls'); if (CLASS_ORDER.includes(s)) c = s; } catch (e) { }
-  G.cls = c;
-  mage.setWeapon(c === 'mage' ? G.weapon : CLASSES[c].weapons[0], true); mage.setRobeColor(mySeatHex());
-  mage.setClassLook(c);
-  buildClsBar(); applyElColors(); refreshHotbar(); refreshClsBar(); syncElBar();
+  loInit();
+  mage.setRobeColor(mySeatHex()); applyElColors(); refreshHotbar(); refreshClsBar(); syncElBar();
 }
 initClass();
 c2SelfCheck();   // 兩段集氣:招式表缺列檢查(resources.js)

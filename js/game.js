@@ -31,7 +31,15 @@ const DEFAULT_CFG = {
     shadowStep: { chargeTime: 0.3, range: 8, rMin: 2, rMax: 2, recover: 0.2 },
     smoke: { chargeTime: 0.7, range: 10, rMin: 3, rMax: 4, recover: 0.3 },
     eviscerate: { chargeTime: 0.5, range: 1.2, rMin: 1.2, rMax: 1.6, recover: 0.35 },
-    decoy: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.15 }
+    decoy: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.15 },
+    slash: { chargeTime: 0, range: 1.2, rMin: 1.6, rMax: 1.6, recover: 0.4 },   // 新武器(loadout.js):長劍 / 雙劍免費普攻、雙劍三技、大絕招
+    dualN: { chargeTime: 0, range: 1, rMin: 1.3, rMax: 1.3, recover: 0.28 },
+    dualDash: { chargeTime: 0.7, range: 9, rMin: 9, rMax: 9, recover: 0.25, width0: 1, width1: 1 },
+    dualFlurry: { chargeTime: 0.9, range: 1, rMin: 2.2, rMax: 2.2, recover: 0.3 },
+    dualCross: { chargeTime: 0.8, range: 12, rMin: 12, rMax: 12, recover: 0.3, width0: 1.6, width1: 1.6 },
+    meteorUlt: { chargeTime: 1.6, range: 24, rMin: 6.5, rMax: 6.5, recover: 0.4 },
+    dragonUlt: { chargeTime: 1.0, range: 16, rMin: 16, rMax: 16, recover: 0.2, width0: 2.4, width1: 2.4 },
+    godUlt: { chargeTime: 0.8, range: 0, rMin: 4, rMax: 4, recover: 0.3 }
   },
   sfx: { on: true, music: false, vol: .6, mvol: .4 },   // 音效 / 音樂(sfx.js):音效開關、音樂開關、音量 0~1
   res: { infinite: false, mpRegen: 8, spRegen: 15, mpDelay: 1.2, spDelay: 1.0, sitMp: 4, sitSp: 3, runCost: 12, airJump: 20, roll: 20, airRoll: 15, reviveHP: 200, downTime: 3 },   // 資源系統(resources.js),隨 CFG 存 localStorage
@@ -207,11 +215,13 @@ addEventListener('keydown', e => {
   else if (e.code === 'Space') doJump();
   else if (e.code === 'KeyF') tryRoll();
   else if (e.code === 'KeyM') toggleSit();
-  else if (e.code === 'KeyK') cycleClass(1);
+  else if (e.code === 'KeyK') { }
+  else if (e.code === 'KeyY') ultPress();
+  else if (e.code === 'KeyL') loOpen();
   else if (e.code === 'KeyG') toggleChgMode();
   else if (e.code === 'Backquote') selectSkill(3);
 });
-addEventListener('keyup', e => { G.keys[e.code] = false; });
+addEventListener('keyup', e => { G.keys[e.code] = false; if (e.code === 'KeyY') ultRelease(); });
 addEventListener('blur', () => { G.keys = {}; G.atkHeld = false; if (G.state === 'charging') cancelCharge(); });
 addEventListener('contextmenu', e => e.preventDefault());
 const fromTouch = () => performance.now() - G.lastTouch < 800;  // 觸控後瀏覽器會補發假滑鼠事件,忽略
@@ -325,7 +335,7 @@ function selectSkill(i) {
   if (G.skill === i) G.skill = -1; else setSkill(i);
 }
 // 設定目前法術(不切換):記錄 lastSkill,並把牆角度歸零
-function setSkill(i) { if (G.state !== 'ready') return; G.skill = i; G.lastSkill = i; G.wallOff = 0; }
+function setSkill(i) { if (G.state !== 'ready') return; G.skill = i; G.lastSkill = i; G.wallOff = 0; loSyncEl(); }
 // 手把 L / R:未選法術時選回上次那一招;已選則前後換一招
 function cycleSkill(d) { if (G.skill < 0) setSkill(G.lastSkill); else setSkill((G.skill + d + skillCount()) % skillCount()); }
 function toggleAuto() {
@@ -358,17 +368,14 @@ function modeTxt(q) {
 }
 // 玩家受擊 / 倒下 / 復活 / 治癒:見 resources.js(playerHurt / playerDown / playerRevive / playerHeal)
 function resetCam() { G.zoom = 1; G.camPitch = .42; G.camYaw = mage.yaw + Math.PI; G.lookX = G.lookY = 0; }   // 轉到角色背後
-function toggleWeapon() {
-  if (G.cls !== 'mage') { if (G.state === 'charging') cancelCharge(); else toggleStance(); return; }   // 非法師:Tab / X / 換裝鈕 = 切換架勢(集氣中 = 取消)
-  if (G.state !== 'ready') return;
-  G.weapon = G.weapon === 'staff' ? 'book' : 'staff'; mage.setWeapon(G.weapon); banner(W().name + '・' + W().tag, '#ffc46b');
-}
+function toggleWeapon() { loSwap(); }   // 換武(Tab / 手把換裝鍵 / #btnWeap):動作 0.35 s + 冷卻 0.6 s;集氣中 = 取消集氣(loadout.js)
 // 範圍記憶:法師用 CFG.rad[槽位];其他職業用 CFG.radById[招式 id]
-function getRad(i) { if (G.cls === 'mage') return CFG.rad[i]; const c = sc(i), v = CFG.radById[curSkill(i).id]; return v == null ? (c.rMin + c.rMax) / 2 : v; }
-function setRad(i, v) { if (G.cls === 'mage') CFG.rad[i] = v; else CFG.radById[curSkill(i).id] = v; }
+function getRad(i) { if (G.cls === 'mage') return CFG.rad[skillIx(i)]; const c = sc(i), v = CFG.radById[curSkill(i).id]; return v == null ? (c.rMin + c.rMax) / 2 : v; }
+function setRad(i, v) { if (G.cls === 'mage') CFG.rad[skillIx(i)] = v; else CFG.radById[curSkill(i).id] = v; }
 function skillRad() { const c = sc(G.skill), K = CFG.radK || 1; return clamp(getRad(G.skill) * K, c.rMin * K, c.rMax * K); }
 // 屬性切換(C-8):只在 ready 生效;保留目前形狀
 function setElement(el) {
+  return;   // 屬性由配裝格位決定(loadout.js loSyncEl),不再手動切換
   if (window.NETON && !window.NET_PROFILE_CHANGE) return;   // 多人對戰中鎖定屬性(設計 §5-6、§6-2)
   if (G.cls !== 'mage' || G.state !== 'ready' || G.el === el || !EL[el]) return;
   G.el = el; try { localStorage.setItem('mageSandbox.el', el); } catch (e) { }
@@ -525,8 +532,10 @@ function pickStick(out) {
 
 /* ================= 施法狀態機 ================= */
 function startCharge() {
-  if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0 || G.whirlRun) return;
+  if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0 || G.whirlRun || G.swapAct > 0) return;   // 換武動作中不能出招
   if (G.skill < 0) G.skill = G.lastSkill;
+  loSyncEl();
+  { const s0 = curSkill(G.skill); if (s0 && s0.basic) { castBasic(G.skill); return; } if (G.gcd > 0 && s0 && !s0.ult) return; }   // 普攻:免費、不集氣;技能:公共冷卻 0.8 s 內不能開始(大招不受影響)
   if (G.cls !== 'mage' && curSkill(G.skill).instant) { castInstant(G.skill); return; }   // 瞬發招(非法師):按下即發動
   if (G.cls !== 'mage' && curSkill(G.skill).hold) { whirlRunStart(); return; }   // 按住持續型(旋風疾行,skills_sword.js):按住期間持續、放開或 SP 耗盡停止,不經集氣
   if (curSkill(G.skill).stub) { banner('尚未實作', '#ffc46b'); return; }   // S 批空殼:尚未實作的招式不進入集氣
@@ -540,8 +549,17 @@ function startCharge() {
   G.orb = makeOrb(auraEl()); scene.add(G.orb);
 }
 // 瞬發招(非法師 sk.instant):按下即以 q = 1 施放,集氣中先取消;仍走 release()(花費、冷卻、僵直、cast 事件都照常)
+// 免費普攻(長劍三連斬 / 雙劍五連斬 / 長弓射擊 / 法杖魔力彈):不集氣、不扣資源、無冷卻,只有出手間隔;按住施放鈕自動連段
+function castBasic(i) {
+  const sk = curSkill(i);
+  if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0 || G.swapAct > 0 || skillBlocked(sk)) return;
+  if (G.sitting) sitBreak('cast');
+  G.skill = i; G.lastSkill = i; G.charge = qOfP(.5); G.p = .5; G.stage = 1; G.chargeT = 0; G.queued = false; G.mcOff = Math.PI;
+  release();
+}
 function castInstant(i) {
   const sk = curSkill(i);
+  if (G.gcd > 0 && !sk.ult) return;
   if (sk.stub) { banner('尚未實作', '#ffc46b'); return; }
   if (G.roll || G.stun > 0 || G.down > 0 || (G.state !== 'ready' && G.state !== 'charging')) return;
   if (G.cd[sk.id] > 0 || skillBlocked(sk)) return;
@@ -620,6 +638,7 @@ function release() {
   const cs = skillCost(G.skill);
   if (!resUse(cs.kind, costAt(cs.base, clamp((G.p - .5) / .5, 0, 1)))) { cancelCharge(); return; }   // 放手成功才扣 MP:第一段 80% → 第二段 100%(chargeMpCap 已保證夠)
   sfx.loop('charge', false); sfx.play('cast', { cls: G.cls, el: G.el }); if (window.padRumble) padRumble('cast');
+  if (G.cls !== 'mage') mage.skillFlash(.32);
   if (G.stealth && G.stealth.shadow) revealStealth('cast');   // 影遁中出招即解除(skills_assassin.js 影分身)
   const sk = curSkill(G.skill), sp = spellOf(G.skill), p = mage.root.position, q = G.charge, mode = curMode();
   const dir = Math.atan2(G.target.x - p.x, G.target.z - p.z), sizeK = CHG.size(q, mode);
@@ -628,17 +647,21 @@ function release() {
     mode, sizeK, thickK: CHG.thick(q, mode), copies: CHG.copies(COPIES_N[sk.kind] || 1, q, mode),
     r: skillRad() * sizeK, power: 0.35 + 0.65 * q, range: skillRange(),
     muzzle: new V3(p.x + Math.sin(dir) * .7, p.y + 1.25, p.z + Math.cos(dir) * .7),   // 第 1 招子彈的槍口(設計 §1-3)
-    dmgK: CHG.dmg(q) * W().dmgMul, durK: CHG.dur(q), fxK: CHG.fx(q),
-    dir, wallYaw: dir + G.wallOff, dmgMul: W().dmgMul, recover: sc(G.skill).recover * W().recoverMul, ex: sk.exFn ? (sk.exFn(q) | 0) : 0
+    dmgK: CHG.dmg(q) * W().dmgMul * godDmgK(), durK: CHG.dur(q), fxK: CHG.fx(q),
+    dir, wallYaw: dir + G.wallOff, dmgMul: W().dmgMul * godDmgK(), recover: (sk.recover != null ? sk.recover : sc(G.skill).recover) * W().recoverMul, ex: sk.exFn ? (sk.exFn(q) | 0) : 0
   };
   if (window.NETON) { G.pending.sd = (Math.random() * 2147483648) | 0; G.pending.rng = seedRng(G.pending.sd); }   // 多人:種子與決定位置 / 時間的亂數(§2-4);單人不加
   if (sk.cd) G.cd[sk.id] = sk.cd;   // 冷卻從施放開始計
+  if (!sk.basic && !sk.ult) G.gcd = .8;   // 公共冷卻:放任何技能後 0.8 s 內不能放另一個技能(普攻 / 翻滾 / 大招不受影響)
+  if (G.cls === 'mage' && !sk.basic && !sk.ult) LO.lastEl = G.el;   // 法杖普攻的杖頭色 = 上次施放的屬性
+  skStartAct(G.pending);   // 出招動作(poses.js 片段)
   auraGather();                     // 氣場收束到武器尖端
   G.state = 'cast'; G.castT = 0; G.launched = false; G.queued = false; G.p = 0; G.stage = 0;
   G.shoutT = 1.0; const ch = document.getElementById('chant'); ch.textContent = sp.shout; ch.style.fontSize = '30px';
 }
 function updateCasting(dt) {
-  for (const k in G.cd) if (G.cd[k] > 0) G.cd[k] = Math.max(0, G.cd[k] - dt);
+  for (const k in G.cd) if (G.cd[k] > 0) G.cd[k] = Math.max(0, G.cd[k] - dt * (G.godT > 0 && G.cd[k] < 15 && !/Ult$/.test(k) ? 2 : 1));   // 鬥神降臨:冷卻 ×2(只對 < 15 s 的招)
+  if (G.skill === 4 && G.state === 'ready') G.skill = G.lastSkill || 0;   // 大招集氣結束 / 取消 / 失手:回到原本選的格位
   if (G.fizzT > 0) G.fizzT = Math.max(0, G.fizzT - dt);
   if (G.state === 'charging') {
     if (!(G.paraJolt > 0) && !window.PAD_LOST) G.chargeT += dt;   // 麻痺抽搐中暫停集氣進度(不取消,status.js)
@@ -647,7 +670,7 @@ function updateCasting(dt) {
     G.p = G.chargeT < T.t1 ? .5 * G.chargeT / T.t1 : Math.min(1, .5 + .5 * (G.chargeT - T.t1) / Math.max(.01, T.t2 - T.t1));
     G.charge = qOfP(G.p);   // 預覽與出手共用的舊 q 值
     if (G.p >= .5 && !G.halfFlash) { G.halfFlash = true; G.stage = 1; burstRing(mage.root.position, auraEl().hex, 1.2); sfx.play('stg1'); sfx.loopDetune('charge', 400); chargeVibe(15); }
-    if (G.p >= 1 && !G.maxFlash) { G.maxFlash = true; G.stage = 2; G.shake = Math.max(G.shake, .05); burstRing(mage.root.position, 0xffd27a, 2.4); sfx.play('stg2'); chargeVibe([10, 40, 10]); }
+    if (G.p >= 1 && !G.maxFlash) { G.maxFlash = true; G.stage = 2; G.shake = Math.max(G.shake, .05); burstRing(mage.root.position, G.cls === 'mage' ? 0xffd27a : SKC.main, 2.4); sfx.play('stg2'); chargeVibe([10, 40, 10]); }
     if (G.queued) { G.queuedT += dt; if (G.p >= .5) release(); else if (G.queuedT > .3) fizzle(); }   // 放手寬限:到第一段立刻出手
     else if (G.p >= 1) { G.holdT += dt; if (G.holdT >= CFG.c2.holdMax) release(); }   // 滿段最多持住 holdMax 秒,到時自動放出
   } else if (G.state === 'cast') {
@@ -659,7 +682,7 @@ function updateCasting(dt) {
       const kd = G.pending.skill.kind;
       G.frameT = kd === 'sky' ? 3.8 : (kd === 'wall' ? 1.6 : 1.1);
     }
-    if (G.castT >= G.pending.recover) { G.state = 'ready'; if (G.atkHeld && !G.pending.skill.instant) startCharge(); }   // 瞬發招不因按住而連發
+    if (G.castT >= G.pending.recover) { G.state = 'ready'; if (G.atkHeld && (!G.pending.skill.instant || G.pending.skill.basic) && G.pending.skill.id !== undefined && !G.pending.skill.ult) startCharge(); }   // 瞬發招不因按住而連發
   } else G.charge = damp(G.charge, 0, 10, dt);
   G.kick = Math.max(0, G.kick - dt * 3.5);
   const tcb = (G.state === 'charging' || (G.state === 'cast' && G.castT < .32)) ? 1 : 0;
@@ -814,6 +837,7 @@ function updateOrb(dt) {
   if (G.state === 'charging') auraTick(dt);   // 集氣氣場(classes.js)
   auraGatherTick(dt);                          // 放開後收束到武器尖端
   const orb = G.orb;
+  if (orb) orb.visible = G.cls === 'mage';   // 非法杖:集氣光改由武器光殼表現(skfx / doll.setSkillGlow)
   if (orb && G.state !== 'cast' || orb && !G.launched) {
     mage.tipWorld(orb.position);
     const r = .08 + .5 * easeOut(G.charge) + Math.sin(G.time * 18) * .015 * G.charge;
@@ -1188,7 +1212,7 @@ function updateHUD() {
     if (lockMsgEl._t !== lt) { lockMsgEl._t = lt; lockMsgEl.textContent = lt; }
   }
   if (document.body.classList.contains('hud2')) {   // 新版介面:施法鈕中央疊目前選中招式的圖示(只在變動時寫 DOM)
-    const ix = G.skill >= 0 ? G.skill : (G.lastSkill || 0), sp = ix < skillCount() ? spellOf(ix) : null, ik = sp ? (sp.img || sp.icon || '') : '';
+    const ix = G.skill >= 0 ? G.skill : (G.lastSkill || 0), sp = ix < skillCount() && ix >= 0 ? spellOf(ix) : (ix === 4 ? spellOf(4) : null), ik = sp ? (sp.img || sp.icon || '') : '';
     if (atkIcEl._k !== ik) { atkIcEl._k = ik; atkIcEl.innerHTML = sp && sp.img ? '<img src="' + sp.img + '" alt="' + sp.icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))">' : (sp ? sp.icon : ''); }
   }
   const E = auraEl(), on = G.state === 'charging', q = G.charge, pp = on ? G.p : 0, max = on && pp >= 1;
@@ -1236,7 +1260,7 @@ function updateHUD() {
   const air = !G.ground;
   btnJumpEl.classList.toggle('air', air && G.airJumps > 0); btnJumpEl.classList.toggle('spent', air && G.airJumps <= 0);
   btnRollEl.classList.toggle('air', air && G.airRolls > 0); btnRollEl.classList.toggle('spent', air && G.airRolls <= 0);
-  const wt = G.cls === 'mage' ? '換裝' : '架勢'; if (btnWeapEl.textContent !== wt) btnWeapEl.textContent = wt; const ww = G.cls === 'mage' ? 'm' : 's'; if (btnWeapEl.dataset.w !== ww) btnWeapEl.dataset.w = ww;
+  const wt = '換武'; if (btnWeapEl.textContent !== wt) btnWeapEl.textContent = wt; const ww = 'm'; if (btnWeapEl.dataset.w !== ww) btnWeapEl.dataset.w = ww;
   syncModeUI();
   updateCdHUD();
   // 咒語字幕位置:角色頭上
@@ -1306,7 +1330,8 @@ function frame(now) {
   stTick(dt);                            // 狀態效果計時與 DOT(status.js,單人也跑)
   if (G.perfT > 0) G.perfT = Math.max(0, G.perfT - dt);   // 完美閃避加速計時(perfectDodge / classTick 的 spdK)
   classTick(dt); resTick(dt); updatePlayer(dt); if (window.sceneTick) sceneTick(dt); updateAim(dt); updateCasting(dt);
-  mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK, air: !G.ground });
+  mage.setSkillGlow(G.cls !== 'mage' && G.state === 'charging' ? G.p : 0, skGlowK());
+  mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK, air: !G.ground, fall: G.fallT > 0 || G.down > 0, fallLeft: G.fallT > 0 ? G.fallT : (G.down > 0 ? G.down : 0), stCode: stCode() });
   if (window.footRingTick) footRingTick();   // 腳下色圈(remote.js)
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);
   if (window.NETON) netTick(dt);   // 多人:送出快照、開戰倒數(remote.js);單人不執行

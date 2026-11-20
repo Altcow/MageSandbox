@@ -41,7 +41,7 @@ function netSendCast(P) {
   if (P.skill && P.skill.netSilent) return;   // 瞬發的格擋 / 不屈不送 cast 事件(只靠快照位元)
   netLastK = P.spell && P.spell.name ? String(P.spell.name).slice(0, 12) : '';   // 最近一次施放的招式名,命中時帶給擊殺訊息用
   netPostCast({
-    t: 'cast', sq: ++netSeq, cls: G.cls, el: P.el, ix: P.idx, bs: P.base, md: P.mode || null,
+    t: 'cast', sq: ++netSeq, cls: P.skill && P.skill.ult ? 'ult' : G.cls, el: P.el, ix: P.idx, bs: P.base, md: P.mode || null,
     T: vOut(P.target), tip: vOut(mage.tipWorld(new V3())), mz: vOut(P.muzzle),
     dir: r3(P.dir), wy: r3(P.wallYaw), q: r3(P.q), sz: r3(P.sizeK), th: r3(P.thickK), cp: P.copies || 1,
     r: r3(P.r), pw: r3(P.power), rg: r3(P.range), dk: r3(P.dmgK), uk: r3(P.durK), fk: r3(P.fxK), sd: P.sd, ex: P.ex | 0
@@ -81,6 +81,7 @@ function netReplayCast(seat, m) {
   const rp = REMOTES[String(seat)];
   if (!rp || !rp.g) return;
   const cls = CLASSES[m.cls] ? m.cls : 'mage', el = EL[m.el] ? m.el : 'fire';
+  if (cls !== 'ult' && cls !== rp.cls && FAM_WEAPON[cls]) { rp.cls = cls; rp.mage.setWeapon(WEAPON_DEFS[FAM_WEAPON[cls]].doll, true); }   // 遠端手上武器 = 最近一次施放的家族(配裝同步 lo 尚未做)
   const sk = netSkill(cls, el, m.ix | 0);
   const target = vIn(m.T);
   if (!sk || !target || typeof m.sd !== 'number' || sk.netSilent) return;
@@ -186,8 +187,9 @@ function netApplyHit(from, m) {
   const sh0 = G.shield;
   const res = sum > 0 ? playerHurt(sum, { by: from, net: true }) : { blocked: false, dmg: 0 };
   const dealt = sum > 0 ? res.dmg : 0, absorbed = Math.min(sh0, sum), full = sum > 0 && res.blocked;
-  const fx = m.fx || {};
-  if (!full) netApplyFx(swFxAdjust(fx), m.h || [], from);   // 護盾全吸收時不套 debuff;旋風斬免擊退、盾勢擊退 ×0.5(skills_sword.js)
+  const fx = m.fx || {}, fall0 = G.fallT, hard0 = G.hardT;
+  if (!full) netApplyFx(swFxAdjust(fx), m.h || [], from);
+  if (!full && dealt > 0) reactFromHit(dealt, swFxAdjust(fx), m.h || [], G.fallT > fall0 + 1e-3, G.hardT > hard0 + 1e-3 && !(G.fallT > fall0 + 1e-3));   // 受擊反應動作(skfx.js,只動外觀)   // 護盾全吸收時不套 debuff;旋風斬免擊退、盾勢擊退 ×0.5(skills_sword.js)
   if (!full && G.state === 'charging') { if (fx.st || fx.dn) cancelCharge(); else if (sum >= NET_RULES.cancelDmg) chargeInterrupt(); }   // 硬控取消;單次 ≥ cancelDmg 實扣:第一段前取消、第一段後退回第一段(兩段集氣 §4)
   if (dealt > 0) { const f = document.getElementById('flash'); if (f) { f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); } }
   if (!full) hitFx(new V3(p.x, p.y + 1, p.z), 10);
@@ -233,7 +235,7 @@ function netSendHit(rp, p, now) {
 function netShowDmg(seat, d) {
   const rp = REMOTES[String(seat)]; if (!rp) return;
   const pos = new V3(rp.px, rp.py + 2.4, rp.pz);
-  if (+d.by === Net.me && +d.n > 0 && typeof crOnDealt === 'function') crOnDealt(+d.n);   // 劍士鬥氣:自己造成的實扣傷害(§4-4)
+  if (+d.by === Net.me && +d.n > 0 && typeof crOnDealt === 'function') { crOnDealt(+d.n); godLifesteal(+d.n); }   // 劍士鬥氣:自己造成的實扣傷害(§4-4)
   if (d.blk === 'parry') addDmgText(pos, '格擋', '#ffd27a');
   else if (d.blk === 'dodge') addDmgText(pos, '閃避', '#8fe8ff');
   else if (d.blk === 'shield') addDmgText(pos, '護盾', '#ffd27a');
@@ -302,7 +304,7 @@ function netApplyProfile(players) {
   if (!me) return;
   window.NET_PROFILE_CHANGE = true;
   try {
-    if (me.cls && CLASSES[me.cls] && me.cls !== G.cls) setClass(me.cls);
+    // (配裝制:不再依房間登記的職業強制換武器)
     if (G.cls === 'mage' && me.el && EL[me.el] && me.el !== G.el) setElement(me.el);
   } finally { window.NET_PROFILE_CHANGE = false; }
 }

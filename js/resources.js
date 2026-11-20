@@ -7,7 +7,7 @@
 const RES_MAX = { hp: 200, mp: 150, sp: 300 };
 // 統一兩段集氣(設計_統一集氣系統.md):戰技與法術都吃 MP,SP 只管跑步 / 翻滾 / 二段跳 / 旋風疾行。
 // 花費級(第二段 = 100%,第一段 = 80%):輕 10 / 中 20 / 重 35 / 長 CD 45(淨化 15 隨 v3,尚未實作)
-const MP_TIER = { light: 10, mid: 20, heavy: 35, long: 45 };
+const MP_TIER = { light: 10, mid: 20, heavy: 35, long: 45, free: 0 };
 // 招式表(以 CFG.skills 的鍵 / 招式 id 為索引):tier = MP 花費級;mv = 集氣中移速倍率(0 = 原地只能轉向);t1 / t2 = 覆寫兩段秒數(預設 T2 = chargeTime、T1 = 一半且 ≥ .25 s)
 // 例外(不走兩段)由招式旗標決定:instant(格擋反擊 / 後躍射擊 / 影分身 按下即發)、hold(旋風疾行 按住持續)
 const CHARGE2 = {
@@ -17,11 +17,15 @@ const CHARGE2 = {
   powerSlash: { tier: 'mid', mv: .5 }, whirlwind: { tier: 'mid', mv: .5 }, shieldCharge: { tier: 'mid', mv: .5 }, parry: { tier: 'light', mv: 0 }, slam: { tier: 'mid', mv: .5 },
   whirlRun: { tier: 'light', mv: 0 }, skyLeap: { tier: 'long', mv: 0 },
   backstab: { tier: 'light', mv: .5 }, knives: { tier: 'light', mv: .5 }, stealth: { tier: 'mid', mv: .5 }, shadowStep: { tier: 'light', mv: .5, t1: .25, t2: .55 },
-  smoke: { tier: 'mid', mv: .5 }, eviscerate: { tier: 'light', mv: .5 }, decoy: { tier: 'mid', mv: 0 }
+  smoke: { tier: 'mid', mv: .5 }, eviscerate: { tier: 'light', mv: .5 }, decoy: { tier: 'mid', mv: 0 },
+  slash: { tier: 'free', mv: .5 }, dualN: { tier: 'free', mv: .5 }, mbolt: { tier: 'free', mv: .5 },   // 免費普攻(不集氣)
+  dualDash: { tier: 'light', mv: .5, t1: .35, t2: .7 }, dualFlurry: { tier: 'mid', mv: .5, t1: .45, t2: .9 }, dualCross: { tier: 'light', mv: .5, t1: .4, t2: .8 },
+  meteorUlt: { tier: 'free', mv: 0, t1: .8, t2: 1.6 }, dragonUlt: { tier: 'free', mv: 0, t1: .5, t2: 1.0 }, godUlt: { tier: 'free', mv: .5, t1: .4, t2: .8 }   // 大絕招:不扣 MP,冷卻 75 s
 };
 
 // 招式的資源種類與基準花費:全部 = MP(依招式表花費級)
 function skillCost(i) {
+  const sk = curSkill(i); if (sk && (sk.basic || sk.ult)) return { kind: 'mp', base: 0 };
   const e = CHARGE2[baseOf(i)];
   return { kind: 'mp', base: MP_TIER[e ? e.tier : 'light'] };
 }
@@ -90,7 +94,7 @@ function playerHurt(n, src) {
   if (G.down > 0 || G.invulnT > 0) return { blocked: true, dmg: 0, src };
   const o = src && typeof src === 'object' ? src : {}, net = !!o.net, dot = !!o.dot;   // src 可為 'strike' 之類字串(單人)或 {by, net, dot}(多人,§2-7)
   const uny = G.unyT > 0;   // 不屈戰意:受傷 ×0.75、HP 不低於 1、免硬直(netApplyFx 另跳過控制)
-  let rest = uny ? n * .75 : n;
+  let rest = (uny ? n * .75 : n) * godHurtK();   // 鬥神降臨 ×0.85 / 崩潰 ×1.2
   if (G.shield > 0) { const a = Math.min(G.shield, rest); G.shield -= a; rest -= a; if (G.shield <= 0) { G.shield = 0; G.shieldT = 0; } }
   sitBreak('hurt');
   if (rest <= 0) { banner('護盾擋下!', '#ffd27a'); return { blocked: true, dmg: 0, src }; }
@@ -100,7 +104,7 @@ function playerHurt(n, src) {
   else if (!uny && net && !dot && G.hardImmT <= 0 && G.hitStunCd <= 0) { G.stun = Math.max(G.stun, NET_RULES.hitStun); G.hitStunCd = NET_RULES.hitStunGap; }   // 多人:硬直取大、0.5 s 內只觸發一次、韌性期間不硬直(§1-6)
   if (G.frzT > 0 && rest >= ST.freezeBreak && G.frzAge >= ST.freezeGrace) stFreezeBreak();   // 凍結碎冰(§1-2 #3)
   crOnHurt(rest);
-  if (mage.play && !dot) mage.play(rest >= 15 ? 'hitBig' : 'hitSmall');   // 人偶受擊動作(只本機看得到)
+  if (mage.play && !dot && !net) mage.play(rest >= 15 ? 'hitBig' : 'hitSmall');   // 單人 / 稻草人路徑;多人由 netApplyHit 的 reactFromHit 播(含方向 / 擊飛)   // 人偶受擊動作(只本機看得到)
   if (G.hp <= 0) playerDown(); else if (!uny) banner('致命一擊!', '#ff5050');
   return { blocked: false, dmg: rest, src };
 }
@@ -116,6 +120,7 @@ function playerDown() {
 }
 // 復活:原地以 reviveHP 復活;MP / SP 不變;2 s 無敵
 function playerRevive() {
+  if (window.loOnRevive) loOnRevive();   // 倒地時改的配裝在復活時套用
   G.down = 0; G.hp = Math.min(G.hpMax, CFG.res.reviveHP); G.invulnT = 2;
   banner('復活', '#bff0a0');
   if (window.NETON && typeof netRespawn === 'function') netRespawn();   // 多人:改在出生點復活、清 debuff(netcombat.js,§5-4)

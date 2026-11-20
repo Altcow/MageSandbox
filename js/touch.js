@@ -82,7 +82,7 @@
   press('btnSit', toggleSit);   // 手機:打坐 / 起身
   press('btnNear', () => { G.zoom = G.zoom > .4 ? .3 : 1; $('btnNear').classList.toggle('on', G.zoom < .4); });   // 手機:近距離視角 / 恢復(同桌機 B 鍵)
   press('btnMode', toggleChgMode);   // 手機:集氣模式 A / B
-  press('btnWeap', () => { if (G.state !== 'charging') toggleWeapon(); });   // 集氣中此鈕不作用(取消改為施法鈕上滑)
+  press('btnWeap', () => { toggleWeapon(); });   // 集氣中此鈕不作用(取消改為施法鈕上滑)
   document.querySelectorAll('.tb,#btnAtk').forEach(el => { el.addEventListener('pointerdown', () => el.classList.add('dn')); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, () => el.classList.remove('dn'))); });   // 新版介面:按下版貼圖用
   // ---- 觸控畫面:只留雙指縮放。視角不可手動轉,由鏡頭自動跟隨移動方向(game.js autoCamTick);右半邊留給動作鈕 ----
   const cv = renderer.domElement;
