@@ -214,16 +214,50 @@ addEventListener('keyup', e => { G.keys[e.code] = false; });
 addEventListener('blur', () => { G.keys = {}; G.atkHeld = false; if (G.state === 'charging') cancelCharge(); });
 addEventListener('contextmenu', e => e.preventDefault());
 const fromTouch = () => performance.now() - G.lastTouch < 800;  // 觸控後瀏覽器會補發假滑鼠事件,忽略
+// 通知人偶播方向動作:ang = 動作方向相對人物面向的弧度(0 = 前、正 = 右);doll.js 尚未支援時不做事
+function actDir(name, worldHeading) {
+  if (typeof mage.play !== 'function') return;
+  try { mage.play(name, { ang: -angDiff(mage.yaw, worldHeading) }); } catch (e) { }
+}
+function jumpHeading() { return G.touchStick && G.mv && G.mv.on ? G.mv.tgt : mage.yaw; }
 function doJump() {
   if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0 || G.rootT > 0) return;   // 定身中不能跳(狀態效果文件 §1-2 #4)
   if (G.sitting) sitBreak('jump');
-  if (G.ground || G.coyote > 0) { sfx.play('jump'); G.vy = CFG.jumpV; G.ground = false; G.coyote = 0; return; }
-  if (G.airJumps > 0) { if (!resUse('sp', CFG.res.airJump)) return; sfx.play('jump'); G.airJumps = 0; G.vy = CFG.airJumpV; G.flip = 0; airStepFx(mage.root.position); return; }
+  if (G.ground || G.coyote > 0) { sfx.play('jump'); G.vy = CFG.jumpV; G.ground = false; G.coyote = 0; actDir('jump', jumpHeading()); return; }
+  if (G.airJumps > 0) { if (!resUse('sp', CFG.res.airJump)) return; sfx.play('jump'); G.airJumps = 0; G.vy = CFG.airJumpV; G.flip = 0; airStepFx(mage.root.position); actDir('jump', jumpHeading()); return; }
   G.jumpBuf = 0.12;
+}
+/* 手機左搖桿:8 方向量化(含遲滯 ~6°)→ 世界方向在「進入該方向」時鎖定(鏡頭自動轉時不會讓人繞圈)→ 角度平滑(~70 ms)
+   翻滾用未平滑的目標方向 G.mv.tgt */
+const MV_OCT = Math.PI / 4;
+function stickTick(dt) {
+  const M = G.mv || (G.mv = { on: false, oct: null, tgt: 0, ang: 0, hold: 0 });
+  if (!G.touchStick || G.stick.mag <= .12) { M.on = false; M.oct = null; M.hold = 0; return; }
+  const a = Math.atan2(G.stick.x, -G.stick.y);   // 0 = 搖桿上(前),正 = 右
+  let o = Math.round(a / MV_OCT); if (o === -4) o = 4;
+  if (M.oct != null && Math.abs(angDiff(M.oct * MV_OCT, a)) < MV_OCT / 2 + .1) o = M.oct;
+  if (o !== M.oct || !M.on) { M.oct = o; M.tgt = G.camYaw + Math.PI - o * MV_OCT; M.hold = 0; if (!M.on) M.ang = M.tgt; }
+  M.on = true; M.hold += dt;
+  M.ang += angDiff(M.ang, M.tgt) * (1 - Math.exp(-dt * 14));
+}
+// 鏡頭自動轉向:往側面走時,鏡頭 yaw 往「人物背後」慢慢插值(死區 22°、速率 1.1/s、上限 1.5 rad/s);
+// 往鏡頭方向走(偏差 150°~170° 漸弱,>170° 完全不轉)不轉,避免來回震盪;方向剛換 0.12 s 內不轉(輕點不甩鏡頭)
+const CAMAUTO = { dead: 22 * Math.PI / 180, k: 1.1, max: 1.5, hold: .12, back0: 150 * Math.PI / 180, back1: 170 * Math.PI / 180 };
+function autoCamTick(dt) {
+  const M = G.mv; if (!M || !M.on || M.hold < CAMAUTO.hold || G.roll || G.state === 'charging' || G.state === 'cast') return;
+  const rel = angDiff(G.camYaw, M.tgt + Math.PI), ar = Math.abs(rel);
+  if (ar <= CAMAUTO.dead || ar >= CAMAUTO.back1) return;
+  const w = ar <= CAMAUTO.back0 ? 1 : (CAMAUTO.back1 - ar) / (CAMAUTO.back1 - CAMAUTO.back0);
+  const rate = clamp((ar - CAMAUTO.dead) * CAMAUTO.k, 0, CAMAUTO.max) * w * Math.sign(rel);
+  G.camYaw += rate * dt;
 }
 function moveInput() {
   const K = G.keys, ix = (K.KeyD ? 1 : 0) - (K.KeyA ? 1 : 0), iz = (K.KeyW ? 1 : 0) - (K.KeyS ? 1 : 0);
   if (ix || iz) return { ix, iz, s: 1, run: !!(K.ShiftLeft || K.ShiftRight) };
+  if (G.touchStick && G.mv && G.mv.on) {   // 手機:8 方向量化 + 平滑 + 鎖世界方向(stickTick);換算回相對目前鏡頭,讓走位與翻滾共用
+    const h = G.mv.ang, dx = Math.sin(h), dz = Math.cos(h), c = Math.cos(G.camYaw), sn = Math.sin(G.camYaw);
+    return { ix: dx * c - dz * sn, iz: -dx * sn - dz * c, s: Math.min(1, G.stick.mag * 1.15), run: G.stick.mag > .92 };
+  }
   if (G.stick.mag > .12) return { ix: G.stick.x / G.stick.mag, iz: -G.stick.y / G.stick.mag, s: Math.min(1, G.stick.mag * 1.15), run: G.stick.mag > .92 };
   return { ix: 0, iz: 0, s: 0, run: false };
 }
@@ -361,14 +395,15 @@ function tryRoll() {
   if (G.state === 'charging') cancelCharge();
   G.state = 'ready';
   const mi = moveInput(); let ix = mi.ix, iz = mi.iz, dx, dz;
-  if (ix || iz) {
+  if (G.touchStick && G.mv && G.mv.on) { dx = Math.sin(G.mv.tgt); dz = Math.cos(G.mv.tgt); }   // 手機:朝搖桿 8 方向(未平滑的目標方向)
+  else if (ix || iz) {
     const l = Math.hypot(ix, iz); ix /= l; iz /= l;
     dx = -Math.sin(G.camYaw) * iz + Math.cos(G.camYaw) * ix; dz = -Math.cos(G.camYaw) * iz - Math.sin(G.camYaw) * ix;
-  } else { dx = -Math.cos(mage.yaw); dz = Math.sin(mage.yaw); }  // 沒按方向:往角色右側翻
+  } else { dx = Math.sin(mage.yaw); dz = Math.cos(mage.yaw); }  // 沒按方向:往面向前方翻(2026-11-20 起,原為右側)
   if (air) { G.airRolls = 0; G.vy = 0; }
   { const ch = G.time - (G.rollAt || -9) < 1.6 ? Math.min(3, (G.rollChain | 0) + 1) : 0; G.rollChain = ch; G.rollAt = G.time; G.rollWinK = [1, .6, .35, .2][ch]; }   // 連續翻滾:閃避窗逐次縮短(防狂翻滾)
   G.roll = { t: 0, dx, dz, phi: angDiff(mage.yaw, Math.atan2(dx, dz)), dist: air ? CFG.airRollDist : CFG.rollDist, time: air ? CFG.airRollTime : CFG.rollTime, air, dance: !air && danceOn() };
-  sfx.play('roll');
+  sfx.play('roll'); actDir('roll', Math.atan2(dx, dz));
   if (G.roll.dance) G.danceT = .8;   // 影舞翻滾:0.8 s 內的下一刀(背刺 / 割喉)×1.2(skills.js / skills_assassin.js)
   if (!G.stealth) for (let i = 0; i < 6; i++) smoke.emit(p.x + rnd(-.3, .3), p.y + .15, p.z + rnd(-.3, .3), rnd(-1, 1), rnd(.3, 1), rnd(-1, 1), rnd(.5, .9), rnd(.8, 1.4), [.5, .45, .4], [.3, .3, .3], .4, 2, 0, 1.5);
 }
@@ -599,6 +634,7 @@ function terrainMove(p, x0, z0) {
 function updatePlayer(dt) {
   // mc:劍士 / 刺客集氣中可移動;lock 為不能移動;face 為面向瞄準點
   const p = mage.root.position, K = G.keys, mc = G.state === 'charging' && moveCharge(), lock = (G.state === 'charging' && !mc) || (G.state === 'cast' && !G.spin), face = lock || mc;
+  stickTick(dt);
   const mi = moveInput(); let ix = mi.ix, iz = mi.iz, speedN = 0, ty = mage.yaw;
   G.rollCD = Math.max(0, G.rollCD - dt); G.stun = Math.max(0, G.stun - dt);
   const free = !lock && !G.roll && G.stun <= 0 && G.down <= 0 && G.rootT <= 0;   // 定身:不能走(仍可施法、集氣、翻滾)
@@ -1014,6 +1050,7 @@ function updateCamera(dt) {
   if (kt && !wallK) addLook(kt * CFG.camKeyTurn * dt, 0);
   // 消化視角累積量:camSmooth 0 = 即時;撞到俯仰上下限就清掉剩餘量
   const kS = CFG.camSmooth <= 0 ? 1 : 1 - Math.exp(-dt * lerp(60, 8, CFG.camSmooth));
+  autoCamTick(dt);
   G.camYaw += G.lookX * kS; G.lookX -= G.lookX * kS;
   const pRaw = G.camPitch + G.lookY * kS, pY = clamp(pRaw, camPitchMin(), CAM_PITCH_MAX);
   G.lookY = pY === pRaw ? G.lookY * (1 - kS) : 0; G.camPitch = pY;

@@ -101,6 +101,7 @@ function defClip(group, name, dur, mask, keys, opt) { ACT[name] = Object.assign(
 
 /* 通用 */
 defClip('通用', 'idle', 2, 'full', [[0, {}], [1, { Chest: [.02, 0, 0], Head: [-.02, 0, 0] }, 'inOutQuad'], [2, {}, 'inOutQuad']], { loop: true });
+defClip('通用', 'roll', .45, 'full', [[0, {}], [.45, {}]], { special: 'roll' });   // 翻滾:play('roll', {ang}) 依方向前 / 側 / 後滾(實作在 Doll.update)
 defClip('通用', 'jump', .5, 'full', [[0, PZ({ hip: [0, -.25, 0], Spine: [.3, 0, 0] }, leg('L', .8, .1, 1.5), leg('R', .8, -.1, 1.5))], [.25, POSES.jump, 'outQuad'], [.5, POSES.jump]]);
 defClip('通用', 'doubleJump', .5, 'full', [[0, PZ({ Spine: [.1, 0, 0] }, arm('L', .2, .3, .4), arm('R', .2, .3, .4), leg('L', 1.2, .1, 1.8), leg('R', 1.2, -.1, 1.8))], [.2, PZ({ Spine: [-.1, 0, 0] }, arm('L', 1.6, .8, .2), arm('R', 1.6, .8, .2), leg('L', .1, .1, .5), leg('R', -.2, .1, .4)), 'outBack'], [.5, PZ(arm('L', .6, .6, .3), arm('R', .6, .6, .3), leg('L', .3, .1, .8), leg('R', -.1, .1, .5)), 'outQuad']]);
 defClip('通用', 'fall', 1, 'full', [[0, PZ({ Spine: [-.05, 0, 0] }, arm('L', .2, .9, .3), arm('R', .2, .9, .3), leg('L', .2, .2, .4), leg('R', -.15, .2, .25))], [.5, PZ({ Spine: [-.1, 0, 0] }, arm('L', .5, 1.1, .2), arm('R', .5, 1.1, .2), leg('L', .1, .25, .5), leg('R', -.2, .25, .3)), 'inOutQuad'], [1, PZ({ Spine: [-.05, 0, 0] }, arm('L', .2, .9, .3), arm('R', .2, .9, .3), leg('L', .2, .2, .4), leg('R', -.15, .2, .25)), 'inOutQuad']], { loop: true });
@@ -155,6 +156,13 @@ defClip('通用備援', 'gen.sweep', .55, 'upper', [[0, {}], [.2, PZ(arm('R', 1.
 defClip('通用備援', 'gen.self', .6, 'upper', [[0, {}], [.3, PZ(arm('R', .9, .5, 1.5), arm('L', .9, .5, 1.5), { Spine: [.1, 0, 0] }), 'outQuad'], [.6, {}, 'inOutQuad']]);
 const KIND_ACT = { bolt: 'gen.throw', wall: 'gen.sweep', sky: 'gen.overhead', line: 'gen.thrust', front: 'gen.slash', self: 'gen.self' };
 
+// 跳躍方向傾斜:ang = 相對面向的方向(0 前、π/2 右、π 後、-π/2 左);k = 0..1;前跳 = 現況(不加),後跳後仰、側跳往側邊傾且該側腿外展
+function dirLean(out, ang, k) {
+  const dx = -Math.sin(ang), back = Math.max(0, -Math.cos(ang)), I = n => POSE_IX[n] * 3, h = I('Hips'), sp = I('Spine'), lt = I('LThigh'), rt = I('RThigh'), ls = I('LShin'), rs = I('RShin');
+  out[h] -= back * .3 * k; out[h + 2] -= dx * .22 * k; out[sp] -= back * .2 * k; out[sp + 2] -= dx * .15 * k;
+  out[lt + 2] += Math.max(0, dx) * .45 * k; out[rt + 2] -= Math.max(0, -dx) * .45 * k;
+  out[lt] -= back * .25 * k; out[rt] -= back * .25 * k; out[ls] += Math.abs(dx) * .3 * k; out[rs] += Math.abs(dx) * .3 * k;
+}
 // 編譯片段(第一次使用時把稀疏姿勢展開成完整陣列)
 function clipCompile(c) {
   if (c._k) return c;

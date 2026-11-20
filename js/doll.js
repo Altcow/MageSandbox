@@ -39,9 +39,9 @@ const DOLL_BONES = [
   ['RightArm', 2, [-.22, .14, 0]], ['RightForeArm', 8, [-.30, 0, 0]], ['RightHand', 9, [-.28, 0, 0]],
   ['LeftUpLeg', 0, [.1, -.05, 0]], ['LeftLeg', 11, [0, -.43, 0]], ['LeftFoot', 12, [0, -.43, 0]],
   ['RightUpLeg', 0, [-.1, -.05, 0]], ['RightLeg', 14, [0, -.43, 0]], ['RightFoot', 15, [0, -.43, 0]],
-  ['Cape0', 2, [0, .17, -.17]], ['Cape1', 17, [0, -.32, 0]], ['Cape2', 18, [0, -.32, 0]], ['Cape3', 19, [0, -.32, 0]]   // 披風 4 段跟隨骨(索引 17~20,不在 POSE_BONES 內,由 _cape() 驅動)
+  ['Cape0', 2, [0, .17, -.17]], ['Cape1', 17, [0, -.2, 0]], ['Cape2', 18, [0, -.2, 0]], ['Cape3', 19, [0, -.2, 0]], ['Cape4', 20, [0, -.2, 0]], ['Cape5', 21, [0, -.2, 0]], ['Cape6', 22, [0, -.2, 0]]   // 披風 7 節跟隨骨(索引 17~23,不在 POSE_BONES 內,由 _cape() 驅動;Cape0 掛頸 / 上背單點,每節 .2 m)
 ];
-const CAPE_B0 = 17;
+const CAPE_B0 = 17, CAPE_N = 7;
 // 座位色(1~12):名牌 / 編號 / 飾件 / 披風共用,remote.js 的 NAME_COLORS 同色
 const SEAT_HEX = ['#ffd27a', '#8fd0ff', '#ff8a8a', '#b8f08a', '#ffa8e0', '#a8fff0', '#d0a8ff', '#ffe08a', '#8affb0', '#ff9a5a', '#9ab0ff', '#e0e0e0'];
 function seatHex(seat) { return SEAT_HEX[(((seat | 0) || 1) - 1 + 120) % SEAT_HEX.length]; }
@@ -94,18 +94,19 @@ function dollShared() {
     cap([sg * .1, .43, 0], [sg * .1, .10, 0], .058, b0 + 1, DOLL_BODY);
     cap([sg * .1, .05, -.02], [sg * .1, .05, .1], .05, b0 + 2, 0x8a8f99, 1, 1);
   }
-  // 披風(座位色,每人都有、與職業無關):兩片背靠背薄片(單面材質即可,不用 DoubleSide),5 列 x 5 行;列 r 綁 Cape(r-1) 骨,末列綁 Cape3
+  // 披風(超人式,座位色,每人都有、與職業無關):單點掛在頸 / 上背,背後單片長披風(兩片背靠背薄片,單面材質即可),7 列 x 5 行,列 r 綁 Cape r 骨;
+  // 肩上不加寬(頂寬 ±.10,到臀部 ±.19 才接近肩寬),下襬 ±.33,不蓋手臂 / 武器揮動路徑
   {
-    const R = [1.46, 1.14, .82, .50, .20], HW = [.30, .36, .42, .47, .52], COLS = 5, st = nv;
+    const R = [1.46, 1.26, 1.06, .86, .66, .46, .26], HW = [.10, .12, .15, .19, .24, .29, .33], COLS = 5, NR = 7, st = nv;
     for (let sheet = 0; sheet < 2; sheet++) {
       const base = nv, nz = sheet ? 1 : -1;
-      for (let r = 0; r < 5; r++) for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < NR; r++) for (let c = 0; c < COLS; c++) {
         const u = c / (COLS - 1) * 2 - 1;
-        P.push(u * HW[r], R[r], -.17 + .07 * u * u + (sheet ? .012 : 0)); N.push(0, 0, nz); C.push(1, 1, 1);
-        SI.push(Math.max(0, r - 1) + CAPE_B0, 0, 0, 0); SW.push(1, 0, 0, 0);
+        P.push(u * HW[r], R[r], -.17 + .05 * u * u * (r / (NR - 1)) + (sheet ? .012 : 0)); N.push(0, 0, nz); C.push(1, 1, 1);
+        SI.push(r + CAPE_B0, 0, 0, 0); SW.push(1, 0, 0, 0);
       }
-      nv += 5 * COLS;
-      for (let r = 0; r < 4; r++) for (let c = 0; c < COLS - 1; c++) {
+      nv += NR * COLS;
+      for (let r = 0; r < NR - 1; r++) for (let c = 0; c < COLS - 1; c++) {
         const a = base + r * COLS + c, b = a + 1, cc = a + COLS, d = cc + 1;
         if (sheet) IX.push(a, cc, b, b, cc, d); else IX.push(a, b, cc, b, d, cc);
       }
@@ -167,7 +168,7 @@ class Doll {
     this.gemMat = new THREE.MeshStandardMaterial({ color: this._elHex, emissive: this._elHex, emissiveIntensity: .6, roughness: .2 });
     this.parts = {}; this.held = 'staff'; this.stow = null;   // held / stow = 武器鍵(見 DOLL_WEAPONS)
     this._pose = POSES.idle.slice(); this._lo = POSES.idle.slice(); this._up = POSES.idle.slice(); this._cs = POSES.idle.slice();
-    this._clip = null; this._swap = null; this._swapT = 1; this._ly = null; this._cp = null; this._vy = 0; this._air = false; this._landT = 0; this._hidden = false; this._tilt = 0;
+    this._clip = null; this._swap = null; this._swapT = 1; this._ly = null; this._cp = null; this._vy = 0; this._air = false; this._landT = 0; this._hidden = false; this._tilt = 0; this._roll = null; this._jd = null;
     this._mountAll();
   }
   /* ---------- 武器 ---------- */
@@ -239,10 +240,12 @@ class Doll {
   play(name, opt) {
     const c = ACT[name]; if (!c) return false;
     if (c.special === 'swap') return this.swapHeld();
+    if (c.special === 'roll') { this._roll = { t: 0, ang: opt && opt.ang || 0, dur: c.dur }; return true; }   // 翻滾:ang = 相對面向的動作方向(0 前、π/2 右、π 後、-π/2 左)
+    if (name === 'jump' || name === 'doubleJump') this._jd = opt && opt.ang ? { ang: opt.ang, w: 0, age: 0 } : null;   // 跳躍:依 ang 傾斜身體 / 腿,留到落地
     if (c.weapon && opt && opt.autoWeapon && !(this.held === c.weapon || (c.weapon === 'sword' && this.held === 'swordShield'))) this.setWeapon(c.weapon, true);
     this._clip = { c, t: opt && opt.t0 || 0, loop: opt && opt.loop != null ? !!opt.loop : !!c.loop, freeze: !!(opt && opt.freeze) }; return true;   // freeze:定格在 t0(調姿勢 / 截圖用)
   }
-  stop() { this._clip = null; }
+  stop() { this._clip = null; this._roll = null; this._jd = null; }
   // 依招式 kind 播通用備援動作
   playKind(kind) { return this.play(KIND_ACT[kind] || 'gen.slash'); }
   /* ---------- 相容介面 ---------- */
@@ -291,22 +294,27 @@ class Doll {
   get bow() { return this._part('bow').o; }
   get book() { return this._part('book').o; }
 
-  /* ---------- 披風:4 段彈簧跟隨(依 root 位移速度,飄向移動反方向;下落上揚、高速抖動;鏡頭太近時縮掉不擋視線) ---------- */
-  _cape(dt, T) {
-    const rp = this.root.position, bs = this.bones, c = this._cp || (this._cp = { x: rp.x, y: rp.y, z: rp.z, vf: 0, vl: 0, a: [0, 0, 0, 0], w: [0, 0, 0, 0], l: [0, 0, 0, 0], lw: [0, 0, 0, 0], k: 1 });
+  /* ---------- 披風:7 節彈簧跟隨(依 root 位移速度飄向移動反方向;沿披風長度行進的波浪,幅度隨速度變大,靜止也有微起伏;跳躍上揚 / 下落飄起 / 翻滾甩動;鏡頭太近時縮掉不擋視線) ---------- */
+  // rollU:翻滾進度 0..1(無 = -1),flipU:空翻進度(無 = -1)
+  _cape(dt, T, rollU, flipU) {
+    const rp = this.root.position, bs = this.bones, NS = CAPE_N - 1, z6 = () => new Array(NS).fill(0), c = this._cp || (this._cp = { x: rp.x, y: rp.y, z: rp.z, vf: 0, vl: 0, a: z6(), w: z6(), l: z6(), lw: z6(), k: 1 });
     let vx = 0, vy = 0, vz = 0;
     if (dt > 1e-4) { vx = (rp.x - c.x) / dt; vy = (rp.y - c.y) / dt; vz = (rp.z - c.z) / dt; if (Math.hypot(vx, vy, vz) > 30) vx = vy = vz = 0; }   // 傳送 / 瞬移不甩披風
     c.x = rp.x; c.y = rp.y; c.z = rp.z;
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw), kv = dt > 1e-4 ? Math.min(1, dt * 10) : 0;
     c.vf += (vx * sy + vz * cy - c.vf) * kv; c.vl += (vx * cy - vz * sy - c.vl) * kv;
-    const spd = Math.min(1, Math.hypot(c.vf, c.vl) / 6), fall = Math.max(0, -vy) * .05;
-    const tp = .1 + Math.max(-.15, Math.min(1.1, c.vf * .1)) + Math.min(.6, fall), tl = -c.vl * .08, st = Math.min(dt, .04);
-    if (st > 1e-4) for (let i = 0; i < 4; i++) {
-      const k = 90 / (1 + .5 * i), d = 1.1 * Math.sqrt(k), f = (.3 + spd) * .06 * Math.sin(T * 9 + i * 1.3), g = tp * (.4 + .22 * i) + f, h = tl * (.4 + .22 * i);
+    const spd = Math.min(1, Math.hypot(c.vf, c.vl) / 6), fall = Math.max(0, -vy) * .05, rise = Math.max(0, vy) * .04;
+    const rs = rollU >= 0 ? Math.sin(Math.PI * Math.min(1, rollU)) : 0, fs = flipU >= 0 ? Math.sin(Math.PI * Math.min(1, flipU)) : 0;
+    const tp = Math.min(1.35, .08 + Math.max(-.12, Math.min(.9, c.vf * .1)) + Math.min(.9, fall) + Math.min(.3, rise) + rs * .5 + fs * .35), tl = -c.vl * .08, st = Math.min(dt, .04);
+    // 波浪:頻率 / 幅度隨速度與動作變大;相位沿長度後移 = 波往下襬傳
+    const amp = .028 + spd * .13 + Math.min(.12, Math.abs(vy) * .015) + rs * .14 + fs * .1, om = 1.7 + spd * 9 + rs * 6, lag = .55 + spd * .3;
+    if (st > 1e-4) for (let i = 0; i < NS; i++) {
+      const k = 140 / (1 + .3 * i), d = 1.1 * Math.sqrt(k), wv = amp * (.3 + .28 * i), ph = T * om - i * lag;
+      const g = Math.max(0, tp * (.4 + .13 * i) + (i ? .02 : 0) + wv * Math.sin(ph)), h = tl * (.4 + .13 * i) + wv * .6 * Math.sin(ph * .8 + 1.7);
       c.w[i] += ((g - c.a[i]) * k - c.w[i] * d) * st; c.a[i] += c.w[i] * st;
       c.lw[i] += ((h - c.l[i]) * k - c.lw[i] * d) * st; c.l[i] += c.lw[i] * st;
     }
-    for (let i = 0; i < 4; i++) { const b = bs[CAPE_B0 + i]; b.rotation.set(c.a[i] - (i ? c.a[i - 1] : 0), 0, c.l[i] - (i ? c.l[i - 1] : 0)); }
+    for (let i = 0; i < CAPE_N; i++) { const b = bs[CAPE_B0 + i]; if (i < NS) b.rotation.set(c.a[i] - (i ? c.a[i - 1] : 0), 0, c.l[i] - (i ? c.l[i - 1] : 0)); else b.rotation.set(0, 0, 0); }
     // 鏡頭距離 < 1.5 m(第一人稱 / 穿模)縮成 0,1.5~3 m 漸出
     let k = 1; if (typeof camera !== 'undefined' && camera) { const p = camera.position, d = Math.hypot(p.x - rp.x, p.y - rp.y - 1.3, p.z - rp.z); k = Math.max(0, Math.min(1, (d - 1.5) / 1.5)); }
     if (k !== c.k) { c.k = k; bs[CAPE_B0].scale.setScalar(Math.max(.001, k)); }
@@ -323,7 +331,9 @@ class Doll {
     if (this._ly !== null && dt > 1e-4) vy = (y - this._ly) / dt; this._ly = y; this._vy += (vy - this._vy) * Math.min(1, dt * 14);
     const air = s.air !== undefined ? !!s.air : Math.abs(this._vy) > 3.2;
     if (this._air && !air) this._landT = .22; this._air = air; this._landT = Math.max(0, this._landT - dt);
-    const rp = s.roll >= 0 ? s.roll : -1, fl = rp < 0 && s.flip >= 0 ? s.flip : -1;
+    let rp = s.roll >= 0 ? s.roll : -1, rAng = -(s.rollPhi || 0);   // 遊戲端 rollPhi 向左為正,ang 向右為正
+    if (rp < 0 && this._roll) { const r = this._roll; r.t += dt; if (r.t >= r.dur) this._roll = null; else { rp = r.t / r.dur; rAng = r.ang; } }
+    const fl = rp < 0 && s.flip >= 0 ? s.flip : -1;
     const lo = this._lo, up = this._up, out = this._pose, S = (n, x, yy, z) => { const i = POSE_IX[n] * 3; lo[i] = x; lo[i + 1] = yy; lo[i + 2] = z; }, H = POSE_N * 3;
     // 下半身:待機 / 走 / 跑 / 空中
     lo.set(POSES.idle);
@@ -358,11 +368,11 @@ class Doll {
         poseMix(out, this._cs, w, MASK[cp.mask]); if (cp.bodyTilt) clipTilt = (cp.bodyTilt > 0 ? EASE.outQuad(Math.min(1, cl.t / cp.dur)) : 1 - EASE.inOutQuad(Math.min(1, cl.t / cp.dur))) * w;
       }
     }
-    // 翻滾 / 空翻:閃避姿勢(依 roll.phi 分前 / 後 / 左 / 右);空翻 = 縮身 + 身體繞中心轉一圈(沿用 flip 進度)
-    if (rp >= 0) {
-      const ph2 = s.rollPhi || 0, ap = Math.abs(ph2), nm = ap < Math.PI / 4 ? 'dodgeFwd' : (ap > Math.PI * .75 ? 'dodgeBack' : (ph2 > 0 ? 'dodgeLeft' : 'dodgeRight'));
-      clipSample(ACT[nm], rp * ACT[nm].dur, this._cs); poseMix(out, this._cs, 1, MASK.full);
-    } else if (fl >= 0) { poseMix(out, POSES.tuck, Math.min(1, Math.sin(Math.PI * Math.min(1, fl)) * 2), MASK.full); }
+    // 跳躍方向:依 ang 傾斜身體與腿(落地後淡出)
+    if (this._jd) { const jd = this._jd, cn = this._clip && this._clip.c.name; jd.age += dt; const on = air || cn === 'jump' || cn === 'doubleJump'; jd.w += ((on ? 1 : 0) - jd.w) * Math.min(1, dt * 12); if (!on && jd.age > .2 && jd.w < .02) this._jd = null; else dirLean(out, jd.ang, jd.w); }
+    // 翻滾 / 空翻:縮身(蜷曲)姿勢;身體在下方依 ang 繞對應水平軸轉一圈(前滾 / 側滾 / 後滾)
+    if (rp >= 0) poseMix(out, POSES.tuck, Math.min(1, Math.sin(Math.PI * Math.min(1, rp)) * 2.2), MASK.full);
+    else if (fl >= 0) { poseMix(out, POSES.tuck, Math.min(1, Math.sin(Math.PI * Math.min(1, fl)) * 2), MASK.full); }
     if (sit > 0) poseMix(out, POSES.sit, sit, MASK.full);
     tiltK = Math.max(dn, clipTilt); if (dn > 0) poseMix(out, POSES.down, dn, MASK.full);
     // 套到骨頭
@@ -370,11 +380,12 @@ class Doll {
     this.bones[0].position.set(out[H], .95 + out[H + 1], out[H + 2]);
     // 整個身體:旋風 / 倒地 / 空翻
     const bd = this.body; bd.position.set(0, (s.hover || 0), 0); bd.rotation.set(-1.45 * tiltK, this.spinY, 0); bd.position.y += .14 * tiltK;
-    if (fl >= 0) {
-      const ax = new V3(1, 0, 0); bd.quaternion.setFromAxisAngle(ax, Math.PI * 2 * fl);
-      const c0 = new V3(0, .9, 0); bd.position.copy(c0).sub(c0.clone().applyQuaternion(bd.quaternion)); bd.position.y += .25 * Math.sin(Math.PI * fl);
+    if (fl >= 0 || rp >= 0) {
+      const u = fl >= 0 ? fl : rp, ax = new V3(fl >= 0 ? 1 : Math.cos(rAng), 0, fl >= 0 ? 0 : Math.sin(rAng));   // 軸 = (cos ang, 0, sin ang):ang 0 = 繞 x 前滾翻
+      bd.quaternion.setFromAxisAngle(ax, Math.PI * 2 * Math.min(1, u));
+      const c0 = new V3(0, .9, 0); bd.position.copy(c0).sub(c0.clone().applyQuaternion(bd.quaternion)); bd.position.y += (fl >= 0 ? .25 : .2) * Math.sin(Math.PI * Math.min(1, u));
     }
-    this._cape(dt, T);
+    this._cape(dt, T, rp, fl);
     // 杖頭 / 書發光(集氣中 glow 隨 auraAmt)
     const g = this.glow; this.gemMat.emissiveIntensity = .6 + g * 3;
     for (const p of this._glowParts) { p.glow.material.opacity = g * .9; p.glow.scale.setScalar(p === this.parts.staff ? .5 + g * 1.4 : .6 + g * 1.5); }
@@ -394,6 +405,7 @@ function dollBuildPanel(root) {
   const act = document.createElement('select'); act.style.cssText = 'flex:1;min-width:0';
   CLIP_GROUPS.forEach(g => { const og = document.createElement('optgroup'); og.label = g.name; g.list.forEach(n => { const op = document.createElement('option'); op.value = n; op.textContent = n; og.appendChild(op); }); act.appendChild(og); });
   mk('動作', act); act.value = 'sword.slash1';
+  const dir = mk('方向(翻滾/跳躍)', sel([[0, '前'], [Math.PI / 4, '右前'], [Math.PI / 2, '右'], [Math.PI * .75, '右後'], [Math.PI, '後'], [-Math.PI * .75, '左後'], [-Math.PI / 2, '左'], [-Math.PI / 4, '左前']]));
   const loop = document.createElement('input'); loop.type = 'checkbox'; mk('循環播放', loop);
   const btns = document.createElement('div'); btns.className = 'row'; root.appendChild(btns);
   const B = (t, f) => { const b = document.createElement('button'); b.textContent = t; b.style.marginTop = '2px'; b.onclick = f; btns.appendChild(b); return b; };
@@ -415,7 +427,7 @@ function dollBuildPanel(root) {
   const applyLoadout = () => { const m = who(); m.setLoadout(wa.value, wb.value || null, 0); return m; };
   B('套用配裝', applyLoadout);
   B('換武', () => { const m = who(); if (!m.swapHeld()) { m.setLoadout(wa.value, wb.value || null, 0); m.swapHeld(); } });
-  B('播放', () => { const m = who(); const c = ACT[act.value]; if (c && c.weapon && m.held !== c.weapon && !(c.weapon === 'sword' && m.held === 'swordShield')) { wa.value = c.weapon; m.setLoadout(c.weapon, wb.value === c.weapon ? '' : (wb.value || null), 0); } m.play(act.value, { loop: loop.checked }); });
+  B('播放', () => { const m = who(); const c = ACT[act.value]; if (c && c.weapon && m.held !== c.weapon && !(c.weapon === 'sword' && m.held === 'swordShield')) { wa.value = c.weapon; m.setLoadout(c.weapon, wb.value === c.weapon ? '' : (wb.value || null), 0); } m.play(act.value, { loop: loop.checked, ang: +dir.value }); });
   B('停止', () => { if (pv) pv.stop(); mage.stop(); });
   B('復位', () => { mage.stop(); clear(); });
   const note = document.createElement('div'); note.style.cssText = 'color:#aaa;margin-top:4px'; note.textContent = '播放時會自動換上該動作的武器;只影響外觀,不動遊戲配裝。'; root.appendChild(note);

@@ -16,10 +16,10 @@
     knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
     G.stick.x = dx / R; G.stick.y = dy / R; G.stick.mag = Math.min(1, Math.hypot(dx, dy) / R);
   }
-  base.addEventListener('pointerdown', e => { e.preventDefault(); touchNow(); sid = e.pointerId; base.setPointerCapture(sid); G.fingerHold = false; upd(e); });
+  base.addEventListener('pointerdown', e => { e.preventDefault(); touchNow(); sid = e.pointerId; base.setPointerCapture(sid); G.fingerHold = false; G.touchStick = true; upd(e); });
   base.addEventListener('pointermove', e => { if (e.pointerId === sid) upd(e); });
   ['pointerup', 'pointercancel'].forEach(t => base.addEventListener(t, e => {
-    if (e.pointerId !== sid) return; sid = null; G.stick.x = G.stick.y = G.stick.mag = 0; knob.style.transform = '';
+    if (e.pointerId !== sid) return; sid = null; G.touchStick = false; G.stick.x = G.stick.y = G.stick.mag = 0; knob.style.transform = '';
   }));
 
   // ---- 右大鈕:集氣 / 施放 / 滑動調範圍 ----
@@ -84,29 +84,22 @@
   press('btnMode', toggleChgMode);   // 手機:集氣模式 A / B
   press('btnWeap', () => { if (G.state !== 'charging') toggleWeapon(); });   // 集氣中此鈕不作用(取消改為施法鈕上滑)
   document.querySelectorAll('.tb,#btnAtk').forEach(el => { el.addEventListener('pointerdown', () => el.classList.add('dn')); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, () => el.classList.remove('dn'))); });   // 新版介面:按下版貼圖用
-  // ---- 觸控拖曳轉視角 ----
-  const cv = renderer.domElement; let cid = null, cx = 0, cy = 0, tapT = -1e9, tapX = 0, tapY = 0;
-  const tps = new Map(); let pinchD = 0;   // 畫面上的觸控點;兩指同時按在畫面 = 雙指縮放(拉近 / 拉遠),縮放時不轉視角
+  // ---- 觸控畫面:只留雙指縮放。視角不可手動轉,由鏡頭自動跟隨移動方向(game.js autoCamTick);右半邊留給動作鈕 ----
+  const cv = renderer.domElement;
+  const tps = new Map(); let pinchD = 0;   // 畫面上的觸控點;兩指同時按在畫面 = 雙指縮放(拉近 / 拉遠)
   const tpDist = () => { const a = [...tps.values()]; return a.length >= 2 ? Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) : 0; };
   cv.addEventListener('pointerdown', e => {
     if (e.pointerType !== 'touch') return; touchNow();
     tps.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (tps.size >= 2) { pinchD = tpDist(); cid = null; return; }
+    if (tps.size >= 2) { pinchD = tpDist(); return; }
     try { document.documentElement.requestFullscreen && !document.fullscreenElement && document.documentElement.requestFullscreen().catch(() => { }); } catch (err) { }
-    if (e.clientX < innerWidth * .4) return;   // 左側 40% 留給搖桿,只接受右側 60% 的手指轉視角
-    cid = e.pointerId; cx = e.clientX; cy = e.clientY;
-    const now = performance.now();   // 雙擊畫面 = 鏡頭轉到背後(間隔 < 250 ms、位移 < 10 px,只在右側)
-    if (now - tapT < 250 && Math.hypot(cx - tapX, cy - tapY) < 10) { resetCam(); tapT = -1e9; } else { tapT = now; tapX = cx; tapY = cy; }
   });
   cv.addEventListener('pointermove', e => {
-    if (tps.has(e.pointerId)) {
-      tps.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (tps.size >= 2 && pinchD > 0) { const d = tpDist(); if (d > 0) { G.zoom = clamp(G.zoom * pinchD / d, .28, 1.9); pinchD = d; } return; }
-    }
-    if (e.pointerId !== cid) return;
-    addLook(-(e.clientX - cx) * CFG.camSens * CFG.touchSens, (e.clientY - cy) * CFG.camSens * CFG.touchSens); cx = e.clientX; cy = e.clientY;
+    if (!tps.has(e.pointerId)) return;
+    tps.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (tps.size >= 2 && pinchD > 0) { const d = tpDist(); if (d > 0) { G.zoom = clamp(G.zoom * pinchD / d, .28, 1.9); pinchD = d; } }
   });
-  ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, e => { tps.delete(e.pointerId); pinchD = 0; if (e.pointerId === cid) cid = null; }));
+  ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, e => { tps.delete(e.pointerId); pinchD = 0; }));
 
   // ---- 手把 ----
   // 動作 → 標準映射按鈕編號。預設 = 實體位置(0 下 / 1 右 / 2 左 / 3 上,與舊版相同);畫面上的名稱依型號顯示
