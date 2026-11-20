@@ -7,7 +7,7 @@
 const SKC = { main: 0x3ee8ff, core: 0xeaffff, deep: 0x0a9fd0 };
 // 形狀同 auraOf() 回傳值(hex / core / c0 / c1 / s0 / s1 / css0 / css1 / dark),cast 函式透過 casterAura(P) 直接拿到青色
 const SK_AURA = { name: '劍技', hex: SKC.main, core: SKC.core, c0: [.85, 1, 1], c1: [.1, .75, 1], s0: [.85, 1, 1], s1: [.1, .75, 1], css0: '#3ee8ff', css1: '#0a9fd0', dark: false };
-const SK_CAP = { trail: IS_TOUCH ? 8 : 16, line: IS_TOUCH ? 6 : 12 };
+const SK_CAP = { trail: IS_TOUCH ? 8 : 16, line: IS_TOUCH ? 8 : 18 };   // 同時數量上限(視覺放大後落地裂光多條,線上限略提高)
 const SK_LIVE = { trail: [], line: [] };
 let SK_TEX = null, SK_MAT = null;
 const SK_STRENGTH = { k: 1 };   // P 面板「劍技光強度」(0~1.5)
@@ -34,100 +34,138 @@ function skLimit(kind, inst) {
 }
 function skDone(kind, inst) { const i = SK_LIVE[kind].indexOf(inst); if (i >= 0) SK_LIVE[kind].splice(i, 1); }
 
-/* ---------- 光軌:沿「相對面向的弧線」掃過的動態三角帶 ---------- */
+/* ---------- 光軌:沿「相對面向的弧線」掃過的動態三角帶(三層:白芯 + 青暈 + 外層淡暈;只放大視覺,不改判定) ---------- */
 // pos = 施放者位置(腳)、yaw = 面向;tpl = { a0, a1(度,相對面向,正 = 右側), r0, r1(m), y0, y1(高度 m), tilt(度,光帶傾角:0 平放、90 直立), dur(掃過秒數), life(殘留秒數), w(寬度倍率) }
 // opt.mirror:左右鏡像;opt.follow(caster 物件 { root.position }):跟著施放者平移
+const SK_VIS = { r: 1.55, w: 2.1, spark: 1 };   // 視覺放大倍率:半徑(長度)、寬度、火花量(P 面板可調)
+const SK_LAYERS = [{ k: 2.3, b: .32, c: [.1, .55, .95] }, { k: 1, b: 1, c: [.22, .9, 1] }, { k: .34, b: 1, c: [1, 1, 1] }];
 function skTrail(pos, yaw, tpl, opt) {
   opt = opt || {};
   if (SK_STRENGTH.k <= 0) return;
   skShared();
-  const N = IS_TOUCH ? 10 : 16, D = Math.PI / 180, sg = opt.mirror ? -1 : 1, fx = Math.sin(yaw), fz = Math.cos(yaw), rx = -Math.cos(yaw), rz = Math.sin(yaw);
-  const P = new Float32Array((N + 1) * 6), C = new Float32Array((N + 1) * 6), UV = new Float32Array((N + 1) * 4), IX = [];
-  const ox = pos.x, oy = pos.y, oz = pos.z, hw = .22 * (tpl.w || 1), tl = (tpl.tilt || 0) * D * sg;
+  const N = IS_TOUCH ? 10 : 16, NL = IS_TOUCH ? 2 : 3, LY = IS_TOUCH ? [SK_LAYERS[0], SK_LAYERS[1]] : SK_LAYERS, V = (N + 1) * 2;
+  const D = Math.PI / 180, sg = opt.mirror ? -1 : 1, fx = Math.sin(yaw), fz = Math.cos(yaw), rx = -Math.cos(yaw), rz = Math.sin(yaw);
+  const P = new Float32Array(V * NL * 3), C = new Float32Array(V * NL * 3), UV = new Float32Array(V * NL * 2), IX = [];
+  const ox = pos.x, oy = pos.y, oz = pos.z, hw0 = .22 * (tpl.w || 1) * SK_VIS.w, tl = (tpl.tilt || 0) * D * sg, RK = SK_VIS.r;
   const pts = [];
   for (let i = 0; i <= N; i++) {
-    const u = i / N, a = lerp(tpl.a0, tpl.a1, u) * D * sg, r = lerp(tpl.r0, tpl.r1, u), y = lerp(tpl.y0, tpl.y1, u);
+    const u = i / N, a = lerp(tpl.a0, tpl.a1, u) * D * sg, r = lerp(tpl.r0, tpl.r1, u) * RK, y = lerp(tpl.y0, tpl.y1, u) * (1 + (RK - 1) * .35);
     const dx = fx * Math.cos(a) + rx * Math.sin(a), dz = fz * Math.cos(a) + rz * Math.sin(a);
     pts.push([dx * r, y, dz * r, dx, dz]);
   }
-  for (let i = 0; i <= N; i++) {
-    const p = pts[i], q0 = pts[Math.max(0, i - 1)], q1 = pts[Math.min(N, i + 1)];
-    let tx = q1[0] - q0[0], ty = q1[1] - q0[1], tz = q1[2] - q0[2]; const tL = Math.hypot(tx, ty, tz) || 1; tx /= tL; ty /= tL; tz /= tL;
-    let wx = p[3] * Math.cos(tl), wy = Math.sin(tl), wz = p[4] * Math.cos(tl);   // 寬度方向 = 徑向與垂直方向依 tilt 混合,再與切線正交
-    const d = wx * tx + wy * ty + wz * tz; wx -= tx * d; wy -= ty * d; wz -= tz * d;
-    let wl = Math.hypot(wx, wy, wz);
-    if (wl < .25) { wx = -tz; wy = 0; wz = tx; wl = Math.hypot(wx, wz) || 1; }   // 退化(光帶與切線平行):改用水平側向
-    wx = wx / wl * hw; wy = wy / wl * hw; wz = wz / wl * hw;
-    const j = i * 6; P[j] = ox + p[0] + wx; P[j + 1] = oy + p[1] + wy; P[j + 2] = oz + p[2] + wz; P[j + 3] = ox + p[0] - wx; P[j + 4] = oy + p[1] - wy; P[j + 5] = oz + p[2] - wz;
-    UV[i * 4] = i / N; UV[i * 4 + 1] = 0; UV[i * 4 + 2] = i / N; UV[i * 4 + 3] = 1;
-    if (i < N) { const a = i * 2; IX.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  for (let l = 0; l < NL; l++) {
+    const hw = hw0 * LY[l].k;
+    for (let i = 0; i <= N; i++) {
+      const p = pts[i], q0 = pts[Math.max(0, i - 1)], q1 = pts[Math.min(N, i + 1)];
+      let tx = q1[0] - q0[0], ty = q1[1] - q0[1], tz = q1[2] - q0[2]; const tL = Math.hypot(tx, ty, tz) || 1; tx /= tL; ty /= tL; tz /= tL;
+      let wx = p[3] * Math.cos(tl), wy = Math.sin(tl), wz = p[4] * Math.cos(tl);   // 寬度方向 = 徑向與垂直方向依 tilt 混合,再與切線正交
+      const d = wx * tx + wy * ty + wz * tz; wx -= tx * d; wy -= ty * d; wz -= tz * d;
+      let wl = Math.hypot(wx, wy, wz);
+      if (wl < .25) { wx = -tz; wy = 0; wz = tx; wl = Math.hypot(wx, wz) || 1; }   // 退化(光帶與切線平行):改用水平側向
+      wx = wx / wl * hw; wy = wy / wl * hw; wz = wz / wl * hw;
+      const vi = (l * (N + 1) + i) * 2, j = vi * 3;
+      P[j] = ox + p[0] + wx; P[j + 1] = oy + p[1] + wy; P[j + 2] = oz + p[2] + wz; P[j + 3] = ox + p[0] - wx; P[j + 4] = oy + p[1] - wy; P[j + 5] = oz + p[2] - wz;
+      UV[vi * 2] = i / N; UV[vi * 2 + 1] = 0; UV[vi * 2 + 2] = i / N; UV[vi * 2 + 3] = 1;
+      if (i < N) IX.push(vi, vi + 1, vi + 2, vi + 1, vi + 3, vi + 2);
+    }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(P, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(UV, 2));
   const ca = new THREE.BufferAttribute(C, 3); ca.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('color', ca); geo.setIndex(IX);
   const mesh = new THREE.Mesh(geo, SK_MAT); mesh.frustumCulled = false; mesh.renderOrder = 8; scene.add(mesh);
-  let t = 0, dead = false, lastx = ox, lastz = oz;
+  let t = 0, dead = false;
   const inst = { kill() { if (dead) return; dead = true; scene.remove(mesh); geo.dispose(); skDone('trail', inst); } };
   skLimit('trail', inst);
-  const dur = tpl.dur || .08, life = tpl.life || .2, K = SK_STRENGTH.k;
+  const dur = tpl.dur || .08, life = (tpl.life || .2) * 1.3, K = SK_STRENGTH.k, sparkN = IS_TOUCH ? 1 : 2, headP = new V3(), vis = !opt.noSpark;
   addFx(dt => {
     if (dead) return false;
     t += dt;
     if (opt.follow) { const p = opt.follow.root ? opt.follow.root.position : opt.follow; mesh.position.set(p.x - ox, p.y - oy, p.z - oz); }
     const h = Math.min(1, t / dur), f = t > dur ? Math.max(0, 1 - (t - dur) / life) : 1;
     if (t > dur + life) { inst.kill(); return false; }
-    for (let i = 0; i <= N; i++) {
-      const u = i / N, b = u <= h ? Math.pow(Math.max(0, 1 - (h - u) / .9), 1.4) * f * K : 0;
-      const j = i * 6; C[j] = C[j + 3] = b * .75; C[j + 1] = C[j + 4] = b * .97; C[j + 2] = C[j + 5] = b;   // 白熱青:加色混合疊亮
+    for (let l = 0; l < NL; l++) for (let i = 0; i <= N; i++) {
+      const u = i / N, b = (u <= h ? Math.pow(Math.max(0, 1 - (h - u) / .9), 1.4) * f * K : 0) * LY[l].b, c = LY[l].c, j = (l * (N + 1) + i) * 6;
+      C[j] = C[j + 3] = b * c[0]; C[j + 1] = C[j + 4] = b * c[1]; C[j + 2] = C[j + 5] = b * c[2];
     }
     ca.needsUpdate = true;
+    if (vis && t <= dur + .05 && SK_VIS.spark > 0) {   // 揮砍前端噴青白火花
+      const pi = pts[Math.min(N, Math.round(h * N))], mp = opt.follow ? (opt.follow.root ? opt.follow.root.position : opt.follow) : pos;
+      headP.set((opt.follow ? mp.x : ox) + pi[0], (opt.follow ? mp.y : oy) + pi[1], (opt.follow ? mp.z : oz) + pi[2]);
+      for (let k = 0; k < sparkN * SK_VIS.spark; k++) fire.emit(headP.x + rnd(-.1, .1), headP.y + rnd(-.1, .1), headP.z + rnd(-.1, .1), pi[3] * rnd(.5, 2.5) + rnd(-1, 1), rnd(-.5, 1.5), pi[4] * rnd(.5, 2.5) + rnd(-1, 1), rnd(.25, .5), rnd(.05, .12), SK_AURA.c0, SK_AURA.c1, .95, .4, 0, 1);
+    }
     return true;
   });
 }
 
-/* ---------- 直線光:一片沿線拉長、繞線軸轉向鏡頭的四邊形(突進 / 閃身 / 射線殘光 / 箭拖尾) ---------- */
+/* ---------- 直線光:一片沿線拉長、繞線軸轉向鏡頭的四邊形(突進 / 閃身 / 射線殘光 / 箭拖尾);外層淡暈 + 青身 + 白芯三片疊加 ---------- */
 // from / to:V3;w:寬(m);life:殘留秒數;opt.grow:秒,終點從起點長出來;opt.caster:跟著 caster 位置當終點(衝鋒中用)
 function skLine(from, to, w, life, opt) {
   opt = opt || {};
   if (SK_STRENGTH.k <= 0) return;
   skShared();
-  const P = new Float32Array(12), C = new Float32Array(12), UV = new Float32Array([0, 0, 0, 1, 1, 0, 1, 1]);
+  w *= SK_VIS.w * .9;
+  const NQ = IS_TOUCH ? 2 : 3, QK = [2.2, 1, .3], QB = [.3, 1, 1], QC = [[.1, .55, .95], [.22, .9, 1], [1, 1, 1]];
+  const P = new Float32Array(12 * NQ), C = new Float32Array(12 * NQ), UV = [], IX = [];
+  for (let q = 0; q < NQ; q++) { UV.push(0, 0, 0, 1, 1, 0, 1, 1); IX.push(q * 4, q * 4 + 1, q * 4 + 2, q * 4 + 1, q * 4 + 3, q * 4 + 2); }
   const geo = new THREE.BufferGeometry(), pa = new THREE.BufferAttribute(P, 3), ca = new THREE.BufferAttribute(C, 3);
   pa.setUsage(THREE.DynamicDrawUsage); ca.setUsage(THREE.DynamicDrawUsage);
-  geo.setAttribute('position', pa); geo.setAttribute('uv', new THREE.BufferAttribute(UV, 2)); geo.setAttribute('color', ca); geo.setIndex([0, 1, 2, 1, 3, 2]);
+  geo.setAttribute('position', pa); geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(UV), 2)); geo.setAttribute('color', ca); geo.setIndex(IX);
   const mesh = new THREE.Mesh(geo, SK_MAT); mesh.frustumCulled = false; mesh.renderOrder = 8; scene.add(mesh);
   const a = from.clone(), b = to.clone(), cur = new V3(), ax = new V3(), mid = new V3(), sd = new V3(), cam = new V3();
-  let t = 0, dead = false;
+  let t = 0, dead = false, sparked = false;
   const inst = { kill() { if (dead) return; dead = true; scene.remove(mesh); geo.dispose(); skDone('line', inst); } };
   skLimit('line', inst);
-  const K = SK_STRENGTH.k, grow = opt.grow || 0;
+  const K = SK_STRENGTH.k, grow = opt.grow || 0, lf = life * 1.3;
   addFx(dt => {
     if (dead) return false;
     t += dt;
-    if (t > life + grow) { inst.kill(); return false; }
+    if (t > lf + grow) { inst.kill(); return false; }
     if (opt.caster) { const p = opt.caster.root ? opt.caster.root.position : opt.caster; b.set(p.x, p.y + (opt.dy == null ? 1 : opt.dy), p.z); }
     const g = grow ? Math.min(1, t / grow) : 1;
     cur.lerpVectors(a, b, g); ax.subVectors(cur, a);
     mid.addVectors(a, cur).multiplyScalar(.5); cam.subVectors(camera.position, mid);
-    sd.crossVectors(ax, cam); if (sd.lengthSq() < 1e-6) sd.set(0, 1, 0); sd.normalize().multiplyScalar(w * .5);
-    P[0] = a.x + sd.x; P[1] = a.y + sd.y; P[2] = a.z + sd.z; P[3] = a.x - sd.x; P[4] = a.y - sd.y; P[5] = a.z - sd.z;
-    P[6] = cur.x + sd.x; P[7] = cur.y + sd.y; P[8] = cur.z + sd.z; P[9] = cur.x - sd.x; P[10] = cur.y - sd.y; P[11] = cur.z - sd.z;
-    const f = (t > grow ? Math.max(0, 1 - (t - grow) / life) : 1) * K;
-    C[0] = C[3] = f * .25; C[1] = C[4] = f * .3; C[2] = C[5] = f * .33;   // 起點暗、終點亮
-    C[6] = C[9] = f * .75; C[7] = C[10] = f * .97; C[8] = C[11] = f;
+    sd.crossVectors(ax, cam); if (sd.lengthSq() < 1e-6) sd.set(0, 1, 0); sd.normalize();
+    const f = (t > grow ? Math.max(0, 1 - (t - grow) / lf) : 1) * K;
+    for (let q = 0; q < NQ; q++) {
+      const hw = w * .5 * QK[q], j = q * 12, c = QC[q], bb = f * QB[q];
+      P[j] = a.x + sd.x * hw; P[j + 1] = a.y + sd.y * hw; P[j + 2] = a.z + sd.z * hw; P[j + 3] = a.x - sd.x * hw; P[j + 4] = a.y - sd.y * hw; P[j + 5] = a.z - sd.z * hw;
+      P[j + 6] = cur.x + sd.x * hw; P[j + 7] = cur.y + sd.y * hw; P[j + 8] = cur.z + sd.z * hw; P[j + 9] = cur.x - sd.x * hw; P[j + 10] = cur.y - sd.y * hw; P[j + 11] = cur.z - sd.z * hw;
+      C[j] = C[j + 3] = bb * .25 * c[0]; C[j + 1] = C[j + 4] = bb * .25 * c[1]; C[j + 2] = C[j + 5] = bb * .25 * c[2];   // 起點暗、終點亮
+      C[j + 6] = C[j + 9] = bb * c[0]; C[j + 7] = C[j + 10] = bb * c[1]; C[j + 8] = C[j + 11] = bb * c[2];
+    }
     pa.needsUpdate = true; ca.needsUpdate = true;
+    if (!sparked && g >= 1 && SK_VIS.spark > 0) {   // 沿線飛散火花(一次)
+      sparked = true; const L = ax.length(), n = Math.min(IS_TOUCH ? 8 : 18, Math.ceil(L / .8)) * SK_VIS.spark;
+      for (let i = 0; i < n; i++) { const u = Math.random(); fire.emit(a.x + ax.x * u, a.y + ax.y * u, a.z + ax.z * u, rnd(-1.2, 1.2), rnd(.2, 1.6), rnd(-1.2, 1.2), rnd(.3, .6), rnd(.06, .14), SK_AURA.c0, SK_AURA.c1, .9, .4, 0, 1); }
+    }
     return true;
   });
 }
-// 出手閃光(0.12 s)
+// 出手閃光(0.12 s):大光點 + 小光圈
 function skFlash(pos, s) {
-  const sp = glowSprite(SKC.main, (s || 1.2), 1); sp.position.copy(pos); scene.add(sp);
+  s = (s || 1.2) * 1.8;
+  const sp = glowSprite(SKC.main, s, 1); sp.position.copy(pos); scene.add(sp);
+  const sp2 = glowSprite(0xffffff, s * .45, 1); sp2.position.copy(pos); scene.add(sp2);
   let t = 0;
-  addFx(dt => { t += dt; if (t >= .12) { scene.remove(sp); sp.material.dispose(); return false; } sp.material.opacity = 1 - t / .12; return true; });
+  addFx(dt => { t += dt; if (t >= .14) { scene.remove(sp); scene.remove(sp2); sp.material.dispose(); sp2.material.dispose(); return false; } const k = 1 - t / .14; sp.material.opacity = k; sp2.material.opacity = k; sp.scale.setScalar(s * (1 + t * 3)); return true; });
 }
-// 環形螢光光帶(旋風類:以施放者為中心繞一圈的光軌;連續取樣由呼叫端每 0.12 s 呼叫)
+// 環形螢光光帶(旋風類:以施放者為中心繞一圈的光軌;連續取樣由呼叫端每 0.12 s 呼叫);雙層錯開角度 + 火花
 function skRing(pos, yaw, R, y, dur) {
-  skTrail(pos, yaw, { a0: 0, a1: 340, r0: R, r1: R, y0: y, y1: y, tilt: 0, dur: dur || .12, life: .22, w: 1.1 });
+  skTrail(pos, yaw, { a0: 0, a1: 340, r0: R, r1: R, y0: y, y1: y, tilt: 0, dur: dur || .12, life: .26, w: 1.3 });
+  skTrail(pos, yaw + Math.PI, { a0: 0, a1: 340, r0: R * .8, r1: R * .8, y0: y + .5, y1: y + .5, tilt: 20, dur: dur || .12, life: .2, w: .8 }, { noSpark: true });
+}
+// 落地衝擊:雙層衝擊波圈 + 地面放射裂光 + 碎光火花(視覺放大,不改判定;R = 判定半徑)
+function skImpact(pos, R, strong) {
+  R = Math.max(1.5, R || 3);
+  burstRing(pos, SKC.main, R * 1.25); burstRing(pos, SKC.core, R * .7);
+  if (strong) after(.08, () => burstRing(pos, SKC.main, R * 1.7));
+  const n = IS_TOUCH ? 6 : 10, a0 = Math.random() * 6.28;
+  for (let i = 0; i < n; i++) {
+    const a = a0 + i / n * 6.283, c = Math.cos(a), s = Math.sin(a), r1 = R * rnd(.5, .75), r2 = R * rnd(1.05, 1.5);
+    skLine(new V3(pos.x + c * r1, pos.y + .12, pos.z + s * r1), new V3(pos.x + c * r2, pos.y + .12, pos.z + s * r2), .35, .45, { grow: .1 });
+  }
+  const sn = (IS_TOUCH ? 14 : 30) * SK_VIS.spark;
+  for (let i = 0; i < sn; i++) { const a = Math.random() * 6.283, v = rnd(2, 6); fire.emit(pos.x, pos.y + .2, pos.z, Math.cos(a) * v, rnd(2, 6), Math.sin(a) * v, rnd(.4, .8), rnd(.08, .18), SK_AURA.c0, SK_AURA.c1, .95, .5, 0, 2); }
 }
 
 /* ---------- 光軌範本(度、m、s;§3-5 / 雙劍 §2-3) ---------- */

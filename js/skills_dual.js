@@ -45,7 +45,7 @@ function castDualDash(P, orb) {
   let L = want;
   if (!P.net) { L = Math.max(.5, Math.min(want, blockDist(p.x, p.z, p.y + 1, dx, dz, want + .5, false) - .5)); const rr = Math.hypot(p.x + dx * L, p.z + dz * L), lim = ARENA_R - .5; if (rr > lim) L = Math.max(.5, L - (rr - lim)); }
   const from = new V3(p.x, p.y + 1, p.z), to = new V3(p.x + dx * L, p.y + 1, p.z + dz * L);
-  if (skOk(P)) { skLine(from, to, .45, .3, { grow: .12 }); after(L / 26, () => { skTrail(new V3(to.x, p.y, to.z), P.dir, SK_TPL.crossA); skTrail(new V3(to.x, p.y, to.z), P.dir, SK_TPL.crossB); }); }
+  if (skOk(P)) { skLine(from, to, .45, .3, { grow: .12 }); skFlash(from, 1.6); after(L / 26, () => { skTrail(new V3(to.x, p.y, to.z), P.dir, SK_TPL.crossA); skTrail(new V3(to.x, p.y, to.z), P.dir, SK_TPL.crossB); skImpact(new V3(to.x, p.y, to.z), 2.2); }); }
   if (P.net) return;
   P.recover = .14 + L / 26 + .25;
   G.rush = { kind: 'dual', t: 0, dur: Math.max(.1, L / 26), x0: p.x, z0: p.z, dx, dz, L, hit: new Set(), dmg: 40 * P.dmgK, r: 1.3 };
@@ -57,7 +57,7 @@ function castDualFlurry(P, orb) {
   const dir = P.dir;
   if (skOk(P)) {
     for (let i = 0; i < n * 2; i++) after(i * .12 + .03, () => skTrail(casterPos(P), dir, i % 2 ? SK_TPL.slashB : SK_TPL.slashA, { follow: P.net ? null : mage }));
-    after(dur + .02, () => { skTrail(casterPos(P), dir, SK_TPL.crossA); skTrail(casterPos(P), dir, SK_TPL.crossB); burstRing(new V3(casterPos(P).x, casterPos(P).y, casterPos(P).z), SKC.main, 2); });
+    after(dur + .02, () => { skTrail(casterPos(P), dir, SK_TPL.crossA); skTrail(casterPos(P), dir, SK_TPL.crossB); burstRing(new V3(casterPos(P).x, casterPos(P).y, casterPos(P).z), SKC.main, 2); skImpact(new V3(casterPos(P).x, casterPos(P).y, casterPos(P).z), 2.4); });
   }
   if (P.net) return;
   P.recover = .14 + dur + .35 + .3;
@@ -70,7 +70,7 @@ function castDualCross(P, orb) {
   if (orb) dissolveOrb(orb, E);
   const from = new V3(p.x + dx * .8, y0, p.z + dz * .8), to = new V3(from.x + dx * L, y0, from.z + dz * L);
   if (skOk(P)) { skTrail(p, P.dir, SK_TPL.crossA, { follow: P.net ? null : mage }); skTrail(p, P.dir, SK_TPL.crossB, { follow: P.net ? null : mage }); skLine(from, to, 1.2, .3, { grow: L / 28 }); }
-  const mesh = arrowMesh(1.4, .05, SKC.main, 1.4), seen = new Set(), sl = lerp(.2, .4, P.q);
+  const mesh = arrowMesh(1.4, .05, SKC.main, 2.2), seen = new Set(), sl = lerp(.2, .4, P.q);
   flyProjectile(from, to, 28, {
     mesh, hitR: .8, pierce: true, solid: true, fade: true, stuck: .1, trail: 0, c0: E.c0, c1: E.c1,
     onHit: (d, b) => { hitFx(b, 10); if (P.net) return; d.hit(35 * P.dmgK, dx, dz, 0, null); d.slow(2, sl); }
@@ -84,7 +84,7 @@ function castMeteorUlt(P, orb) {
   const E = casterAura(P), full = P.q >= .99, R = full ? 6.5 : 4.5, Rc = R * .46, cx = P.target.x, cz = P.target.z, y = terrainH(cx, cz), T = 1.6;
   if (orb) dissolveOrb(orb, E);
   skyMarker(cx, cz, R, T, 0xff4a1a);
-  const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(1.6, 0), new THREE.MeshBasicMaterial({ color: 0xff7a2a })); rock.position.set(cx - 14, y + 30, cz - 8); scene.add(rock);
+  const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(2.6, 0), new THREE.MeshBasicMaterial({ color: 0xff7a2a })); rock.position.set(cx - 14, y + 30, cz - 8); scene.add(rock);
   let age = 0; const x0 = cx - 14, z0 = cz - 8, y0 = y + 30;
   addFx(dt => {
     age += dt; const u = Math.min(1, Math.max(0, (age - (T - .8)) / .8));
@@ -94,7 +94,7 @@ function castMeteorUlt(P, orb) {
     return true;
   });
   after(T, () => {
-    burstRing(new V3(cx, y, cz), 0xff7a1a, R); burstRing(new V3(cx, y, cz), 0xffd27a, Rc); hitFx(new V3(cx, y + 1, cz), 30);
+    burstRing(new V3(cx, y, cz), 0xff7a1a, R); burstRing(new V3(cx, y, cz), 0xffd27a, Rc); hitFx(new V3(cx, y + 1, cz), 30); skImpact(new V3(cx, y, cz), R, true);
     if (!P.net) G.shake = Math.max(G.shake, .5 * CFG.shake);
     if (P.net) return;
     const core = full ? 95 : 60, outer = full ? 55 : 35;
@@ -115,8 +115,8 @@ function castDragonUlt(P, orb) {
   let L = want;
   if (!P.net) { L = Math.max(1, Math.min(want, blockDist(p.x, p.z, p.y + 1, dx, dz, want + .5, false) - .6)); const rr = Math.hypot(p.x + dx * L, p.z + dz * L), lim = ARENA_R - .5; if (rr > lim) L = Math.max(1, L - (rr - lim)); }
   const from = new V3(p.x, p.y + 1, p.z), to = new V3(p.x + dx * L, p.y + 1, p.z + dz * L);
-  skLine(from, to, 1.1, .5, { grow: L / 32 });
-  after(L / 32, () => { burstRing(new V3(to.x, p.y, to.z), 0xffd27a, 3); hitFx(new V3(to.x, p.y + 1, to.z), 24); });
+  skLine(from, to, 1.6, .6, { grow: L / 32 }); skLine(from, to, 3.2, .35, { grow: L / 32 }); skFlash(from, 2.4);
+  after(L / 32, () => { burstRing(new V3(to.x, p.y, to.z), 0xffd27a, 3); hitFx(new V3(to.x, p.y + 1, to.z), 24); skImpact(new V3(to.x, p.y, to.z), 3.5, true); });
   if (P.net) return;
   P.recover = .14 + L / 32 + .9;
   G.rush = { kind: 'dragon', t: 0, dur: Math.max(.15, L / 32), x0: p.x, z0: p.z, dx, dz, L, hit: new Set(), dmg: 35 / NET_RULES.dmgK, r: 1.4, endDmg: (P.q >= .99 ? 45 : 30) / NET_RULES.dmgK, endR: 3 };
@@ -126,7 +126,7 @@ function castDragonUlt(P, orb) {
 function castGodUlt(P, orb) {
   const E = casterAura(P), p = casterPos(P), dur = P.q >= .99 ? 8 : 5;
   if (orb) dissolveOrb(orb, E);
-  burstRing(new V3(p.x, p.y, p.z), 0xff3a3a, 4); burstRing(new V3(p.x, p.y, p.z), 0xffd27a, 2.5);
+  burstRing(new V3(p.x, p.y, p.z), 0xff3a3a, 4); burstRing(new V3(p.x, p.y, p.z), 0xffd27a, 2.5); skImpact(new V3(p.x, p.y, p.z), 4, true); skFlash(new V3(p.x, p.y + 1.2, p.z), 3);
   if (P.net) { const rp = REMOTES[String(P.net)]; if (rp && rp.mage) { rp.mage.root.scale.setScalar(1.25); after(dur, () => rp.mage.root.scale.setScalar(1)); } return; }
   G.godT = dur; G.crashT = 0; mage.root.scale.setScalar(1.25);
   G.shake = Math.max(G.shake, .3 * CFG.shake);

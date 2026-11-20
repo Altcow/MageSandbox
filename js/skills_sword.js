@@ -106,7 +106,7 @@ function castSlam(P, orb) {
   const E = casterAura(P), p = casterPos(P), R = P.r;
   if (orb) dissolveOrb(orb, E);
   burstRing(new V3(p.x, p.y, p.z), E.hex, R);
-  if (skOk(P)) skTrail(p, P.dir, SK_TPL.vert);
+  if (skOk(P)) { skTrail(p, P.dir, SK_TPL.vert); skImpact(new V3(p.x, p.y, p.z), R); }
   if (!P.net) G.shake = Math.max(G.shake, .2 * CFG.shake);
   for (const d of DUMMIES) {
     if (d.dead || Math.abs(p.y - d.y) > R + 1.5) continue;
@@ -190,7 +190,7 @@ function leapTick(dt) {
 // 落點範圍(走與震地相同的 d.hit / d.knockDown 路徑:多人時由受害者端的翻滾無敵窗否決):傷害中心 100% → 外圈 edgeK、跌倒 downT、螢幕震動
 function leapLand(L) {
   const P = L.P, E = L.E, cfg = CFG.skills.skyLeap, x = L.x1, z = L.z1, y = terrainH(x, z), R = L.pl.R;
-  burstRing(new V3(x, y, z), E.hex, R); hitFx(new V3(x, y + 1, z), 24);
+  burstRing(new V3(x, y, z), E.hex, R); hitFx(new V3(x, y + 1, z), 24); skImpact(new V3(x, y, z), R, true);
   G.shake = Math.max(G.shake, .35 * CFG.shake);
   for (const d of DUMMIES) {
     if (d.dead || Math.abs(y - d.y) > R + 1.5) continue;

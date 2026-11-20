@@ -4,7 +4,7 @@ const GRAV = 20, COYOTE = 0.10;   // 重力加速度;離地後仍可地面跳的
 const DEFAULT_CFG = {
   jumpV: 9.5, airJumpV: 10, airRollDist: 3.5, airRollTime: 0.32, airRollGrav: 0.25, rollDist: 5, rollTime: 0.45, rollCD: 0.9, dodgeStart: 0.04, dodgeWin: 0.18,
   moveSpeed: 5, runMul: 1.7, camDist: 9, camSens: 0.008, showInfo: false, showInfoNet: false, camLock: true, camXhair: true, camInvY: false, camSmooth: 0, camShoulder: 0.7, camKeyTurn: 3, touchSens: 1.6, padSens: 1.4, autoFrame: true, shake: 1, bloom: true, bloomStrength: 0.85, minHold: 0.3,
-  ver: 6, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
+  ver: 6, rangeK: 1, radK: 1, basicMoveK: 0.8,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
   rad: [1.6, 6, 4, 1.2], radById: {}, fxq: 1, dummyMove: false, slowSelf: true,
   skills: {
     fireball: { chargeTime: 1.4, range: 20, rMin: 0.8, rMax: 2.4, recover: 0.45 },
@@ -714,7 +714,8 @@ function terrainMove(p, x0, z0) {
 function updatePlayer(dt) {
   // mc:劍士 / 刺客集氣中可移動;lock 為不能移動;face 為面向瞄準點
   const p = mage.root.position, K = G.keys, chg = G.state === 'charging', cmv = chg ? chargeMv() : 1, mc = chg && moveCharge(), slow = chg && !mc && cmv > 0;   // slow:弓 / 法杖單體技集氣中可慢走(面向不變)
-  const lock = (chg && !mc && !slow) || (G.state === 'cast' && !G.spin), face = lock || mc || slow;
+  const bm = G.state === 'cast' && G.pending && G.pending.skill.basic && !G.spin;   // 普攻(含連段):可邊打邊移動,移速 × CFG.basicMoveK,面向照瞄準方向
+  const lock = (chg && !mc && !slow) || (G.state === 'cast' && !G.spin && !bm), face = lock || mc || slow || bm;
   stickTick(dt);
   const mi = moveInput(); let ix = mi.ix, iz = mi.iz, speedN = 0, ty = mage.yaw;
   G.rollCD = Math.max(0, G.rollCD - dt); G.stun = Math.max(0, G.stun - dt);
@@ -732,7 +733,7 @@ function updatePlayer(dt) {
     const l = Math.hypot(ix, iz); ix /= l; iz /= l;
     const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
     const dx = fx * iz + rx * ix, dz = fz * iz + rz * ix;
-    const sp = CFG.moveSpeed * (mi.run ? CFG.runMul : 1) * mi.s * (G.spdK || 1) * cmv;
+    const sp = CFG.moveSpeed * (mi.run ? CFG.runMul : 1) * mi.s * (G.spdK || 1) * cmv * (bm ? CFG.basicMoveK : 1);
     p.x += dx * sp * dt; p.z += dz * sp * dt; ty = Math.atan2(dx, dz); speedN = sp / CFG.moveSpeed;
   }
   if (!G.roll && (face && G.skill >= 0 || (G.state === 'cast' && G.pending))) {

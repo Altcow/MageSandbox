@@ -213,7 +213,7 @@ function castPowerSlash(P, orb) {
   const cx = p.x + Math.sin(P.dir) * cfg.range, cz = p.z + Math.cos(P.dir) * cfg.range, cy = surfaceY(cx, cz, p.y + 2);
   areaHit(cx, cy, cz, P.r, 90 * P.dmgK, 1.5 * P.fxK, p.x, p.z, p);
   arcSlash(new V3(cx, cy, cz), P.r, P.dir, E.hex, .2);
-  if (skOk(P)) skTrail(p, P.dir, Object.assign({}, SK_TPL.power, { r1: Math.max(1.6, P.r), w: 1 + P.q }));   // 劍技青光軌:寬度隨集氣
+  if (skOk(P)) { skTrail(p, P.dir, Object.assign({}, SK_TPL.power, { r1: Math.max(1.6, P.r), w: 1 + P.q })); skFlash(new V3(cx, p.y + 1.2, cz), 1.6); }   // 劍技青光軌:寬度隨集氣
   if (P.ex) {   // 破空斬(強化,P.ex 由 swordExFn 在施放時判定):沿方向射出劍氣,直線 9 m、穿透
     const dx = Math.sin(P.dir), dz = Math.cos(P.dir), from = new V3(p.x + dx * .8, p.y + 1, p.z + dz * .8), to = new V3(from.x + dx * SW.waveLen, from.y, from.z + dz * SW.waveLen);
     flyProjectile(from, to, 30, {
