@@ -24,6 +24,7 @@ canvas{display:block}
 .slot i{position:absolute;left:0;bottom:0;height:5px;background:linear-gradient(90deg,#ff9a2a,#ffe27a);width:0}
 #chargeBox{position:fixed;left:50%;bottom:108px;transform:translateX(-50%);width:300px;text-align:center;font-size:13px;opacity:0;transition:opacity .15s}
 #chargeBox.on{opacity:1}
+#chargeBox.pre #chargeBar{background:rgba(120,24,24,.6)}
 #chargeBar{position:relative;height:10px;border-radius:6px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);overflow:hidden;margin-bottom:3px}
 #chargeBar .tk{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.7);z-index:1}
 #chargeFill{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff7a1a,#ffe27a)}
@@ -83,7 +84,7 @@ body.touch .ri{width:14px;height:14px;flex:0 0 14px}
 .slot.poor .ic{filter:grayscale(.8) brightness(.7)}
 .slot.ex{border-color:#ffd24a;box-shadow:0 0 14px #ffd24a}
 .slot.sil::after{content:"🔒";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(90,40,160,.55);font-size:26px;pointer-events:none}
-#pMP.seg5::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(90deg,transparent calc(100% - 2px),rgba(0,0,0,.85) 0);background-size:20% 100%}
+#pMP.seg5::after,#pEN.seg5::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(90deg,transparent calc(100% - 2px),rgba(0,0,0,.85) 0);background-size:20% 100%}
 body.touch #pRes{left:calc(12px + env(safe-area-inset-left));top:6px;bottom:auto;width:150px}
 body.touch .rb{height:5px}
 body.touch .rb.hp{height:8px}
@@ -495,6 +496,9 @@ body.hud2 #btnAtk{border:0 !important;background:url(assets/ui/b_cast.png) cente
 body.hud2 #btnAtk.dn{background-image:url(assets/ui/b_cast_dn.png) !important}
 body.hud2 #btnAtk small{display:none}
 #btnAtk .ci{display:none}
+#btnAtk .cr{display:none}
+body.touch #btnAtk.chg .cr{display:block;position:absolute;inset:-7px;border-radius:50%;pointer-events:none;background:conic-gradient(transparent 49.4%,#fff 49.4% 50.6%,transparent 50.6% 99%,#ffd27a 99% 100%),conic-gradient(var(--c,#d8dce6) calc(var(--p,0) * 1%),var(--bg,rgba(255,70,70,.32)) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 6px),#000 calc(100% - 5px));mask:radial-gradient(farthest-side,transparent calc(100% - 6px),#000 calc(100% - 5px))}
+body.touch #btnAtk.chg.s1{transform:scale(1.04)}
 body.hud2 #btnAtk .ci{display:flex;align-items:center;justify-content:center;width:55%;height:55%;font-size:30px;line-height:1;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(60,15,0,.7))}
 body.hud2 #btnAtk .ci img{width:100%;height:100%;object-fit:contain}
 body.hud2 #btnAtk .ct{font-size:11px;line-height:1;margin-top:1px;pointer-events:none}
@@ -548,12 +552,13 @@ body.hud2.touch.mm #locTag{display:none}
   <div id="pDownTx"></div>
   <div class="rr"><img class="ri" src="assets/icons/ui_hp.png" alt=""><div class="rb hp" id="pHP"><i class="fg" id="pHPfg"></i><i id="pShield"></i></div><span class="rn" id="pHPn"></span></div>
   <div class="rr"><img class="ri" id="pMPi" src="assets/icons/ui_mp.png" alt=""><div class="rb mp" id="pMP"><i class="fg" id="pMPfg"></i></div><span class="rn" id="pMPn"></span></div>
+  <div class="rr" id="pENrr" style="display:none"><img class="ri" id="pENi" src="assets/icons/ui_focus.png" alt=""><div class="rb mp" id="pEN"><i class="fg" id="pENfg"></i></div><span class="rn" id="pENn"></span></div>
   <div class="rr"><img class="ri" src="assets/icons/ui_sp.png" alt=""><div class="rb sp" id="pSP"><i class="fg" id="pSPfg"></i></div><span class="rn" id="pSPn"></span></div>
 </div>
 <div id="dmgLayer"></div>
 <div id="touchUI">
   <div id="stickBase"><div id="stickKnob"></div></div>
-  <div id="btnAtk"><span class="ci"></span><span class="ct">施法</span><small>按住集氣<br>滑動調位置或範圍</small></div>
+  <div id="btnAtk"><i class="cr"></i><span class="ci"></span><span class="ct">施法</span><small>按住集氣<br>滑動調位置或範圍</small></div>
   <div class="tb" id="btnRoll">翻滾</div>
   <div class="tb" id="btnJump">跳</div>
   <div class="tb sm" id="btnWeap">換裝</div>

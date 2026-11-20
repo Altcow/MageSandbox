@@ -4,18 +4,38 @@
 //       classes.js(setClass)、touch.js(打坐鈕與手把)、mage.js(sit / down 姿勢)、index.html(#pRes、#btnSit)
 // 載入順序:skills.js → resources.js → classes.js(classes.js 最後呼叫 startLoop)。resInit() 在載入時執行一次。
 
-const RES_MAX = { hp: 200, mp: 100, sp: 300 };
-const MAGE_COST = { bolt: 6, wall: 15, sky: 30, summon: 25 };   // 法師 MP 基準花費(依形狀;六屬性同價)
-const CLASS_COST = { quickShot: 6, shockArrow: 18, arrowRain: 30, powerSlash: 12, whirlwind: 20, shieldCharge: 25, backstab: 12, knives: 10, stealth: 20, scatter: 10, disengage: 18, snare: 15, flare: 25, parry: 12, slam: 20, skyLeap: 60, shadowStep: 15, smoke: 20, eviscerate: 15, decoy: 25 };   // 非法師 SP 基準花費(沒列到的招式預設 10)
+const RES_MAX = { hp: 200, mp: 150, sp: 300 };
+// 統一兩段集氣(設計_統一集氣系統.md):戰技與法術都吃 MP,SP 只管跑步 / 翻滾 / 二段跳 / 旋風疾行。
+// 花費級(第二段 = 100%,第一段 = 80%):輕 10 / 中 20 / 重 35 / 長 CD 45(淨化 15 隨 v3,尚未實作)
+const MP_TIER = { light: 10, mid: 20, heavy: 35, long: 45 };
+// 招式表(以 CFG.skills 的鍵 / 招式 id 為索引):tier = MP 花費級;mv = 集氣中移速倍率(0 = 原地只能轉向);t1 / t2 = 覆寫兩段秒數(預設 T2 = chargeTime、T1 = 一半且 ≥ .25 s)
+// 例外(不走兩段)由招式旗標決定:instant(格擋反擊 / 後躍射擊 / 影分身 按下即發)、hold(旋風疾行 按住持續)
+const CHARGE2 = {
+  fireball: { tier: 'light', mv: .3 }, firewall: { tier: 'mid', mv: 0 }, meteor: { tier: 'heavy', mv: 0 }, summon: { tier: 'heavy', mv: 0 },
+  quickShot: { tier: 'light', mv: .3 }, shockArrow: { tier: 'mid', mv: .3 }, arrowRain: { tier: 'heavy', mv: 0 }, scatter: { tier: 'light', mv: .3 }, disengage: { tier: 'light', mv: 0 },
+  snare: { tier: 'light', mv: .3 }, flare: { tier: 'long', mv: .3 },
+  powerSlash: { tier: 'mid', mv: .5 }, whirlwind: { tier: 'mid', mv: .5 }, shieldCharge: { tier: 'mid', mv: .5 }, parry: { tier: 'light', mv: 0 }, slam: { tier: 'mid', mv: .5 },
+  whirlRun: { tier: 'light', mv: 0 }, skyLeap: { tier: 'long', mv: 0 },
+  backstab: { tier: 'light', mv: .5 }, knives: { tier: 'light', mv: .5 }, stealth: { tier: 'mid', mv: .5 }, shadowStep: { tier: 'light', mv: .5, t1: .25, t2: .55 },
+  smoke: { tier: 'mid', mv: .5 }, eviscerate: { tier: 'light', mv: .5 }, decoy: { tier: 'mid', mv: 0 }
+};
 
-// 招式的資源種類與基準花費:法師 = MP(依 kind),其他職業 = SP(依招式 id)
+// 招式的資源種類與基準花費:全部 = MP(依招式表花費級)
 function skillCost(i) {
-  const s = curSkill(i);
-  return G.cls === 'mage' ? { kind: 'mp', base: MAGE_COST[s.kind] || 0 } : { kind: 'sp', base: CLASS_COST[s.id] || 10 };
+  const e = CHARGE2[baseOf(i)];
+  return { kind: 'mp', base: MP_TIER[e ? e.tier : 'light'] };
 }
-// 集氣花費:base × lerp(0.6, 1.0, q);無限資源 = 0
-const costAt = (base, q) => (CFG.res.infinite && !window.NETON) ? 0 : base * lerp(.6, 1, q);
+// 集氣花費:放手時 s = 第一段起點 → 第二段 0 → 1;base × lerp(0.8, 1.0, s);無限資源 = 0。開始集氣只檢查 costAt(base, 0)(= 第一段花費)
+const costAt = (base, s) => (CFG.res.infinite && !window.NETON) ? 0 : base * lerp(.8, 1, s);
 const resCan = (kind, n) => (CFG.res.infinite && !window.NETON) || G[kind] >= n - 1e-6;
+// 啟動自檢:列出沒進招式表的招式(掉回預設「輕」)
+function c2SelfCheck() {
+  const miss = [];
+  SKILLS.forEach(s => { if (!CHARGE2[s.id]) miss.push(s.id); });
+  for (const c in CLASSES) if (CLASSES[c].skills) CLASSES[c].skills.forEach(s => { if (!CHARGE2[s.id]) miss.push(s.id); });
+  if (miss.length) console.warn('[兩段集氣] 招式表缺列:', miss.join(', '));
+  return miss;
+}
 
 // 不足回饋:條閃紅(0.8 s)+ 小字(同一種 1 s 內只顯示一次)
 const _denyT = { mp: -9, sp: -9 };
@@ -31,17 +51,14 @@ function resUse(kind, n) {
   G[kind] = Math.max(0, G[kind] - n); G[kind + 'Idle'] = 0;
   return true;
 }
-// 集氣上限:目前資源能負擔的最大 q(0~1)。花費 = base × (0.6 + 0.4q) ≤ 資源 → q ≤ (資源 / base − 0.6) / 0.4
-function chargeCap() {
+// 集氣上限:MP 夠第二段花費(= 基準 × 1.0)→ 1;只夠第一段 → .5(進度停在第一段起點,不可進第二段)。無限資源 = 1
+function chargeMpCap() {
   if ((CFG.res.infinite && !window.NETON)) return 1;
   const c = skillCost(G.skill);
-  return c.base > 0 ? clamp((G[c.kind] / c.base - .6) / .4, 0, 1) : 1;
+  return G[c.kind] >= c.base - 1e-6 ? 1 : .5;
 }
-// #chargeTxt 前綴:集氣中被資源卡住時顯示「MP 不足・上限 xx%」
-function resCapTxt() {
-  const cap = G.state === 'charging' ? chargeCap() : 1;
-  return cap >= 1 ? '' : (skillCost(G.skill).kind === 'mp' ? 'MP' : 'SP') + ' 不足・上限 ' + Math.round(cap * 100) + '%';
-}
+// #chargeTxt 前綴:集氣中 MP 只夠第一段時顯示
+function resCapTxt() { return G.state === 'charging' && chargeMpCap() < 1 ? 'MP 不足・停在第一段' : ''; }
 
 // 跑步判斷(每幀):SP < 1 → 上鎖走路;上鎖後 SP 回到 15 才解鎖;移動時每秒扣 runCost
 function runAllowed(dt, moving) {
@@ -254,14 +271,18 @@ function updateResHUD() {
     const f = clamp(hpk / G.hpMax, 0, 1), s = clamp(shk / G.hpMax, 0, 1 - f);
     sh.style.transform = 'translateX(' + f * 100 + '%) scaleX(' + s + ')';
   }
-  const EN = isMage ? null : CLASSES[G.cls].energy, mfg = rhEl('pMPfg'), mpEl = rhEl('pMP');
-  if (EN) resBar('pMP', G.cr, EN.max, false, energyTxt(), true);   // 非法師:MP 條位置改顯示職業能量
-  else resBar('pMP', G.mp, G.mpMax, !isMage, isMage ? Math.round(G.mp) + '/' + G.mpMax : '');
-  const mcol = EN ? EN.css : '';
-  const mic = rhEl('pMPi'), msrc = 'assets/icons/' + (EN ? 'ui_' + EN.kind : 'ui_mp') + '.png';
-  if (mic && mic._s !== msrc) { mic._s = msrc; mic.src = msrc; }
-  if (mfg._c !== mcol) { mfg._c = mcol; mfg.style.background = mcol; }
-  tog(mpEl, 'seg5', !!(EN && EN.seg));
+  const EN = isMage ? null : CLASSES[G.cls].energy, enRow = rhEl('pENrr');
+  resBar('pMP', G.mp, G.mpMax, false, Math.round(G.mp) + '/' + G.mpMax);   // 所有職業:MP 條(戰技 / 法術共用)
+  if (enRow) {   // 非法師:職業能量(專注 / 鬥氣 / 連擊點)另開一條
+    enRow.style.display = EN ? '' : 'none';
+    if (EN) {
+      resBar('pEN', G.cr, EN.max, false, energyTxt(), true);
+      const efg = rhEl('pENfg'), eic = rhEl('pENi'), esrc = 'assets/icons/ui_' + EN.kind + '.png';
+      if (eic && eic._s !== esrc) { eic._s = esrc; eic.src = esrc; }
+      if (efg._c !== EN.css) { efg._c = EN.css; efg.style.background = EN.css; }
+      tog(rhEl('pEN'), 'seg5', !!EN.seg);
+    }
+  }
   resBar('pSP', G.sp, G.spMax, false, Math.round(G.sp) + '/' + G.spMax);
   const pr = rhEl('pRes');
   tog(pr, 'sit', G.sitting); tog(pr, 'down', G.down > 0);
@@ -276,10 +297,10 @@ function updateResHUD() {
     tog(el, 'ex', i < n && !isMage && exReady(i));
   });
   // 集氣條:qCap 紅刻度;打坐時 #chargeBar 隱藏(#chargeBox 改顯示打坐數值)
-  const charging = G.state === 'charging', cap = charging ? chargeCap() : 1, ct = rhEl('capTick');
-  const showCap = charging && cap < 1;
+  const charging = G.state === 'charging', cap = charging ? chargeMpCap() : 1, ct = rhEl('capTick');
+  const showCap = charging && cap < 1;   // MP 只夠第一段:50% 處亮紅刻度
   if (ct._s !== showCap) { ct._s = showCap; ct.style.display = showCap ? '' : 'none'; }
-  if (showCap && ct._v !== Math.round(cap * 100)) { ct._v = Math.round(cap * 100); ct.style.left = (cap * 100) + '%'; }
+  if (showCap && ct._v !== 50) { ct._v = 50; ct.style.left = '50%'; }
   tog(rhEl('chargeBar'), 'hide', resSitTxt() !== '');
   const bs = rhEl('btnSit');
   updateStatusBar();

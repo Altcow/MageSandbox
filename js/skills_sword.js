@@ -208,6 +208,7 @@ function whirlRunStart() {
   const sk = curSkill(G.skill), cfg = CFG.skills.whirlRun;
   if (G.cd[sk.id] > 0 || skillBlocked(sk)) return;
   if (!((CFG.res.infinite && !window.NETON) || G.sp >= cfg.minSp)) { resDeny('sp'); return; }
+  if (!((CFG.res.infinite && !window.NETON) || G.mp >= cfg.minMp)) { resDeny('mp'); return; }   // 兩段集氣改版:SP 10/s + MP 3/s 同時扣,不走集氣
   if (G.sitting) sitBreak('cast');
   G.whirlRun = { t: 0, acc: 0, hits: 0, dmgK: CHG.dmg(1) * W().dmgMul, hex: auraEl().hex };
   G.shoutT = 1.0; const ch = document.getElementById('chant'); ch.textContent = sk.shout; ch.style.fontSize = '30px';
@@ -223,7 +224,7 @@ function whirlRunTick(dt) {
   const S = G.whirlRun, cfg = CFG.skills.whirlRun, p = mage.root.position;
   if (!G.atkHeld || G.state !== 'ready' || G.stun > 0 || G.down > 0 || G.roll || G.stance !== 0 || G.silT > 0) { whirlRunEnd(); return; }
   S.t += dt;
-  if (!(CFG.res.infinite && !window.NETON)) { G.sp = Math.max(0, G.sp - cfg.spPerSec * dt); G.spIdle = 0; if (G.sp <= 0) { whirlRunEnd(); return; } }
+  if (!(CFG.res.infinite && !window.NETON)) { G.sp = Math.max(0, G.sp - cfg.spPerSec * dt); G.spIdle = 0; G.mp = Math.max(0, G.mp - cfg.mpPerSec * dt); G.mpIdle = 0; if (G.sp <= 0 || G.mp <= 0) { whirlRunEnd(); return; } }   // 兩條資源都不回、任一耗盡即停
   mage.spinY += Math.PI * 8 * dt;
   const E = auraEl(), dx = Math.sin(mage.yaw), dz = Math.cos(mage.yaw), sp = G.speedN > .2;
   // 前進方向的風刃 / 粒子:武器尖端與身後拖尾

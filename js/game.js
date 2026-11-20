@@ -4,7 +4,7 @@ const GRAV = 20, COYOTE = 0.10;   // 重力加速度;離地後仍可地面跳的
 const DEFAULT_CFG = {
   jumpV: 9.5, airJumpV: 10, airRollDist: 3.5, airRollTime: 0.32, airRollGrav: 0.25, rollDist: 5, rollTime: 0.45, rollCD: 0.9, dodgeStart: 0.04, dodgeWin: 0.18,
   moveSpeed: 5, runMul: 1.7, camDist: 9, camSens: 0.008, showInfo: false, showInfoNet: false, camLock: true, camXhair: true, camInvY: false, camSmooth: 0, camShoulder: 0.7, camKeyTurn: 3, touchSens: 1.6, padSens: 1.4, autoFrame: true, shake: 1, bloom: true, bloomStrength: 0.85, minHold: 0.3,
-  ver: 5, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
+  ver: 6, rangeK: 1, radK: 1,   // ver:存檔版本(< 2 的舊存檔會丟掉 skills / rad / radById);rangeK / radK:平衡測試用整體係數(預設 1)
   rad: [1.6, 6, 4, 1.2], radById: {}, fxq: 1, dummyMove: false, slowSelf: true,
   skills: {
     fireball: { chargeTime: 1.4, range: 20, rMin: 0.8, rMax: 2.4, recover: 0.45 },
@@ -26,7 +26,7 @@ const DEFAULT_CFG = {
     flare: { chargeTime: 1.0, range: 26, rMin: 0.45, rMax: 0.45, recover: 0.4, speed: 60, damage: 45, burn: 3, freeze: 1.0, slowT: 2.5, slowPct: 0.4, para: 1.2 },
     parry: { chargeTime: 0, range: 3, rMin: 3, rMax: 3, recover: 0.35 },
     slam: { chargeTime: 0.9, range: 0, rMin: 2.5, rMax: 3.5, recover: 0.45 },
-    whirlRun: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.1, speedK: 1.7, spPerSec: 20, minSp: 15, tickT: 0.3, dmg: 10, hitR: 2.2, hitFwd: 1.2, knock: 0.6 },   // 旋風疾行(按住持續型):移速倍率(相對跑速)、SP / 秒、啟動門檻、傷害間隔 / 傷害 / 判定半徑與前移 / 擊退;冷卻 4 s 在 classes.js
+    whirlRun: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.1, speedK: 1.7, spPerSec: 10, mpPerSec: 3, minSp: 15, minMp: 6, tickT: 0.3, dmg: 10, hitR: 2.2, hitFwd: 1.2, knock: 0.6 },   // 旋風疾行(按住持續型):移速倍率(相對跑速)、SP / 秒、啟動門檻、傷害間隔 / 傷害 / 判定半徑與前移 / 擊退;冷卻 4 s 在 classes.js
     skyLeap: { chargeTime: 1.2, range: 16, rMin: 3, rMax: 6, recover: 0.3, distMin: 6, distMax: 16, hMin: 3, hMax: 7, areaMin: 3, areaMax: 6, dmgMin: 40, dmgMax: 60, tMin: 0.8, tMax: 1.1, downT: 1.2, edgeK: 0.7 },   // 震天躍擊:q 0→1 的距離 / 最高點 / 落地半徑 / 傷害 / 滯空時間;跌倒秒數、外圈傷害倍率
     shadowStep: { chargeTime: 0.3, range: 8, rMin: 2, rMax: 2, recover: 0.2 },
     smoke: { chargeTime: 0.7, range: 10, rMin: 3, rMax: 4, recover: 0.3 },
@@ -34,14 +34,15 @@ const DEFAULT_CFG = {
     decoy: { chargeTime: 0, range: 0, rMin: 0, rMax: 0, recover: 0.15 }
   },
   sfx: { on: true, music: false, vol: .6, mvol: .4 },   // 音效 / 音樂(sfx.js):音效開關、音樂開關、音量 0~1
-  res: { infinite: false, mpRegen: 6, spRegen: 15, mpDelay: 1.5, spDelay: 1.0, sitMp: 4, sitSp: 3, runCost: 12, airJump: 20, roll: 20, airRoll: 15, reviveHP: 200, downTime: 3 }   // 資源系統(resources.js),隨 CFG 存 localStorage
+  res: { infinite: false, mpRegen: 8, spRegen: 15, mpDelay: 1.2, spDelay: 1.0, sitMp: 4, sitSp: 3, runCost: 12, airJump: 20, roll: 20, airRoll: 15, reviveHP: 200, downTime: 3 },   // 資源系統(resources.js),隨 CFG 存 localStorage
+  c2: { t1k: .5, floor: .25, q1: .4, grace: .08, fizz: .4, holdMax: 3, vib: true }   // 統一兩段集氣(設計_統一集氣系統.md):T1 = max(floor, T2 × t1k);q1 = 第一段放手換算的舊 q;grace = 放手寬限(秒);fizz = 失手秒數;holdMax = 滿段最長持住;vib = 手機震動
 };
 const CFG = JSON.parse(JSON.stringify(DEFAULT_CFG));
 const CFG_KEY = 'mageSandbox.cfg.v1';
 function mergeCfg(dst, src) { for (const k in src) { if (dst[k] && typeof dst[k] === 'object' && !Array.isArray(dst[k])) mergeCfg(dst[k], src[k]); else if (k in dst) dst[k] = src[k]; } }
 if (IS_TOUCH) CFG.bloom = false;  // 手機預設關泛光(省效能),可在 P 面板打開
 if (IS_TOUCH) CFG.fxq = 0.6;      // 手機預設粒子量 60%(只影響新屬性)
-try { const s = JSON.parse(localStorage.getItem(CFG_KEY)); if (s) { if ((s.ver | 0) < 2) { delete s.skills; delete s.rad; delete s.radById; } if ((s.ver | 0) < 3) { delete s.camSens; delete s.camKeyTurn; delete s.touchSens; delete s.padSens; } if ((s.ver | 0) < 4) { if (s.skills) delete s.skills.shieldCharge; if (s.radById) delete s.radById.shieldCharge; } if ((s.ver | 0) < 5) { for (const k of ['leap', 'unyield', 'whirlRun', 'skyLeap']) { if (s.skills) delete s.skills[k]; if (s.radById) delete s.radById[k]; } } mergeCfg(CFG, s); CFG.ver = 5; } } catch (e) { }   // ver < 2:舊射程 / 半徑存檔丟棄,改用新預設(B-2 第 6 點)
+try { const s = JSON.parse(localStorage.getItem(CFG_KEY)); if (s) { if ((s.ver | 0) < 2) { delete s.skills; delete s.rad; delete s.radById; } if ((s.ver | 0) < 3) { delete s.camSens; delete s.camKeyTurn; delete s.touchSens; delete s.padSens; } if ((s.ver | 0) < 4) { if (s.skills) delete s.skills.shieldCharge; if (s.radById) delete s.radById.shieldCharge; } if ((s.ver | 0) < 5) { for (const k of ['leap', 'unyield', 'whirlRun', 'skyLeap']) { if (s.skills) delete s.skills[k]; if (s.radById) delete s.radById[k]; } } if ((s.ver | 0) < 6) { if (s.res) { delete s.res.mpRegen; delete s.res.mpDelay; } if (s.skills) delete s.skills.whirlRun; } mergeCfg(CFG, s); CFG.ver = 6; } } catch (e) { }   // ver < 2:舊射程 / 半徑存檔丟棄,改用新預設(B-2 第 6 點)
 while (CFG.rad.length < 4) CFG.rad.push(DEFAULT_CFG.rad[CFG.rad.length]);   // 存檔的陣列會整個覆蓋,補回第 4 格(召喚)預設
 function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (e) { } }
 
@@ -108,7 +109,7 @@ const NEUTRAL_EL = { chargeMul: 1, rangeMul: 1, speedMul: 1 };
 const W = () => G.cls === 'mage' ? WEAPONS[G.weapon] : NEUTRAL_W;
 const elm = () => G.cls === 'mage' ? ELMOD[G.el] : NEUTRAL_EL;   // ELMOD 在 spells.js(執行期才讀)
 const skillRange = () => (G.skill >= 0 && curSkill(G.skill).aim === 'line' ? Math.max(sc(G.skill).range, skillRad()) : sc(G.skill).range) * W().rangeMul * elm().rangeMul * (CFG.rangeK || 1);
-const chargeTimeEff = () => sc(G.skill).chargeTime * W().chargeMul * elm().chargeMul * (G.stanceBoostT > 0 ? 1 / 1.5 : 1) * (typeof swChargeK === 'function' ? swChargeK() : 1);   // 劍士:格擋成功瞬間滿 / 盾擊連段 ×0.4(skills_sword.js)
+const chargeMulEff = () => W().chargeMul * elm().chargeMul * (G.stanceBoostT > 0 ? 1 / 1.5 : 1) * (typeof swChargeK === 'function' ? swChargeK() : 1);   // 劍士:格擋成功瞬間滿 / 盾擊連段 ×0.4(skills_sword.js)
 function weaponDesc() {
   const w = W(), parts = [];
   if (w.chargeMul !== 1) parts.push('集氣×' + w.chargeMul);
@@ -119,7 +120,7 @@ function weaponDesc() {
 }
 
 const G = {
-  skill: 0, state: 'ready', chargeT: 0, charge: 0, castT: 0, pending: null, launched: false, queued: false,
+  skill: 0, state: 'ready', chargeT: 0, charge: 0, p: 0, stage: 0, holdT: 0, queuedT: 0, fizzT: 0, castT: 0, pending: null, launched: false, queued: false,
   target: new V3(0, 0, 8), wallOff: 0, weapon: 'staff', camYaw: Math.PI, camPitch: 0.42, zoom: 1, camD: CFG.camDist,
   focus: new V3(0, 1.5, 0), shake: 0, mouse: { x: innerWidth / 2, y: innerHeight * 0.4 }, keys: {}, orb: null, rmb: false,
   stick: { x: 0, y: 0, mag: 0 }, stickHold: new V3(0, 0, 8), inputMode: IS_TOUCH ? 'stick' : 'mouse', lastTouch: 0,
@@ -221,7 +222,7 @@ function actDir(name, worldHeading) {
 }
 function jumpHeading() { return G.touchStick && G.mv && G.mv.on ? G.mv.tgt : mage.yaw; }
 function doJump() {
-  if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0 || G.rootT > 0) return;   // 定身中不能跳(狀態效果文件 §1-2 #4)
+  if (G.state !== 'ready' || G.roll || G.stun > 0 || G.down > 0 || G.rootT > 0) return;   // 定身中不能跳(狀態效果文件 §1-2 #4);集氣中本來就 state = charging 不能跳
   if (G.sitting) sitBreak('jump');
   if (G.ground || G.coyote > 0) { sfx.play('jump'); G.vy = CFG.jumpV; G.ground = false; G.coyote = 0; actDir('jump', jumpHeading()); return; }
   if (G.airJumps > 0) { if (!resUse('sp', CFG.res.airJump)) return; sfx.play('jump'); G.airJumps = 0; G.vy = CFG.airJumpV; G.flip = 0; airStepFx(mage.root.position); actDir('jump', jumpHeading()); return; }
@@ -293,7 +294,7 @@ addEventListener('mouseup', e => {
   if (e.button === 0) G.atkHeld = false;
   if (fromTouch()) return;
   if (e.button === 2) { G.rmb = false; if (G.rmbLock && document.pointerLockElement === gameCv) { G.rmbLock = false; G.rmbEnd = true; document.exitPointerLock(); } }   // 鎖定尚未生效時留給 pointerlockchange 解除
-  if (e.button === 0 && G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
+  if (e.button === 0 && G.state === 'charging') letGo();
 });
 document.addEventListener('pointerlockchange', () => {
   if (isLocked()) {
@@ -448,7 +449,7 @@ function strike() {
       if (G.stealth) revealStealth('hit');   // 潛行中被紅圈炸到:顯形
       G.hits++;
       if (!playerHurt(30 * swHitK(q.x - pos.x, q.z - pos.z), 'strike').blocked) { /* 盾勢正面 ×0.7(swHitK) */ const f = document.getElementById('flash'); f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); showHurtDir(pos.x, pos.z); }
-      if (G.state === 'charging') cancelCharge();
+      chargeInterrupt();   // 單人受擊 30 實扣:第一段前取消、第一段後退回
     }
     return false;
   });
@@ -529,10 +530,11 @@ function startCharge() {
   if (G.cls !== 'mage' && curSkill(G.skill).instant) { castInstant(G.skill); return; }   // 瞬發招(非法師):按下即發動
   if (G.cls !== 'mage' && curSkill(G.skill).hold) { whirlRunStart(); return; }   // 按住持續型(旋風疾行,skills_sword.js):按住期間持續、放開或 SP 耗盡停止,不經集氣
   if (curSkill(G.skill).stub) { banner('尚未實作', '#ffc46b'); return; }   // S 批空殼:尚未實作的招式不進入集氣
+  if (G.fizzT > 0) return;   // 失手 0.4 s 內不能開始下一次集氣
   if (G.cd[curSkill(G.skill).id] > 0 || skillBlocked(curSkill(G.skill))) return;   // 冷卻中 / 虛弱中不能開始集氣
-  { const c = skillCost(G.skill); if (!resCan(c.kind, costAt(c.base, 0))) { resDeny(c.kind); return; } }   // MP / SP 不夠 → 不進入集氣
+  { const c = skillCost(G.skill); if (!resCan(c.kind, costAt(c.base, 0))) { resDeny(c.kind); return; } }   // MP 不夠第一段花費 → 不進入集氣
   if (G.sitting) sitBreak('cast');
-  G.mcOff = Math.PI; G.state = 'charging'; G.chargeT = 0; G.charge = 0; G.queued = false; G.maxFlash = false; G.halfFlash = false;
+  G.mcOff = Math.PI; G.state = 'charging'; G.chargeT = 0; G.charge = 0; G.p = 0; G.stage = 0; G.holdT = 0; G.queued = false; G.queuedT = 0; G.maxFlash = false; G.halfFlash = false;
   sfx.loop('charge', true);
   { const p = mage.root.position, x = p.x + Math.sin(mage.yaw) * skillRange() * .5, z = p.z + Math.cos(mage.yaw) * skillRange() * .5; G.stickHold.set(x, surfaceY(x, z, p.y + 2), z); }
   G.orb = makeOrb(auraEl()); scene.add(G.orb);
@@ -547,14 +549,64 @@ function castInstant(i) {
   if (G.sitting) sitBreak('cast');
   const c = skillCost(i);
   if (!resCan(c.kind, costAt(c.base, 1))) { resDeny(c.kind); return; }
-  G.skill = i; G.lastSkill = i; G.charge = 1; G.chargeT = 0; G.queued = false;
+  G.skill = i; G.lastSkill = i; G.charge = 1; G.p = 1; G.stage = 2; G.chargeT = 0; G.queued = false;
   release();
 }
 function cancelCharge() {
   if (G.state !== 'charging') return;
   sfx.loop('charge', false);
-  dissolveOrb(G.orb, auraEl()); G.orb = null; G.state = 'ready'; G.chargeT = 0; G.queued = false;
+  dissolveOrb(G.orb, auraEl()); G.orb = null; G.state = 'ready'; G.chargeT = 0; G.p = 0; G.stage = 0; G.queued = false;
   document.getElementById('chant').style.opacity = 0;
+}
+/* ---------- 統一兩段集氣(設計_統一集氣系統.md §2~§4) ---------- */
+// 兩段時間 { t1, t2 }(秒,尚未乘武器 / 屬性 / 格擋倍率):T2 = 招式表 chargeTime(CHARGE2[id].t2 可覆寫)、T1 = max(floor, T2 × t1k)(CHARGE2[id].t1 可覆寫);T2 至少比 T1 長 0.25 s
+function chargeTimes(i) {
+  const id = baseOf(i), e = (typeof CHARGE2 !== 'undefined' && CHARGE2[id]) || {}, c = CFG.c2, t2b = e.t2 != null ? e.t2 : (sc(i).chargeTime || .6);
+  const t1 = e.t1 != null ? e.t1 : Math.max(c.floor, t2b * c.t1k), mul = chargeMulEff();
+  return { t1: t1 * mul, t2: Math.max(t2b, t1 + .25) * mul };
+}
+// 集氣進度 p(0~1)換算成舊 q:未成形 0~.5 → 0~q1、第一段 → 第二段 .5~1 → q1~1(所有 cast 函式只讀 q,不必改)
+const qOfP = p => p < .5 ? p / .5 * CFG.c2.q1 : lerp(CFG.c2.q1, 1, (p - .5) / .5);
+// 放手(滑鼠 / 觸控 / 手把):第一段後 = 出手;第一段前:差 ≤ grace 秒 → 排隊到第一段立刻出手,否則失手
+function letGo() {
+  if (G.state !== 'charging') return;
+  if (G.p >= .5) { release(); return; }
+  const T = chargeTimes(G.skill), left = T.t1 - G.chargeT, cap = chargeMpCap() >= .5;
+  if (cap && left <= CFG.c2.grace) { G.queued = true; G.queuedT = 0; return; }
+  fizzle();
+}
+// 失手:第一段前放手。不扣 MP、不進冷卻,但 0.4 s 內不能開始下一次集氣
+function fizzle() {
+  if (G.state !== 'charging') return;
+  sfx.loop('charge', false); sfx.play('fizz');
+  { const o = G.orb; if (o) { for (let i = 0; i < 8; i++) smoke.emit(o.position.x, o.position.y, o.position.z, rnd(-.6, .6), rnd(.3, 1.2), rnd(-.6, .6), rnd(.5, .9), rnd(.2, .4), [.5, .5, .55], [.3, .3, .35], .6, 1, 0, 0); scene.remove(o); G.orb = null; } }
+  G.state = 'ready'; G.chargeT = 0; G.p = 0; G.stage = 0; G.queued = false; G.fizzT = CFG.c2.fizz;
+  G.shoutT = .6; const ch = document.getElementById('chant'); ch.textContent = '集氣不足'; ch.style.fontSize = '17px'; ch.style.opacity = 1;
+}
+// 被打斷(單次實扣 ≥ cancelDmg 的非硬控):第一段前取消、第一段後退回第一段起點;硬控由 status.js 直接 cancelCharge。霸體 / 不屈中不吃
+function chargeInterrupt() {
+  if (G.state !== 'charging' || G.unyT > 0 || G.hardImmT > 0) return;
+  if (G.p < .5) { cancelCharge(); return; }
+  const T = chargeTimes(G.skill); G.chargeT = T.t1; G.p = .5; G.stage = 1; G.holdT = 0; G.maxFlash = false; G.queued = false;
+  banner('集氣被打斷', '#ffc46b');
+}
+// 集氣中移速倍率(CHARGE2[id].mv;沒列的預設 .5);0 = 原地(重招)
+const chargeMv = () => { const e = typeof CHARGE2 !== 'undefined' ? CHARGE2[baseOf(G.skill)] : null; return e && e.mv != null ? e.mv : .5; };
+function chargeVibe(pat) { if (CFG.c2.vib && IS_TOUCH && navigator.vibrate) { try { navigator.vibrate(pat); } catch (e) { } } }   // iOS Safari 不支援
+// 手機施放鈕外圈:集氣環(CSS conic-gradient,見 index.html #btnAtk .cr);只在值變動時寫 DOM
+let _atkEl = null, _crK = '';
+function chargeRing(on, pp, max, E) {
+  if (!IS_TOUCH) return;
+  if (!_atkEl) _atkEl = document.getElementById('btnAtk');
+  if (!_atkEl) return;
+  const k = on ? Math.round(pp * 100) + (max ? 'M' : '') + (pp >= .5 ? E.css0 : '') : '';
+  if (k === _crK) return; _crK = k;
+  _atkEl.classList.toggle('chg', on);
+  if (!on) return;
+  const st = _atkEl.style;
+  st.setProperty('--p', Math.round(pp * 100)); st.setProperty('--c', max ? '#ffd27a' : pp >= .5 ? E.css0 : '#d8dce6');
+  st.setProperty('--bg', pp >= .5 ? 'rgba(255,255,255,.16)' : 'rgba(255,70,70,.32)');
+  _atkEl.classList.toggle('s1', pp >= .5);
 }
 function dissolveOrb(orb, E) {
   if (!orb) return;
@@ -566,7 +618,7 @@ function dissolveOrb(orb, E) {
 // 施放:存下集氣比例 q,並算好統一倍率(C-0b);集氣模式 mode 只在這裡決定 sizeK / thickK / copies(設計 §2-2)
 function release() {
   const cs = skillCost(G.skill);
-  if (!resUse(cs.kind, costAt(cs.base, G.charge))) { cancelCharge(); return; }   // 花費在施放當下扣(chargeCap 已保證夠)
+  if (!resUse(cs.kind, costAt(cs.base, clamp((G.p - .5) / .5, 0, 1)))) { cancelCharge(); return; }   // 放手成功才扣 MP:第一段 80% → 第二段 100%(chargeMpCap 已保證夠)
   sfx.loop('charge', false); sfx.play('cast', { cls: G.cls, el: G.el }); if (window.padRumble) padRumble('cast');
   if (G.stealth && G.stealth.shadow) revealStealth('cast');   // 影遁中出招即解除(skills_assassin.js 影分身)
   const sk = curSkill(G.skill), sp = spellOf(G.skill), p = mage.root.position, q = G.charge, mode = curMode();
@@ -582,17 +634,22 @@ function release() {
   if (window.NETON) { G.pending.sd = (Math.random() * 2147483648) | 0; G.pending.rng = seedRng(G.pending.sd); }   // 多人:種子與決定位置 / 時間的亂數(§2-4);單人不加
   if (sk.cd) G.cd[sk.id] = sk.cd;   // 冷卻從施放開始計
   auraGather();                     // 氣場收束到武器尖端
-  G.state = 'cast'; G.castT = 0; G.launched = false; G.queued = false;
+  G.state = 'cast'; G.castT = 0; G.launched = false; G.queued = false; G.p = 0; G.stage = 0;
   G.shoutT = 1.0; const ch = document.getElementById('chant'); ch.textContent = sp.shout; ch.style.fontSize = '30px';
 }
 function updateCasting(dt) {
   for (const k in G.cd) if (G.cd[k] > 0) G.cd[k] = Math.max(0, G.cd[k] - dt);
+  if (G.fizzT > 0) G.fizzT = Math.max(0, G.fizzT - dt);
   if (G.state === 'charging') {
     if (!(G.paraJolt > 0) && !window.PAD_LOST) G.chargeT += dt;   // 麻痺抽搐中暫停集氣進度(不取消,status.js)
-    G.charge = Math.min(clamp(G.chargeT / chargeTimeEff(), 0, 1), chargeCap());   // MP / SP 不足時卡在買得起的上限
-    if (G.charge >= .5 && !G.halfFlash) { G.halfFlash = true; burstRing(mage.root.position, auraEl().hex, 1.2); }
-    if (G.charge >= 1 && !G.maxFlash) { G.maxFlash = true; G.shake = Math.max(G.shake, .05); burstRing(mage.root.position, 0xffd27a, 2.4); }
-    if (G.queued && G.chargeT >= CFG.minHold) release();
+    const T = chargeTimes(G.skill);
+    if (chargeMpCap() < 1 && G.chargeT >= T.t1) G.chargeT = T.t1;   // MP 不夠第二段花費:停在第一段起點
+    G.p = G.chargeT < T.t1 ? .5 * G.chargeT / T.t1 : Math.min(1, .5 + .5 * (G.chargeT - T.t1) / Math.max(.01, T.t2 - T.t1));
+    G.charge = qOfP(G.p);   // 預覽與出手共用的舊 q 值
+    if (G.p >= .5 && !G.halfFlash) { G.halfFlash = true; G.stage = 1; burstRing(mage.root.position, auraEl().hex, 1.2); sfx.play('stg1'); sfx.loopDetune('charge', 400); chargeVibe(15); }
+    if (G.p >= 1 && !G.maxFlash) { G.maxFlash = true; G.stage = 2; G.shake = Math.max(G.shake, .05); burstRing(mage.root.position, 0xffd27a, 2.4); sfx.play('stg2'); chargeVibe([10, 40, 10]); }
+    if (G.queued) { G.queuedT += dt; if (G.p >= .5) release(); else if (G.queuedT > .3) fizzle(); }   // 放手寬限:到第一段立刻出手
+    else if (G.p >= 1) { G.holdT += dt; if (G.holdT >= CFG.c2.holdMax) release(); }   // 滿段最多持住 holdMax 秒,到時自動放出
   } else if (G.state === 'cast') {
     G.castT += dt;
     if (!G.launched && G.castT >= 0.14) {
@@ -633,14 +690,15 @@ function terrainMove(p, x0, z0) {
 }
 function updatePlayer(dt) {
   // mc:劍士 / 刺客集氣中可移動;lock 為不能移動;face 為面向瞄準點
-  const p = mage.root.position, K = G.keys, mc = G.state === 'charging' && moveCharge(), lock = (G.state === 'charging' && !mc) || (G.state === 'cast' && !G.spin), face = lock || mc;
+  const p = mage.root.position, K = G.keys, chg = G.state === 'charging', cmv = chg ? chargeMv() : 1, mc = chg && moveCharge(), slow = chg && !mc && cmv > 0;   // slow:弓 / 法杖單體技集氣中可慢走(面向不變)
+  const lock = (chg && !mc && !slow) || (G.state === 'cast' && !G.spin), face = lock || mc || slow;
   stickTick(dt);
   const mi = moveInput(); let ix = mi.ix, iz = mi.iz, speedN = 0, ty = mage.yaw;
   G.rollCD = Math.max(0, G.rollCD - dt); G.stun = Math.max(0, G.stun - dt);
   const free = !lock && !G.roll && G.stun <= 0 && G.down <= 0 && G.rootT <= 0;   // 定身:不能走(仍可施法、集氣、翻滾)
   if (G.sitting && (K.KeyW || K.KeyA || K.KeyS || K.KeyD || G.stick.mag > .3)) sitBreak('move');   // 移動輸入即起身
   if (G.whirlRun) { mi.run = true; mi.s = 1; }   // 旋風疾行:以跑速為基準、滿速(SP 由 whirlRunTick 另計),不走跑步的 SP 扣與遲滯
-  else mi.run = mi.run && runAllowed(dt, free && !!(ix || iz));   // 跑步:SP 扣與遲滯
+  else mi.run = mi.run && !chg && runAllowed(dt, free && !!(ix || iz));   // 跑步:SP 扣與遲滯;集氣中不能跑步
   if (G.roll) {
     const R = G.roll; R.t += dt; const q = Math.min(1, R.t / R.time), v = 2 * R.dist / R.time * (1 - q);
     p.x += R.dx * v * dt; p.z += R.dz * v * dt; G.invuln = R.t >= CFG.dodgeStart && R.t < CFG.dodgeStart + CFG.dodgeWin * (G.rollWinK || 1);   // 只有短閃避窗內無傷害;窗外翻滾中仍會被打
@@ -651,7 +709,7 @@ function updatePlayer(dt) {
     const l = Math.hypot(ix, iz); ix /= l; iz /= l;
     const fx = -Math.sin(G.camYaw), fz = -Math.cos(G.camYaw), rx = Math.cos(G.camYaw), rz = -Math.sin(G.camYaw);
     const dx = fx * iz + rx * ix, dz = fz * iz + rz * ix;
-    const sp = CFG.moveSpeed * (mi.run ? CFG.runMul : 1) * mi.s * (G.spdK || 1);
+    const sp = CFG.moveSpeed * (mi.run ? CFG.runMul : 1) * mi.s * (G.spdK || 1) * cmv;
     p.x += dx * sp * dt; p.z += dz * sp * dt; ty = Math.atan2(dx, dz); speedN = sp / CFG.moveSpeed;
   }
   if (!G.roll && (face && G.skill >= 0 || (G.state === 'cast' && G.pending))) {
@@ -1133,11 +1191,11 @@ function updateHUD() {
     const ix = G.skill >= 0 ? G.skill : (G.lastSkill || 0), sp = ix < skillCount() ? spellOf(ix) : null, ik = sp ? (sp.img || sp.icon || '') : '';
     if (atkIcEl._k !== ik) { atkIcEl._k = ik; atkIcEl.innerHTML = sp && sp.img ? '<img src="' + sp.img + '" alt="' + sp.icon + '" onerror="this.replaceWith(document.createTextNode(this.alt))">' : (sp ? sp.icon : ''); }
   }
-  const E = auraEl(), on = G.state === 'charging', q = G.charge, max = on && q >= 1;
+  const E = auraEl(), on = G.state === 'charging', q = G.charge, pp = on ? G.p : 0, max = on && pp >= 1;
   slots.forEach((el, i) => {
     const act = i === G.skill;
     el.classList.toggle('active', act);
-    el.lastChild.style.width = (act && on ? q * 100 : 0) + '%';
+    el.lastChild.style.width = (act && on ? G.p * 100 : 0) + '%';
     const key = act ? E.css0 : '';
     if (el._k !== key) { el._k = key; el.style.borderColor = act ? E.css0 : ''; el.style.boxShadow = act ? '0 0 16px ' + E.css0 : ''; }
   });
@@ -1149,15 +1207,17 @@ function updateHUD() {
   // 集氣條三段(C-0b):0~50% 暗色、50~99% css1→css0 漸層、100% 白光;用 clip-path 露出 q 的部分
   const sitT = resSitTxt();   // 打坐時 #chargeBox 借用顯示 MP / SP 恢復速度
   cBox.classList.toggle('on', on || sitT !== ''); cBox.classList.toggle('max', max);
-  cFill.style.width = '100%'; cFill.style.clipPath = 'inset(0 ' + ((1 - q) * 100) + '% 0 0)';
+  cFill.style.width = '100%'; cFill.style.clipPath = 'inset(0 ' + ((1 - pp) * 100) + '% 0 0)';
+  cBox.classList.toggle('pre', on && pp < .5);   // 第一段前:底色淡紅 = 此時放手會失手
   const bg = max ? '#fff' : E.css0 + E.css1;
   if (cFill._bg !== bg) {
     cFill._bg = bg;
-    cFill.style.background = max ? '#fff' : 'linear-gradient(90deg,' + dimHex(E.css1, .6) + ' 0%,' + dimHex(E.css1, .6) + ' 50%,' + E.css1 + ' 50%,' + E.css0 + ' 100%)';
+    cFill.style.background = max ? '#fff' : 'linear-gradient(90deg,#aeb4c2 0%,#d8dce6 50%,' + E.css1 + ' 50%,' + E.css0 + ' 100%)';   // 0~50% 灰白(未成形)、50~100% 屬性 / 武器色
     cFill.style.boxShadow = max ? '0 0 12px #ffd27a' : '';
   }
+  chargeRing(on, pp, max, E);
   // 集氣文字預覽:集氣 ・ 傷害倍率 ・ 第三項(效果)
-  if (on) { const sp = spellOf(G.skill), mt = modeTxt(q), rc = resCapTxt(); cTxt.textContent = (rc ? rc + ' ・ ' : '') + (max ? '集氣完成 MAX' : '集氣 ' + Math.round(q * 100) + '%') + ' ・ 傷害 ×' + CHG.dmg(q).toFixed(2) + (mt ? ' ・ ' + mt : '') + (sp.preview ? ' ・ ' + sp.preview(q) : ''); }
+  if (on) { const sp = spellOf(G.skill), mt = modeTxt(q), rc = resCapTxt(); cTxt.textContent = (rc ? rc + ' ・ ' : '') + (max ? '第二段 全力!' : pp >= .5 ? '第一段 ' + Math.round(pp * 100) + '%' : '集氣中… ' + Math.round(pp * 100) + '%') + ' ・ 傷害 ×' + CHG.dmg(q).toFixed(2) + (mt ? ' ・ ' + mt : '') + (sp.preview ? ' ・ ' + sp.preview(q) : ''); }
   else if (cTxt._t !== sitT) { cTxt._t = sitT; cTxt.textContent = sitT; }
   const ts = '0 0 8px ' + E.css1 + ',0 0 2px #000';
   if (chantEl._ts !== ts) { chantEl._ts = ts; chantEl.style.textShadow = ts; }
@@ -1188,13 +1248,14 @@ function updateHUD() {
 const PANEL = [
   ['鏡頭與操作'],
   ['camDist', '鏡頭距離', 2.5, 18, .5], ['camLock', '滑鼠鎖定(準心模式)', 'bool'], ['camXhair', '顯示準心', 'bool'], ['camSens', '視角靈敏度', .001, .015, .0005], ['camInvY', '反轉上下', 'bool'], ['camSmooth', '鏡頭平滑(0 = 即時)', 0, 1, .05], ['camShoulder', '肩後偏移(m)', 0, 1.5, .1], ['camKeyTurn', 'Q / E 轉向速度', 0, 5, .2], ['touchSens', '觸控靈敏度倍率', .5, 3, .1], ['padSens', '手把靈敏度倍率', .5, 2.5, .1],['autoFrame', '施法自動拉鏡頭', 'bool'], ['shake', '震動強度', 0, 2, .1],
-  ['moveSpeed', '移動速度', 2, 10, .5], ['showInfo', '單人顯示詳細資訊', 'bool'], ['showInfoNet', '對戰顯示詳細資訊', 'bool'], ['dodgeWin', '閃避窗(秒)', .05, .45, .01], ['rollCD', '翻滾冷卻', .3, 2, .1], ['jumpV', '跳躍力道', 5, 14, .5], ['airJumpV', '二段跳力道', 5, 12, .5], ['airRollDist', '空中翻滾距離', 1, 6, .5], ['rollDist', '翻滾距離', 2, 10, .5], ['rollTime', '翻滾時間(秒)', .25, .8, .05], ['rollCD', '翻滾冷卻(秒)', 0, 2, .1], ['minHold', '最短集氣(秒)', 0, 1, .05], ['bloom', '泛光特效', 'bool'], ['bloomStrength', '泛光強度', 0, 2, .05],
+  ['moveSpeed', '移動速度', 2, 10, .5], ['showInfo', '單人顯示詳細資訊', 'bool'], ['showInfoNet', '對戰顯示詳細資訊', 'bool'], ['dodgeWin', '閃避窗(秒)', .05, .45, .01], ['rollCD', '翻滾冷卻', .3, 2, .1], ['jumpV', '跳躍力道', 5, 14, .5], ['airJumpV', '二段跳力道', 5, 12, .5], ['airRollDist', '空中翻滾距離', 1, 6, .5], ['rollDist', '翻滾距離', 2, 10, .5], ['rollTime', '翻滾時間(秒)', .25, .8, .05], ['rollCD', '翻滾冷卻(秒)', 0, 2, .1], ['bloom', '泛光特效', 'bool'], ['bloomStrength', '泛光強度', 0, 2, .05],
   ['fxq', '特效粒子量(新屬性)', .3, 1, .05], ['dummyMove', '標靶左右移動', 'bool'], ['slowSelf', '風場 / 坑洞減速玩家', 'bool'], ['rangeK', '全域射程係數(測試用)', .5, 1.5, .05], ['radK', '全域半徑係數(測試用)', .5, 1.5, .05],
   ['投射類(火球等)'], ['skills.fireball.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.fireball.range', '最大射程', 8, 45, 1], ['skills.fireball.rMin', '最小半徑', .5, 5, .1], ['skills.fireball.rMax', '最大半徑', 1, 10, .1], ['skills.fireball.recover', '施法後僵直(秒)', 0, 2, .05],
   ['牆類(火牆等)'], ['skills.firewall.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.firewall.range', '最大射程', 8, 45, 1], ['skills.firewall.rMin', '最短長度', 2, 10, .5], ['skills.firewall.rMax', '最長長度', 6, 30, .5], ['skills.firewall.thick', '牆厚度', .5, 4, .1], ['skills.firewall.duration', '持續時間(秒)', 2, 20, .5], ['skills.firewall.recover', '施法後僵直(秒)', 0, 2, .05],
   ['大招類(隕石等)'], ['skills.meteor.chargeTime', '集氣時間(秒)', .3, 5, .1], ['skills.meteor.range', '最大射程', 8, 50, 1], ['skills.meteor.rMin', '最小半徑', 2, 10, .5], ['skills.meteor.rMax', '最大半徑', 4, 20, .5], ['skills.meteor.recover', '施法後僵直(秒)', 0, 3, .05],
   ['召喚類(第 4 格)'], ['skills.summon.chargeTime', '集氣時間(秒)', .3, 4, .1], ['skills.summon.range', '射程', 4, 30, 1], ['skills.summon.recover', '施法後僵直(秒)', 0, 2, .05],
   ['資源(測試 / 手感)'], ['res.infinite', '無限資源', 'bool'], ['res.mpRegen', 'MP 自然恢復 / 秒', 0, 30, 1], ['res.spRegen', 'SP 自然恢復 / 秒', 0, 60, 1], ['res.sitMp', '打坐 MP 倍率', 1, 10, .5], ['res.sitSp', '打坐 SP 倍率', 1, 10, .5], ['res.runCost', '跑步 SP 消耗 / 秒', 0, 40, 1],
+  ['兩段集氣'], ['c2.t1k', '第一段時間比例(T1 = T2 ×)', .3, .7, .05], ['c2.floor', '第一段最短(秒)', .1, .5, .05], ['c2.q1', '第一段威力 Q1(換算舊 q)', .2, .7, .05], ['c2.grace', '放手寬限(秒)', 0, .2, .01], ['c2.fizz', '失手停頓(秒)', 0, 1, .05], ['c2.holdMax', '滿段最長持住(秒)', 1, 10, .5], ['c2.vib', '手機震動', 'bool'],
   ['音效與音樂'], ['sfx.on', '音效', 'bool'], ['sfx.vol', '音效音量', 0, 1, .05], ['sfx.music', '音樂(場地氛圍)', 'bool'], ['sfx.mvol', '音樂音量', 0, 1, .05]
 ];
 function getPath(o, p) { return p.split('.').reduce((a, k) => a[k], o); }

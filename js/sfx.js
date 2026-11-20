@@ -8,7 +8,7 @@
 const sfx = (() => {
   const testMute = () => !!window.SFX_MUTE_TEST;
   const MAX_VOICES = 12, MAX_DIST = 30;
-  const GAP = { hit: .06, hurt: .15, cast: .08, roll: .2, jump: .15, block: .3, deny: .6, banner: .3, click: .04, count: .3, result: 1, kill: .3, charge: 0 };
+  const GAP = { hit: .06, hurt: .15, cast: .08, roll: .2, jump: .15, block: .3, deny: .6, banner: .3, click: .04, count: .3, result: 1, kill: .3, charge: 0, stg1: .1, stg2: .1, fizz: .2 };
   const CLS_SND = { archer: 'bow', swordsman: 'blade', assassin: 'dagger' };
   const cfg = () => (window.CFG && CFG.sfx) || { on: true, music: false, vol: .6, mvol: .4 };
   const stats = { ctx: 0, plays: {}, skipped: 0, voices: 0, peak: 0, muteTest: false };
@@ -96,6 +96,9 @@ const sfx = (() => {
     deny: [.15, (o, v) => osc('square', 180, 160, ctx.currentTime + .01, .14, .05 * v, sBus, { type: 'lowpass', f: 900 })],
     banner: [.1, (o, v) => osc('sine', 740, 740, ctx.currentTime + .01, .09, .05 * v, sBus)],
     click: [.04, (o, v) => osc('sine', 1000, 1000, ctx.currentTime + .01, .03, .05 * v, sBus)],
+    stg1: [.15, (o, v) => { const t = ctx.currentTime + .01; osc('sine', 1320, 1320, t, .12, .05 * v, sBus); osc('sine', 1980, 1980, t + .01, .1, .02 * v, sBus); }],   // 到第一段:短「叮」
+    stg2: [.3, (o, v) => { const t = ctx.currentTime + .01; osc('triangle', 1046, 1046, t, .25, .06 * v, sBus); osc('sine', 1568, 1568, t, .22, .04 * v, sBus); nz(t, .05, .05 * v, sBus, 'highpass', 4000, 1); }],   // 到第二段:「鏘」
+    fizz: [.2, (o, v) => { const t = ctx.currentTime + .01; osc('triangle', 150, 70, t, .15, .09 * v, sBus, { type: 'lowpass', f: 500 }); nz(t, .1, .05 * v, sBus, 'lowpass', 400, 1); }],   // 失手:低沉「噗」
     count: [.3, (o, v) => { const t = ctx.currentTime + .01; if (o.go) osc('sine', 990, 990, t, .25, .1 * v, sBus); else osc('sine', 660, 660, t, .1, .1 * v, sBus); }],
     result: [.9, (o, v) => { const t = ctx.currentTime + .01; [523.25, 659.25, 783.99].forEach((f, i) => osc('triangle', f, f, t + i * .08, .7, .07 * v, sBus)); }]
   };
@@ -137,7 +140,7 @@ const sfx = (() => {
         l2.frequency.value = 4; l2g.gain.value = .02; l2.connect(l2g); l2g.connect(g.gain);
         g.gain.value = .04; o.connect(g); g.connect(sBus);
         o.start(t); l1.start(t); l2.start(t); nodes.push(o, l1, l2);
-        loops[name] = { g, nodes };
+        loops[name] = { g, nodes, o };
       } else loops[name] = { g: null, nodes };
     } else if (!on && L) {
       if (L.g) {
@@ -148,6 +151,9 @@ const sfx = (() => {
       delete loops[name];
     }
   }
+
+  // 集氣循環音高偏移(cents):第一段後 +400(約 +4 半音),不看畫面也知道過了第一段
+  function loopDetune(name, cents) { const L = loops[name]; if (L && L.o && running()) L.o.detune.setValueAtTime(cents, ctx.currentTime); }
 
   /* ---------- 環境音樂(場地:0 月夜 = 低沉氛圍、1 叢林 = 木琴與蟲鳴感) ---------- */
   function melody(mode, g) {
@@ -199,6 +205,6 @@ const sfx = (() => {
   }
   function setScene(i) { scene = i | 0; sync(); }
 
-  return { play, loop, setScene, sync, unlock, stats, state: () => (ctx ? ctx.state : 'none'), init };
+  return { play, loop, loopDetune, setScene, sync, unlock, stats, state: () => (ctx ? ctx.state : 'none'), init };
 })();
 window.sfx = sfx;

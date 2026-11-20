@@ -22,7 +22,7 @@ const baseOf = i => curSkill(i).base || curSkill(i).id;
 const spellOf = i => G.cls === 'mage' ? SPELLS[G.el][i] : curSkill(i);   // 名稱/圖示/咒語/喊招:法師依目前屬性,其他職業用目前架勢的招式   // 法師招式沒有 base,直接用 id(fireball / firewall / meteor)
 const moveCharge = () => { const st = stanceOf(); return st ? !!st.mwc : !!CLASSES[G.cls].moveWhileCharging; };   // 集氣中可移動(依目前架勢;無架勢者用 moveWhileCharging)
 // 架勢移速倍率(classTick 乘入 G.spdK):spdK 常駐;chgSpdK 只在集氣中
-const stanceK = () => { const st = stanceOf(); if (!st) return 1; return st.spdK * (G.state === 'charging' ? st.chgSpdK : 1); };
+const stanceK = () => { const st = stanceOf(); if (!st) return 1; return st.spdK; };   // 集氣中移速改由 CHARGE2[id].mv 決定(game.js chargeMv),不再用架勢 chgSpdK
 
 // 職業招式:base = CFG.skills 的鍵(沿用 id);aim:'circle' 落點圓 | 'wall' 落點矩形 | 'line' 從角色往瞄準方向的矩形 |
 // 'front' 角色前方固定圓心 | 'self' 以角色為中心的圓 | 'none' 不顯示光圈
@@ -54,7 +54,7 @@ const CLASSES = {
       // 盾勢 B 列與絕技(定義在 skills_sword.js);索引 3 格擋反擊、4 震地、5 旋風疾行(劍勢 3)、6 震天躍擊(兩架勢第 4 格);衝鋒盾(2)搬到盾勢第 3 格
       mkSkill('parry', '格擋反擊', '🛡️', { img: 'assets/icons/cls_swordsman_parry.png', instant: true, netSilent: true, aim: 'none', cd: 6, chant: '', shout: '格擋反擊!', cast: castParry }),
       mkSkill('slam', '震地', '💥', { img: 'assets/icons/cls_swordsman_slam.png', aim: 'self', cd: 6, chant: '重心下沉……', shout: '震地!', cast: castSlam }),
-      mkSkill('whirlRun', '旋風疾行', '🌪️', { img: 'assets/icons/cls_swordsman_whirlrun.png', hold: true, aim: 'none', cd: 4, chant: '', shout: '旋風疾行!', preview: () => '移速 ×' + CFG.skills.whirlRun.speedK + '・耗 SP ' + CFG.skills.whirlRun.spPerSec + '/s' }),
+      mkSkill('whirlRun', '旋風疾行', '🌪️', { img: 'assets/icons/cls_swordsman_whirlrun.png', hold: true, aim: 'none', cd: 4, chant: '', shout: '旋風疾行!', preview: () => '移速 ×' + CFG.skills.whirlRun.speedK + '・耗 SP ' + CFG.skills.whirlRun.spPerSec + ' + MP ' + CFG.skills.whirlRun.mpPerSec + '/s' }),
       mkSkill('skyLeap', '震天躍擊', '⤴️', { img: 'assets/icons/cls_swordsman_skyleap.png', aim: 'front', cd: 20, chant: '蹬地躍起,力貫千鈞……', shout: '震天躍擊!', cast: castSkyLeap, preview: q => { const s = skyStats(q); return '距離 ' + s.dist.toFixed(1) + ' m・範圍 ' + s.R.toFixed(1) + ' m・傷害 ' + Math.round(s.dmg); } })],
     stances: [{ name: '劍勢', icon: '⚔️', mwc: true, spdK: 1.2, chgSpdK: 1 }, { name: '盾勢', icon: '🧱', mwc: true, spdK: 1.0, chgSpdK: 1 }],
     bars: [[0, 1, 5, 6], [3, 4, 2, 6]],   // 劍勢:蓄力斬 / 旋風斬 / 旋風疾行 / 震天躍擊;盾勢:格擋反擊 / 震地 / 衝鋒盾 / 震天躍擊
@@ -313,4 +313,5 @@ function initClass() {
   buildClsBar(); applyElColors(); refreshHotbar(); refreshClsBar(); syncElBar();
 }
 initClass();
+c2SelfCheck();   // 兩段集氣:招式表缺列檢查(resources.js)
 startLoop();

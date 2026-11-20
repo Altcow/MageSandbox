@@ -318,7 +318,11 @@ class RemotePlayer {
     placeRing(this.ring, p.x, p.y, p.z, vis ? ((away || off) ? .4 : 1) : 0);   // 腳下色圈:跟假影同條件(潛行 / 煙霧 / 草叢 / 無敵閃爍時隱藏,不洩漏位置)
     // 集氣光球在武器尖端(§2-3)
     this.glow.visible = vis && p.q > .01;
-    if (this.glow.visible) { this.mage.tipWorld(this._tmp); this.glow.position.copy(this._tmp); this.glow.scale.setScalar(.15 + .6 * p.q); }
+    if (this.glow.visible) {
+      this.mage.tipWorld(this._tmp); this.glow.position.copy(this._tmp); this.glow.scale.setScalar(.15 + .6 * p.q);
+      const sg = Math.round(p.q * 31) >= 31 ? 2 : Math.round(p.q * 31) >= 16 ? 1 : 0;   // 遠端看得出階段:未成形灰白 / 第一段屬性色 / 第二段金
+      if (this._sg !== sg) { this._sg = sg; this.glow.material.color.setHex(sg === 2 ? 0xffd27a : sg === 1 ? auraOf(this.cls, this.el).hex : 0xcfd4e0); }
+    }
     // 狀態視覺(§3-3):潛行(照亮例外)與倒下時不畫,避免燃燒粒子暴露潛行者位置;照亮 flag 由快照 g & 1024 來
     if ((stealth && !this.lit) || down || hid) stVisHide(this);
     else stVis(this, this.stE & 7, (this.stE & 248) | (this.lit ? 256 : 0), dt);
@@ -508,6 +512,11 @@ function syncRemotes(list) {
 }
 
 /* ================= 送出快照、開戰倒數、每幀入口(game.js 主迴圈呼叫 netTick) ================= */
+// 集氣進度 p 夾邊界成 5 位元碼(除以 31 給 packSnap):p < .5 → 0~15;.5 ≤ p < 1 → 16~30;p = 1 → 31
+function snapQ(p) {
+  const c = p >= 1 ? 31 : p >= .5 ? clamp(Math.round(p * 31), 16, 30) : Math.min(15, Math.round(p * 31));
+  return c / 31;
+}
 function sendSnap(now) {
   const p = mage.root.position, roll = G.roll;
   let g = 0;
@@ -527,7 +536,7 @@ function sendSnap(now) {
   sendSeq = (sendSeq + 1) & 255;
   Net.setSnap(packSnap({
     n: sendSeq, tm: now, x: p.x, y: p.y, z: p.z, r: mage.yaw, m: G.speedN || 0, c: G.cb || 0, k: G.kick || 0,
-    q: G.state === 'charging' ? (G.charge || 0) : 0,
+    q: G.state === 'charging' ? snapQ(G.p || 0) : 0,   // 兩段集氣:q 碼 ≤ 15 = 未成形、16~30 = 第一段、31 = 第二段(快照格式不變)
     o: roll ? clamp(roll.t / roll.time, 0, 1) : -1, p: roll ? roll.phi : 0, f: G.flip, s: G.sitK || 0, d: G.downK || 0,
     g: g, hp: Math.ceil(G.hp / G.hpMax * 100), sh: Math.ceil(G.shield || 0), w: (G.cls === 'mage' && G.weapon === 'book') ? 1 : 0, tp: G.tp || 0,
     e: typeof stCode === 'function' ? (stCode() | stFlags()) : 0   // 狀態欄(status.js)

@@ -84,6 +84,7 @@ function netReplayCast(seat, m) {
   const sk = netSkill(cls, el, m.ix | 0);
   const target = vIn(m.T);
   if (!sk || !target || typeof m.sd !== 'number' || sk.netSilent) return;
+  if (!sk.instant && !sk.hold && (m.q || 0) < CFG.c2.q1 - .02) return;   // 兩段集氣輕量反作弊:q 低於第一段換算值 = 不重現、不受理命中
   sfx.play('cast', { cls, el, d: Math.hypot(rp.px - mage.root.position.x, rp.pz - mage.root.position.z) });
   const sp = netSpell(cls, el, m.ix | 0) || {};
   if (sk.netFx) { netFxPlay(sk.netFx, rp, sp, m); return; }   // 位移招式:只播簡化特效,不呼叫原函式(§2-9)
@@ -187,7 +188,7 @@ function netApplyHit(from, m) {
   const dealt = sum > 0 ? res.dmg : 0, absorbed = Math.min(sh0, sum), full = sum > 0 && res.blocked;
   const fx = m.fx || {};
   if (!full) netApplyFx(swFxAdjust(fx), m.h || [], from);   // 護盾全吸收時不套 debuff;旋風斬免擊退、盾勢擊退 ×0.5(skills_sword.js)
-  if (!full && G.state === 'charging' && (sum >= NET_RULES.cancelDmg || fx.st || fx.dn)) cancelCharge();   // §8 #5
+  if (!full && G.state === 'charging') { if (fx.st || fx.dn) cancelCharge(); else if (sum >= NET_RULES.cancelDmg) chargeInterrupt(); }   // 硬控取消;單次 ≥ cancelDmg 實扣:第一段前取消、第一段後退回第一段(兩段集氣 §4)
   if (dealt > 0) { const f = document.getElementById('flash'); if (f) { f.style.opacity = .6; setTimeout(() => f.style.opacity = 0, 120); } }
   if (!full) hitFx(new V3(p.x, p.y + 1, p.z), 10);
   if (dealt > 0) { addDmgText(new V3(p.x, p.y + 2.2, p.z), '-' + Math.round(dealt), '#ff6b6b'); const ar = REMOTES[String(from)]; if (ar) showHurtDir(ar.px, ar.pz); }   // 受擊方向指向攻擊者(game.js showHurtDir)

@@ -25,7 +25,7 @@
   // ---- 右大鈕:集氣 / 施放 / 滑動調範圍 ----
   const atk = $('btnAtk'); let aid = null, ay0 = 0, rad0 = 0, ax0 = 0, wo0 = 0, hx0 = 0, hz0 = 0, drag = false;
   function endAtk() {
-    if (G.state === 'charging') { if (inCancel) cancelCharge(); else if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
+    if (G.state === 'charging') { if (inCancel) cancelCharge(); else letGo(); }   // 上滑取消區放手 = 取消(不失手);其他 = 依兩段規則出手 / 寬限 / 失手
     inCancel = false;
     atk.classList.remove('on'); aid = null; drag = false; G.atkHeld = false; G.fingerHold = false; saveCfgSoon();
     if (cxEl) cxEl.style.display = 'none';
@@ -338,7 +338,7 @@
     const cast = K('cast');
     G.atkHeld = b(cast);
     if (edge(cast)) startCharge();
-    if (!b(cast) && gPrev[cast] && G.state === 'charging') { if (G.chargeT < CFG.minHold) G.queued = true; else release(); }
+    if (!b(cast) && gPrev[cast] && G.state === 'charging') letGo();
     if (edge(K('jump'))) doJump();                           // 跳 / 二段跳
     if (edge(K('roll'))) tryRoll();                          // 翻滾 / 空中側翻
     if (edge(K('weapon'))) { if (G.state === 'charging') cancelCharge(); else toggleWeapon(); }   // 換裝 / 架勢;集氣中為取消
