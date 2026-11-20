@@ -151,6 +151,7 @@ function skFlash(pos, s) {
 }
 // 環形螢光光帶(旋風類:以施放者為中心繞一圈的光軌;連續取樣由呼叫端每 0.12 s 呼叫);雙層錯開角度 + 火花
 function skRing(pos, yaw, R, y, dur) {
+  skWhirlFx(pos, R);
   skTrail(pos, yaw, { a0: 0, a1: 340, r0: R, r1: R, y0: y, y1: y, tilt: 0, dur: dur || .12, life: .26, w: 1.3 });
   skTrail(pos, yaw + Math.PI, { a0: 0, a1: 340, r0: R * .8, r1: R * .8, y0: y + .5, y1: y + .5, tilt: 20, dur: dur || .12, life: .2, w: .8 }, { noSpark: true });
 }
@@ -159,6 +160,9 @@ function skImpact(pos, R, strong) {
   R = Math.max(1.5, R || 3);
   burstRing(pos, SKC.main, R * 1.25); burstRing(pos, SKC.core, R * .7);
   if (strong) after(.08, () => burstRing(pos, SKC.main, R * 1.7));
+  if (strong) { skSprite(22, pos, R * 3.2, Math.random() * 6.28, .7, { ground: true, grow: .5 }); skSprite(24, pos, R * 3, Math.random() * 6.28, .7, { ground: true, grow: .5 }); }
+  skSprite(strong ? 15 : 13, pos, R * 2.6, Math.random() * 6.28, .55, { ground: true, grow: .5 });
+  skSprite(Math.random() < .5 ? 11 : 12, pos, R * 2.2, Math.random() * 6.28, .5, { ground: true, grow: .6 });
   const n = IS_TOUCH ? 6 : 10, a0 = Math.random() * 6.28;
   for (let i = 0; i < n; i++) {
     const a = a0 + i / n * 6.283, c = Math.cos(a), s = Math.sin(a), r1 = R * rnd(.5, .75), r2 = R * rnd(1.05, 1.5);
@@ -187,7 +191,12 @@ const SK_ACT_FX = {
   'sword.slash1': p => skTrail(p.pos, p.yaw, SK_TPL.slashA), 'sword.slash2': p => skTrail(p.pos, p.yaw, SK_TPL.slashB),
   'sword.slash3': p => skTrail(p.pos, p.yaw, Object.assign({}, SK_TPL.vert, { w: 1.2 }))
 };
-function skActFx(name, pos, yaw) { const f = SK_ACT_FX[name]; if (f) f({ pos, yaw }); }
+const SK_ACT_SP = { 'dual.n1': 0, 'dual.n2': 1, 'dual.n3': 2, 'dual.n4': 3, 'dual.n5': 5, 'sword.slash1': 0, 'sword.slash2': 1, 'sword.slash3': 3 };
+function skActFx(name, pos, yaw) {
+  const f = SK_ACT_FX[name]; if (f) f({ pos, yaw });
+  const s = SK_ACT_SP[name]; if (s === 5) skSprite(6, new V3(pos.x + Math.sin(yaw) * 1.6, pos.y + 1.2, pos.z + Math.cos(yaw) * 1.6), 3.8, 0, .3);
+  else if (s != null) skSlashFx(pos, yaw, s);
+}
 
 /* ================= 受擊反應(§4):只呼叫 Doll 片段,不讀寫任何判定值 ================= */
 // 本機動作紀錄(快照 a 欄位):id / 序號 / 開始時間
@@ -227,3 +236,55 @@ function actSnap() {
   if (!a.id || age > .75) return { id: 0, seq: a.seq, age: 0 };
   return { id: a.id, seq: a.seq, age: Math.min(7, Math.floor(age / .1)) };
 }
+
+/* ================= 貼圖特效層(assets/fx/fx_01~16.png:黑底白青光圖集切出,亮度即 alpha,加色混合) =================
+   疊加在程序式光帶上(不取代)。①斜向細劍光 ②C 形弧斬 ③大橢圓環繞斬 ④彎月弧斬 ⑤雙斜線劍痕 ⑥X 交叉斬 ⑦多環旋風環 ⑧漩渦螺旋斬
+   ⑨衝刺箭矢+煙塵 ⑩箭頭右向直線衝擊 ⑪⑫地面尖刺爆發(左 / 右傾)⑬地面弧斬+煙 ⑭十字星光+單圈 ⑮多環衝擊波+尖刺 ⑯X 星芒閃光 */
+const SKS_AR = [1.82, 1.82, 1.87, 1.38, 1.97, 1.95, 2.17, 1.71, 2.08, 2.22, 2.05, 1.51, 2.13, 2.12, 2.28, 1.97, 1.23, 1.0, 1.33, 4.3, 5.45, 1.89, 1.94, 1.77];   // 17~24 = 大型圖集 A~H(fxL_A~H.png)
+const SKS_L = 'ABCDEFGH';   // 各張寬高比(切圖尺寸)
+const SKS = { tex: {}, live: [], cap: IS_TOUCH ? 6 : 14, quad: null };
+function skTex(id) {
+  let t = SKS.tex[id]; if (t) return t;
+  t = SKS.tex[id] = new THREE.TextureLoader().load(id > 16 ? 'assets/fx/fxL_' + SKS_L[id - 17] + '.png' : 'assets/fx/fx_' + String(id).padStart(2, '0') + '.png');   // 共用載入一次
+  return t;
+}
+// skSprite(id 1~16, pos, scale(高 m), rot(弧度:面向鏡頭時 = 貼圖平面內旋轉;平貼地面時 = 繞 Y 的偏航,0 = 貼圖 +x 朝世界 +x), life(s), opt)
+// opt:{ ground 平貼地面, dy 抬高, fade 淡出方式('out' 預設 / 'none'), grow 起始縮放比(0.6 = 由 60% 長到 115%), flip 左右鏡像, k 亮度 }
+function skSprite(id, pos, scale, rot, life, opt) {
+  opt = opt || {};
+  if (SK_STRENGTH.k <= 0 || id < 1 || id > 24) return;
+  if (!SKS.quad) SKS.quad = new THREE.PlaneGeometry(1, 1);
+  const ar = SKS_AR[id - 1], mat = new THREE.MeshBasicMaterial({ map: skTex(id), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, opacity: 0 });
+  const m = new THREE.Mesh(SKS.quad, mat); m.frustumCulled = false; m.renderOrder = 9;
+  m.position.set(pos.x, pos.y + (opt.dy || 0) + (opt.ground ? .08 : 0), pos.z); m.rotation.order = 'YXZ';
+  if (opt.ground) { m.rotation.set(-Math.PI / 2, rot || 0, 0); } else { m.rotation.set(0, 0, 0); }
+  scene.add(m);
+  let t = 0, dead = false; const g0 = opt.grow == null ? .75 : opt.grow, K = (opt.k == null ? 1 : opt.k) * SK_STRENGTH.k, fx = opt.flip ? -1 : 1;
+  const inst = { kill() { if (dead) return; dead = true; scene.remove(m); mat.dispose(); const i = SKS.live.indexOf(inst); if (i >= 0) SKS.live.splice(i, 1); } };
+  SKS.live.push(inst); while (SKS.live.length > SKS.cap) SKS.live.shift().kill();
+  addFx(dt => {
+    if (dead) return false;
+    t += dt; const u = t / life; if (u >= 1) { inst.kill(); return false; }
+    const s = scale * (g0 + (1.15 - g0) * (1 - Math.pow(1 - u, 2)));
+    m.scale.set(s * ar * fx, s, 1);
+    if (!opt.ground) { m.quaternion.copy(camera.quaternion); m.rotateZ(rot || 0); }   // 面向鏡頭
+    mat.opacity = (opt.fade === 'none' ? 1 : Math.min(1, (1 - u) * 1.8) * Math.min(1, t / .03)) * K;
+    return true;
+  });
+}
+// 揮砍(②④⑤⑧ 依段數輪換方向):pos = 施放者腳下、yaw = 面向
+const SKS_SLASH = [[2, .5], [4, -.3], [5, .2], [8, 0]];
+function skSlashFx(pos, yaw, ix, k) {
+  const e = SKS_SLASH[(ix | 0) % 4], s = 3.4 * (k || 1), f = new V3(Math.sin(yaw), 0, Math.cos(yaw));
+  skSprite(e[0], new V3(pos.x + f.x * 1.5, pos.y + 1.2, pos.z + f.z * 1.5), s, e[1] + (ix & 1 ? 1 : -1) * .45, .28, { flip: !!(ix & 1) });
+}
+let _skwT = -9;
+function skWhirlFx(pos, R) {   // 旋風(③ 大橢圓環繞斬 + ⑦ 多環旋風環,平貼身周);節流 0.3 s
+  if (G.time - _skwT < .3) return; _skwT = G.time;
+  skSprite(3, pos, (R || 2.4) * 2.2, G.time * 3, .35, { ground: true, dy: 1.0, grow: .8 });
+  skSprite(7, pos, (R || 2.4) * 2.8, -G.time * 2, .4, { ground: true, dy: .4, grow: .8 });
+  skSprite(20, pos, (R || 2.4) * 2.6, G.time * 4, .4, { ground: true, dy: .7, grow: .8 });
+  skSprite(23, pos, (R || 2.4) * 3.2, -G.time * 3, .4, { ground: true, dy: .15, grow: .8 });
+}
+// 沿方向的直線衝擊(⑨ 衝刺箭矢+煙塵 / ⑩ 箭頭右向):平貼、貼圖 +x 對準 yaw
+function skDashFx(id, pos, yaw, scale, life) { skSprite(id, pos, scale, yaw - Math.PI / 2, life || .35, { ground: true, dy: .9, grow: .6 }); }

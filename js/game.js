@@ -670,7 +670,7 @@ function updateCasting(dt) {
     G.p = G.chargeT < T.t1 ? .5 * G.chargeT / T.t1 : Math.min(1, .5 + .5 * (G.chargeT - T.t1) / Math.max(.01, T.t2 - T.t1));
     G.charge = qOfP(G.p);   // 預覽與出手共用的舊 q 值
     if (G.p >= .5 && !G.halfFlash) { G.halfFlash = true; G.stage = 1; burstRing(mage.root.position, auraEl().hex, 1.2); sfx.play('stg1'); sfx.loopDetune('charge', 400); chargeVibe(15); }
-    if (G.p >= 1 && !G.maxFlash) { G.maxFlash = true; G.stage = 2; G.shake = Math.max(G.shake, .05); burstRing(mage.root.position, G.cls === 'mage' ? 0xffd27a : SKC.main, 2.4); sfx.play('stg2'); chargeVibe([10, 40, 10]); }
+    if (G.p >= 1 && !G.maxFlash) { G.maxFlash = true; G.stage = 2; G.shake = Math.max(G.shake, .05); burstRing(mage.root.position, G.cls === 'mage' ? 0xffd27a : SKC.main, 2.4); { const sk0 = curSkill(G.skill); if (sk0 && sk0.ult && mage.opq >= .5) { const q0 = mage.root.position; skSprite(16, new V3(q0.x, q0.y + 1.4, q0.z), 5, .3, .5, {}); skSprite(18, new V3(q0.x, q0.y + 4, q0.z), 9, 0, .6, { k: .8 }); skSprite(14, new V3(q0.x, q0.y + 1.4, q0.z), 4, 0, .5, {}); } } sfx.play('stg2'); chargeVibe([10, 40, 10]); }
     if (G.queued) { G.queuedT += dt; if (G.p >= .5) release(); else if (G.queuedT > .3) fizzle(); }   // 放手寬限:到第一段立刻出手
     else if (G.p >= 1) { G.holdT += dt; if (G.holdT >= CFG.c2.holdMax) release(); }   // 滿段最多持住 holdMax 秒,到時自動放出
   } else if (G.state === 'cast') {

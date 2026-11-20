@@ -1,6 +1,8 @@
-const VERSION = 'v46';
+const VERSION = 'v47';
 const CACHE = 'magesandbox-' + VERSION;
 const PRECACHE = [
+  './assets/fx/fxL_A.png', './assets/fx/fxL_B.png', './assets/fx/fxL_C.png', './assets/fx/fxL_D.png', './assets/fx/fxL_E.png', './assets/fx/fxL_F.png', './assets/fx/fxL_G.png', './assets/fx/fxL_H.png',
+  './assets/fx/fx_01.png', './assets/fx/fx_02.png', './assets/fx/fx_03.png', './assets/fx/fx_04.png', './assets/fx/fx_05.png', './assets/fx/fx_06.png', './assets/fx/fx_07.png', './assets/fx/fx_08.png', './assets/fx/fx_09.png', './assets/fx/fx_10.png', './assets/fx/fx_11.png', './assets/fx/fx_12.png', './assets/fx/fx_13.png', './assets/fx/fx_14.png', './assets/fx/fx_15.png', './assets/fx/fx_16.png',
   './', './index.html', './manifest.webmanifest',
   './js/fx.js', './js/sfx.js', './js/poses.js', './js/doll.js', './js/mage.js', './js/world.js', './js/scenes.js', './js/game.js', './js/spells.js', './js/skills.js', './js/skfx.js', './js/skills_dual.js', './js/loadout.js', './js/skills_archer.js', './js/skills_sword.js', './js/skills_assassin.js', './js/resources.js', './js/status.js', './js/classes.js', './js/touch.js', './js/netcfg.js', './js/net.js', './js/remote.js', './js/minimap.js', './js/netcombat.js', './js/netsummon.js','./js/qr.js', './js/cover_bg.js', './js/cover.js', './js/sp_water.js', './js/sp_wind.js', './js/sp_fire.js', './js/summons.js', './js/summons_core.js', './js/sp_water_dragon.js', './js/sp_wind_new.js', './js/sp_fire_crater.js', './js/sp_earth_dragon.js', './js/summon_fire.js', './js/summon_water.js', './js/summon_earth.js', './js/summon_wind.js', './js/summon_light.js', './js/summon_dark.js',
   './lib/three.min.js', './lib/CopyShader.js', './lib/LuminosityHighPassShader.js', './lib/EffectComposer.js',

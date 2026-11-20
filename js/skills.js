@@ -99,7 +99,7 @@ function castQuickShot(P, orb) {
   if (orb) dissolveOrb(orb, E);
   const L = Math.hypot(P.target.x - from.x, P.target.z - from.z) || 1, reach = P.range || 26;
   const to = ex ? new V3(from.x + (P.target.x - from.x) / L * reach, P.target.y + .4, from.z + (P.target.z - from.z) / L * reach) : new V3(P.target.x, P.target.y + .4, P.target.z);
-  if (skOk(P)) skLine(from, to, ex ? .35 : .2, ex ? .5 : .25);   // 青色直線箭軌
+  if (skOk(P)) { skLine(from, to, ex ? .35 : .2, ex ? .5 : .25); skDashFx(10, from, Math.atan2(to.x - from.x, to.z - from.z), ex ? 5 : 3.2, .3); skDashFx(21, from, Math.atan2(to.x - from.x, to.z - from.z), ex ? 1.6 : 1, .3); }   // 青色直線箭軌
   flyProjectile(from, to, ex ? 90 : lerp(45, 70, P.q), {
     mesh: arrowMesh(1.1, .03, E.hex, 1), hitR: Math.max(.3, P.r), stuck: .6, fade: true, trail: IS_TOUCH ? 2 : 4, c0: E.c0, c1: E.c1, pierce: !!ex, solid: true,
     onHit: (d, b) => {
@@ -117,7 +117,7 @@ function castShockArrow(P, orb) {
   const E = casterAura(P), p = casterPos(P), cfg = CFG.skills.shockArrow, dx = Math.sin(P.dir), dz = Math.cos(P.dir), y0 = p.y + 1.3;
   if (orb) dissolveOrb(orb, E);
   const w = lerp(cfg.width0, cfg.width1, P.q), from = new V3(p.x + dx * .8, y0, p.z + dz * .8), to = new V3(from.x + dx * P.r, y0, from.z + dz * P.r);
-  if (skOk(P)) skLine(from, to, w * .5, .4, { grow: .3 });
+  if (skOk(P)) { skLine(from, to, w * .5, .4, { grow: .3 }); skDashFx(10, from, P.dir, 5.5 + w, .45); skDashFx(21, from, P.dir, 2.2, .45); }
   const mesh = giantArrowMesh(w, E.hex, lerp(.7, 1.2, P.q)), dir = new V3(dx, 0, dz);
   let flashed = false; const seen = new Set();
   flyProjectile(from, to, 40, {
@@ -213,7 +213,7 @@ function castPowerSlash(P, orb) {
   const cx = p.x + Math.sin(P.dir) * cfg.range, cz = p.z + Math.cos(P.dir) * cfg.range, cy = surfaceY(cx, cz, p.y + 2);
   areaHit(cx, cy, cz, P.r, 90 * P.dmgK, 1.5 * P.fxK, p.x, p.z, p);
   arcSlash(new V3(cx, cy, cz), P.r, P.dir, E.hex, .2);
-  if (skOk(P)) { skTrail(p, P.dir, Object.assign({}, SK_TPL.power, { r1: Math.max(1.6, P.r), w: 1 + P.q })); skFlash(new V3(cx, p.y + 1.2, cz), 1.6); }   // 劍技青光軌:寬度隨集氣
+  if (skOk(P)) { skTrail(p, P.dir, Object.assign({}, SK_TPL.power, { r1: Math.max(1.6, P.r), w: 1 + P.q })); skFlash(new V3(cx, p.y + 1.2, cz), 1.6); skSlashFx(p, P.dir, 0, 1.3); skSprite(19, new V3(cx, p.y + 1.2, cz), 4.5 + 2 * P.q, Math.sin(P.dir) * .3, .38, {}); skSprite(4, new V3(cx, p.y + 1.1, cz), 4 + 2 * P.q, .6, .32, {}); }   // 劍技青光軌:寬度隨集氣
   if (P.ex) {   // 破空斬(強化,P.ex 由 swordExFn 在施放時判定):沿方向射出劍氣,直線 9 m、穿透
     const dx = Math.sin(P.dir), dz = Math.cos(P.dir), from = new V3(p.x + dx * .8, p.y + 1, p.z + dz * .8), to = new V3(from.x + dx * SW.waveLen, from.y, from.z + dz * SW.waveLen);
     flyProjectile(from, to, 30, {
