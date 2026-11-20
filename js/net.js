@@ -13,7 +13,7 @@
 //   其他:now()、me、isHost、code、stub、online、idleMs(測試時可改短)
 (function () {
   const NET_PROTO = 1;          // 協定版本(meta.v)
-  const NET_BUILD = 47;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
+  const NET_BUILD = 48;          // 遊戲版本,必須與 version.json 的 v 同步(發版時一起改)
   const sceneMax = () => (typeof window.getSceneCount === 'function' ? window.getSceneCount() : 1) - 1;   // 場地索引上限(scenes.js)
   const HB_MS = 10000;          // 心跳間隔
   const STALE_MS = 25000;       // 心跳逾時:超過即視為離開
@@ -41,7 +41,7 @@
   const EV_SEEN = new Set(), EV_SEEN_Q = [];         // 事件去重(保留最近 512 筆,§1-7)
 
   const cryptoOk = () => !!(window.crypto && window.crypto.subtle);
-  const clean = s => String(s == null ? '' : s).trim().slice(0, 8) || '玩家';
+  const clean = s => String(s == null ? '' : s).trim().slice(0, 10) || '玩家';   // 暱稱上限 10 字(Firebase 規則 players/name ≤ 12,不用改)
   const normCode = s => String(s == null ? '' : s).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
   const linkOf = code => location.origin + location.pathname + '?room=' + code + (STUB ? '&net=stub' : '');
   const nowT = () => (bus ? bus.now() : Date.now());

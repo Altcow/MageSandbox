@@ -268,7 +268,7 @@ body.cover #hotbar,body.cover #info,body.cover #hint,body.cover #hintBtn,body.co
 .cv-av img{width:34px;height:34px;object-fit:contain}
 .cv-av-empty{font-size:22px;color:#aab3c8}
 .cv-pinfo{min-width:0}
-.cv-pname{font-size:14px;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv-pname{font-size:14px;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:visible}
 .cv-crown{width:14px;height:10px;flex:0 0 14px}
 .cv-psub{font-size:11px;color:#aab3c8;margin-top:2px}
 .cv-pick{margin-top:12px}
@@ -384,7 +384,7 @@ body.hud2{--sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px)
 #netTimer{position:fixed;left:50%;top:8px;transform:translateX(-50%);font:700 22px sans-serif;text-shadow:0 0 4px #000;pointer-events:none;z-index:14}
 #netRank{position:fixed;right:calc(env(safe-area-inset-right,0px) + 8px);top:160px;width:128px;box-sizing:border-box;background:rgba(10,12,30,.3);padding:3px 6px;border-radius:6px;color:#dfe6ff;font:11px/1.45 sans-serif;pointer-events:none;z-index:4}
 #netRank .nrR{display:flex;gap:4px;white-space:nowrap}
-#netRank .nrN{flex:1;min-width:0;overflow:hidden}
+#netRank .nrN{flex:1;min-width:0;overflow:visible;white-space:nowrap}
 #netRank .nrR span:nth-child(n+2){width:26px;text-align:right}
 #netRank .nrR:first-child{opacity:.7}
 #netRank .nrMe{color:#ffd23c;font-weight:700}
@@ -599,7 +599,7 @@ body.hud2.touch.mm #locTag{display:none}
       <section class="cv-view" id="cvV_create" aria-hidden="true">
         <div class="cv-card">
           <h2>創建房間</h2>
-          <label class="cv-field"><span>暱稱(最多 8 字)</span><input class="cv-input" id="cvCName" maxlength="8" autocomplete="off"></label>
+          <label class="cv-field"><span>暱稱(最多 10 字)</span><input class="cv-input" id="cvCName" maxlength="10" autocomplete="off"></label>
           <div class="cv-field"><span>場地</span><div class="cv-scenes" id="cvScenes"></div></div>
           <div class="cv-field"><span>人數上限</span><div class="cv-seg" id="cvMax"><button type="button" data-n="6">6 人</button><button type="button" data-n="8">8 人</button><button type="button" data-n="10">10 人</button><button type="button" data-n="12">12 人</button></div></div>
           <div class="cv-row"><span>設定密碼</span><button class="cv-switch" id="cvPwSwitch" type="button" role="switch" aria-checked="false" aria-label="設定房間密碼"><i></i></button></div>
@@ -611,7 +611,7 @@ body.hud2.touch.mm #locTag{display:none}
       <section class="cv-view" id="cvV_join" aria-hidden="true">
         <div class="cv-card">
           <h2>進入房間</h2>
-          <label class="cv-field"><span>暱稱</span><input class="cv-input" id="cvJName" maxlength="8" autocomplete="off"></label>
+          <label class="cv-field"><span>暱稱(最多 10 字)</span><input class="cv-input" id="cvJName" maxlength="10" autocomplete="off"></label>
           <label class="cv-field"><span>房號(4 碼)</span><input class="cv-input code" id="cvJCode" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD"></label>
           <div class="cv-step2" id="cvJStep2"><label class="cv-field"><span>房間密碼</span><input class="cv-input" id="cvJPw" type="password" maxlength="8" autocomplete="off"></label></div>
           <div class="cv-err" id="cvJErr" role="alert"></div>

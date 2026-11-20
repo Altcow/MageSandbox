@@ -160,7 +160,7 @@
     $('cvPwBox').classList.toggle('on', st.createPw);
   }
   function openCreate() {
-    $('cvCName').value = '玩家' + (1000 + Math.floor(Math.random() * 9000));
+    $('cvCName').value = myName();   // 上次用的名字(沒有才隨機預設)
     $('cvPw').value = ''; $('cvPw').type = 'password'; $('cvPwEye').textContent = '顯示';
     st.createPw = false; showErr($('cvCErr'), '');
     renderCreate(); setView('create'); focusSoon('cvCName');
@@ -175,7 +175,7 @@
     if (st.createPw && (chars(pw) < 4 || chars(pw) > 8)) return showErr($('cvCErr'), '密碼請輸入 4~8 個字');
     showErr($('cvCErr'), '');
     Net.createRoom({
-      name: $('cvCName').value, scene: st.createScene, maxPlayers: st.createMax,
+      name: (saveMyName($('cvCName').value), $('cvCName').value), scene: st.createScene, maxPlayers: st.createMax,
       password: st.createPw ? pw : null, cls: st.cls, el: st.el
     }).then(res => enterLobby(res)).catch(e => showErr($('cvCErr'), errText(e)));
   }
@@ -191,7 +191,7 @@
   });
   function setJoinStep2(on) { $('cvJStep2').classList.toggle('on', on); }
   function openJoin(code) {
-    joinCode.value = code || ''; $('cvJName').value = $('cvJName').value || ('玩家' + (1000 + Math.floor(Math.random() * 9000)));
+    joinCode.value = code || ''; $('cvJName').value = $('cvJName').value || myName();
     $('cvJPw').value = ''; setJoinStep2(false); showErr($('cvJErr'), '');
     setView('join'); focusSoon(code ? 'cvJName' : 'cvJCode');
   }
@@ -201,7 +201,7 @@
     const step2 = $('cvJStep2').classList.contains('on'), pw = $('cvJPw').value;
     if (step2 && !pw) return showErr($('cvJErr'), '請輸入房間密碼');
     showErr($('cvJErr'), '');
-    Net.joinRoom(code, { name: $('cvJName').value, password: step2 ? pw : null, cls: st.cls, el: st.el })
+    Net.joinRoom(code, { name: (saveMyName($('cvJName').value), $('cvJName').value), password: step2 ? pw : null, cls: st.cls, el: st.el })
       .then(res => enterLobby(res))
       .catch(e => {
         const reason = e && e.reason;
@@ -267,7 +267,7 @@
         const info = mk('div', 'cv-pinfo');
         const nm = mk('div', 'cv-pname');
         if (p.host) nm.appendChild(crownSVG());
-        nm.appendChild(document.createTextNode(p.name + (p.id === st.myId ? '(我)' : '')));
+        { const t = p.name + (p.id === st.myId ? '(我)' : ''); nm.appendChild(document.createTextNode(t)); nm.style.fontSize = nameFitPx(t, st.many ? 12 : 14, 130) + 'px'; }   // 單行縮小,不截斷
         const sub = mk('div', 'cv-psub', CLS_NAME[p.cls] + (p.cls === 'mage' ? '・' + EL_NAME[p.el] : '') + '・' + (p.ready ? '已準備' : '未準備'));
         info.appendChild(nm); info.appendChild(sub);
         slot.appendChild(av); slot.appendChild(info);

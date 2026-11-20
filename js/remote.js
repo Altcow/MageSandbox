@@ -126,11 +126,22 @@ function blobShared() {
 }
 // 名牌(設計_介面與畫風改版 §3-3):深藍圓角膠囊底 + 白字粗外框 + 職業色左側小條;color(座位色)目前不繪製,bar = 職業色字串
 // seat > 0:名牌左側加大號座位編號圓章(座位色粗體);名牌右側留空給增益圖示 / 大招徽記
+// 名稱單行排版:回傳塞得進 maxW(px)的字級(太長就縮小,不換行、不截斷)
+const _fitG = document.createElement('canvas').getContext('2d');
+function nameFitPx(text, base, maxW, bold) { _fitG.font = (bold ? 'bold ' : '') + base + 'px sans-serif'; const w = _fitG.measureText(text).width; return w > maxW ? Math.max(6, Math.floor(base * maxW / w * 10) / 10) : base; }
+// 我的暱稱(localStorage,封面與單人練習場共用;沒有才給隨機預設並記下)
+const NAME_KEY = 'mageSandbox.name';
+function myName() {
+  let n = ''; try { n = String(localStorage.getItem(NAME_KEY) || '').trim().slice(0, 10); } catch (e) { }
+  if (!n) { n = '玩家' + (1000 + Math.floor(Math.random() * 9000)); saveMyName(n); }
+  return n;
+}
+function saveMyName(n) { n = String(n || '').trim().slice(0, 10); if (!n) return; try { localStorage.setItem(NAME_KEY, n); } catch (e) { } }
 function nameTexture(text, color, suffix, bar, seat) {
   const c = document.createElement('canvas'); c.width = 512; c.height = 64;
   const g = c.getContext('2d'), s = suffix ? text + suffix : text;
   let fs = 28; g.font = 'bold ' + fs + 'px sans-serif';
-  while (fs > 16 && g.measureText(s).width > 280) { fs -= 2; g.font = 'bold ' + fs + 'px sans-serif'; }
+  while (fs > 8 && g.measureText(s).width > 280) { fs -= 1; g.font = 'bold ' + fs + 'px sans-serif'; }   // 單行:太長 / 全形字就縮小字級(最小 8)
   const tw = g.measureText(s).width, w = Math.min(372, Math.round(tw + 56)), h = 46, x0 = Math.round(256 - w / 2), y0 = 9, r = h / 2;
   g.beginPath(); g.moveTo(x0 + r, y0); g.arcTo(x0 + w, y0, x0 + w, y0 + h, r); g.arcTo(x0 + w, y0 + h, x0, y0 + h, r); g.arcTo(x0, y0 + h, x0, y0, r); g.arcTo(x0, y0, x0 + w, y0, r); g.closePath();
   g.fillStyle = 'rgba(16,24,58,.82)'; g.fill(); g.lineWidth = 2; g.strokeStyle = 'rgba(120,160,255,.55)'; g.stroke();
@@ -141,8 +152,8 @@ function nameTexture(text, color, suffix, bar, seat) {
     g.font = 'bold ' + fs + 'px sans-serif';
   }   // 職業色小條(圓端)
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
-  g.lineWidth = 6; g.strokeStyle = 'rgba(8,12,34,.95)'; g.strokeText(s, 268, 33);
-  g.fillStyle = '#fff'; g.fillText(s, 268, 33);
+  g.lineWidth = 6; g.strokeStyle = 'rgba(8,12,34,.95)'; g.strokeText(s, 268, 33, 300);
+  g.fillStyle = '#fff'; g.fillText(s, 268, 33, 300);
   return new THREE.CanvasTexture(c);
 }
 // 腳下色圈(§3-3):扁平圓環,職業色;bright = 自己用較亮較大的版本。每人一個材質(顏色 / 透明度各自調)
@@ -587,3 +598,20 @@ Net.on('players', list => { if (window.NETON) syncRemotes(list || []); });
 Net.on('closed', () => clearRemotes());
 const _netLeave = Net.leave;
 Net.leave = function () { clearRemotes(); return _netLeave.apply(this, arguments); };
+
+/* ---------- 自己頭上的名牌(沿用 nameTexture 樣式;單人不畫座位徽記;鏡頭靠近時淡出不擋視線;潛行 / 透明規則比照遠端) ---------- */
+let selfNm = null, selfNmKey = '';
+function selfNameTick() {
+  if (window.COVER_ON) { if (selfNm) selfNm.visible = false; return; }
+  const on = !!(window.NETON && Net.me), name = on ? Net.nameOf(Net.me) : myName(), seat = on ? Net.me : 0, hx = clsHex(G.cls), key = name + '|' + seat + '|' + hx;
+  if (!selfNm) { selfNm = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false })); selfNm.scale.set(3.2, .4, 1); selfNm.renderOrder = 30; scene.add(selfNm); }
+  if (key !== selfNmKey) {
+    selfNmKey = key; const old = selfNm.material.map;
+    selfNm.material.map = nameTexture(name, NAME_COLORS[((seat || 1) - 1) % NAME_COLORS.length], '', hx, seat); selfNm.material.needsUpdate = true; if (old) old.dispose();
+  }
+  const p = mage.root.position, vis = G.down <= 0 && !G.stealth && mage.opq >= .5;
+  selfNm.position.set(p.x, p.y + 2.6 * mage.root.scale.y, p.z);
+  const cd = camera.position.distanceTo(selfNm.position);
+  selfNm.material.opacity = clamp((cd - 2.5) / 2, 0, 1) * .95;
+  selfNm.visible = vis && selfNm.material.opacity > .02;
+}

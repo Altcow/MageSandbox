@@ -1,4 +1,4 @@
-const VERSION = 'v47';
+const VERSION = 'v48';
 const CACHE = 'magesandbox-' + VERSION;
 const PRECACHE = [
   './assets/fx/fxL_A.png', './assets/fx/fxL_B.png', './assets/fx/fxL_C.png', './assets/fx/fxL_D.png', './assets/fx/fxL_E.png', './assets/fx/fxL_F.png', './assets/fx/fxL_G.png', './assets/fx/fxL_H.png',

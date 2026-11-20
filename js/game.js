@@ -1333,6 +1333,7 @@ function frame(now) {
   classTick(dt); resTick(dt); updatePlayer(dt); if (window.sceneTick) sceneTick(dt); updateAim(dt); updateCasting(dt);
   mage.setSkillGlow(G.cls !== 'mage' && G.state === 'charging' ? G.p : 0, skGlowK());
   mage.update(dt, { move: G.speedN || 0, cast: G.cb, kick: G.kick, charge: G.charge, t: G.time, hover: 0, roll: G.roll ? Math.min(1, G.roll.t / G.roll.time) : -1, rollPhi: G.roll ? G.roll.phi : 0, flip: G.flip, sit: G.sitK, down: G.downK, air: !G.ground, fall: G.fallT > 0 || G.down > 0, fallLeft: G.fallT > 0 ? G.fallT : (G.down > 0 ? G.down : 0), stCode: stCode() });
+  if (window.selfNameTick) selfNameTick();   // 自己頭上名牌(remote.js)
   if (window.footRingTick) footRingTick();   // 腳下色圈(remote.js)
   updateOrb(dt); updateCamera(dt); updateWorld(dt); updateFx(dt); updateLights(dt);
   if (window.NETON) netTick(dt);   // 多人:送出快照、開戰倒數(remote.js);單人不執行

@@ -320,7 +320,7 @@ function netKillAdd(txt, col) {
   if (!netKillBox) netKillBox = netUiBox('netKill', '');   // 位置與外觀由 index.html 的 #netKill 規則決定(hud2)
   const d = document.createElement('div');
   d.textContent = txt;
-  d.style.cssText = 'padding:3px 10px;border-radius:6px;background:rgba(10,12,30,.6);color:' + col + ';font:600 15px sans-serif;text-shadow:0 0 4px #000;white-space:nowrap';
+  d.style.cssText = 'padding:3px 10px;border-radius:6px;background:rgba(10,12,30,.6);color:' + col + ';font:600 ' + nameFitPx(txt, 15, Math.min(340, innerWidth * .8), true) + 'px sans-serif;text-shadow:0 0 4px #000;white-space:nowrap';
   netKillBox.appendChild(d);
   while (netKillBox.children.length > 4) netKillBox.firstChild.remove();
   setTimeout(() => d.remove(), 5000);
@@ -353,11 +353,11 @@ function netBoardTick(now) {
   const add = (a, k, d, me) => {
     const row = document.createElement('div');
     row.className = me ? 'nrR nrMe' : 'nrR';
-    [a, k, d].forEach((t, i) => { const s = document.createElement('span'); s.textContent = t; if (i === 0) s.className = 'nrN'; row.appendChild(s); });
+    [a, k, d].forEach((t, i) => { const s = document.createElement('span'); s.textContent = t; if (i === 0) { s.className = 'nrN'; s.style.fontSize = nameFitPx(String(t), 11, 56) + 'px'; } row.appendChild(s); });   // 名稱單行:太長縮小字級,不截斷
     netBoard.appendChild(row);
   };
   add('姓名', '擊殺', '死亡', false);
-  show.forEach((r, i) => add((i === 6 ? rank + '.' : '') + (function (n) { n = String(n || ""); return n.length > 6 ? n.slice(0, 6) + "…" : n; })(r.name), r.k, r.d, r.seat === Net.me));
+  show.forEach((r, i) => add((i === 6 ? rank + '.' : '') + String(r.name || ''), r.k, r.d, r.seat === Net.me));
 }
 
 Net.on('ev', netOnEv);
@@ -388,7 +388,7 @@ function netBuildResult() {
   add(Net.me, Net.nameOf(Net.me), G.cls);
   Object.keys(REMOTES).forEach(k => add(+k, REMOTES[k].name, REMOTES[k].cls));
   rows.sort((a, b) => (b.k - a.k) || (a.d - b.d) || (a.at - b.at) || (a.seat - b.seat));
-  let list = rows.map(r => [r.seat, String(r.name).slice(0, 8), r.cls, r.k, r.d]);
+  let list = rows.map(r => [r.seat, String(r.name).slice(0, 10), r.cls, r.k, r.d]);
   let json = JSON.stringify(list);
   while (json.length > 600 && list.length) { list = list.slice(0, -1); json = JSON.stringify(list); }
   return json;
@@ -434,7 +434,7 @@ function netResult(mode) {
 function netCell(t, head, me) {
   const s = document.createElement('span');
   s.textContent = t;
-  s.style.cssText = 'padding:2px 8px;white-space:nowrap' + (head ? ';color:#9aa3c7' : '') + (me ? ';color:#fff;font-weight:700;background:rgba(255,255,255,.1);border-radius:4px' : '');
+  s.style.cssText = 'padding:2px 8px;white-space:nowrap;font-size:' + (head ? 15 : nameFitPx(t, 15, 190)) + 'px' + (head ? ';color:#9aa3c7' : '') + (me ? ';color:#fff;font-weight:700;background:rgba(255,255,255,.1);border-radius:4px' : '');
   return s;
 }
 function netBtn(text, fn, primary) {
